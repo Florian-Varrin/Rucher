@@ -1,0 +1,254 @@
+# Rucher Carnet — Spec
+
+Library, SQLite database, MCP server and CLI that hold agent statuses, sessions and the journal, in place of the files Claude used to rewrite by hand. First brick of [Rucher](manifesto.md): same data model, reused later by Core and the TUI.
+
+This spec also covers the `rucher` CLI, which is the human-facing view of Carnet.
+
+## Goal
+
+Today the main agent rewrites `agents-status.md` and `log.md` itself, following long rules in `CLAUDE.md`. Carnet replaces those writes with tool calls.
+
+- Fewer tokens: one short call instead of a file rewritten at every event.
+- Format guaranteed by code: emojis, order, line length, legend.
+- One writer (the server): forks can update their own status without conflicts.
+- No more status files: the `rucher` CLI renders views from the database and replaces the `watch glow` pane.
+
+## Scope
+
+| Included                                | Excluded (Rucher, later)                     |
+| --------------------------------------- | -------------------------------------------- |
+| Agent statuses and "On the table"       | Launching agents (still done by Claude Code) |
+| Registry of named sessions              | TUI                                          |
+| Event journal                           | Messaging between agents                     |
+| Display CLI (status, log, sessions)     | Multiple backends                            |
+| Groups (one meta directory = one group) |                                              |
+
+## Groups
+
+A group is a meta directory holding related repos (for example `~/Work/MyCity/` with `api/`, `web/`, `infra/`). Claude sessions are started from the meta directory or from any repo inside it.
+
+- Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repos).
+- Created by `rucher init`, which also registers the group in `~/.rucher/groups.json` so the CLI can list groups from anywhere.
+- Resolution: walk up from the current directory (or from the MCP roots) until a `.rucher/` folder is found. Starting `claude` inside `MyCity/api/` attaches the session to MyCity and records the repo on the session.
+- Group instructions and repo access stay native to Claude Code: the meta directory's `CLAUDE.md` loads as an ancestor file, and `permissions.additionalDirectories` in its `.claude/settings.json` grants access to the repos. `rucher init` scaffolds both as templates. Carnet stores no instruction text.
+
+## Data model
+
+One SQLite database per group, at `<meta>/.rucher/carnet.db`, WAL mode.
+
+```sql
+sessions (
+  id TEXT PRIMARY KEY,        -- Claude Code session id
+  name TEXT UNIQUE,           -- set by session_new, equals the Claude session title
+  purpose TEXT,
+  status TEXT,                -- temporary | active | paused | dropped
+  cwd TEXT, repo TEXT,
+  created_at, last_active_at
+)
+
+agents (
+  session TEXT REFERENCES sessions(id),
+  name TEXT,
+  task TEXT,
+  status TEXT,                -- see Statuses
+  note TEXT,                  -- displayed text, under 60 characters
+  report_path TEXT, base_commit TEXT, worktree TEXT,
+  queue_order INTEGER,        -- order in "Waiting on you"
+  started_at, updated_at,
+  PRIMARY KEY (session, name)
+)
+
+table_items (
+  session TEXT PRIMARY KEY REFERENCES sessions(id),
+  text TEXT, main_working INTEGER, updated_at
+)
+
+events (
+  id INTEGER PRIMARY KEY, session TEXT, at,
+  type TEXT,                  -- started | finished | answered | applied | tested | committed | dropped
+  agent TEXT, commit_sha TEXT, link TEXT, note TEXT
+)
+```
+
+## Sessions and the Claude session id
+
+The MCP server process never receives the Claude session id; only hooks do. A `SessionStart` hook is therefore part of the install.
+
+- The hook runs `rucher hook session-start`, which reads the hook JSON on stdin (`session_id`, `cwd`, `source`, `session_title`) and upserts the session row. It also leaves a pairing record so the MCP server started for the same `claude` process can resolve its own session. The pairing mechanism (parent process id or equivalent) is settled by a spike before implementation.
+- Every tool accepts an optional `session` argument as an override; by default the server uses its resolved session.
+- A Carnet session name is the Claude Code session title. `session_new` records the name and purpose; the hook syncs the title on the next start. Resuming by name goes through Claude Code itself: `rucher resume <name>` runs `claude --resume <name>`, and the hook injects the journal summary when `source` is `resume`.
+- Unnamed sessions are recorded with status `temporary`, hidden from `rucher sessions` by default, and purged automatically after a few idle days when they hold no agents and no events. `session_new` promotes a temporary session to `active`.
+
+## MCP tools
+
+All tools take `session` as an optional override.
+
+**Agents**
+
+| Tool            | Parameters                          | Effect                                                   |
+| --------------- | ----------------------------------- | -------------------------------------------------------- |
+| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`          |
+| `agent_update`  | name, status, note?                 | changes the status and the displayed text                |
+| `agent_done`    | name, report_path, has_questions    | moves to ❓ answer or 👀 review, logs `finished`         |
+| `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                            |
+| `agent_list`    | —                                   | structured list, so the main agent knows where it stands |
+| `queue_reorder` | names[]                             | order of "Waiting on you"                                |
+
+**On the table**
+
+| Tool          | Parameters         | Effect                                        |
+| ------------- | ------------------ | --------------------------------------------- |
+| `table_set`   | text, main_working | the "On the table" line, ⚙️ when main_working |
+| `table_clear` | —                  | empties the section                           |
+
+**Sessions**
+
+| Tool                  | Parameters    | Effect                                                |
+| --------------------- | ------------- | ----------------------------------------------------- |
+| `session_new`         | name, purpose | names the current session and promotes it to `active` |
+| `session_list`        | —             | active and paused sessions, last activity             |
+| `session_resume_info` | name          | Claude id and journal summary to resume               |
+| `session_drop`        | name          | status `dropped`, agents closed                       |
+
+**Journal**
+
+| Tool        | Parameters                          | Effect                             |
+| ----------- | ----------------------------------- | ---------------------------------- |
+| `log_event` | type, agent?, commit?, link?, note? | appends a line to the journal      |
+| `log_read`  | limit?                              | latest entries, to rebuild context |
+
+Tools only write to the database; display is the CLI's job.
+
+## Statuses
+
+| Status       | Emoji | Who acts                                                |
+| ------------ | ----- | ------------------------------------------------------- |
+| running      | ⏳    | fork in the background                                  |
+| discussing   | 💬    | user                                                    |
+| answer       | ❓    | user                                                    |
+| review       | 👀    | user                                                    |
+| apply        | 📥    | user                                                    |
+| test         | 🧪    | user                                                    |
+| commit       | ✅    | user                                                    |
+| branch       | 🌿    | user                                                    |
+| closed       | —     | terminal, hidden from `rucher status`, kept for history |
+| main_working | ⚙️    | main (only on the "On the table" line)                  |
+
+Rules enforced by the server:
+
+- User-action emojis are refused for the main agent's own work.
+- A note longer than 60 characters is truncated; paths and backticks are stripped.
+- Order of "Waiting on you": answer first, then review in plan order, then the rest; `queue_reorder` can override it.
+- Agents are never deleted: `agent_drop` closes them, and events keep the history.
+
+## CLI
+
+No generated markdown files: the `rucher` CLI reads the SQLite database and renders the views.
+
+| Command                            | Does                                                                                                                               |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `rucher init [--name X]`           | creates `.rucher/` in the current meta directory, registers the group, scaffolds `CLAUDE.md` and `.claude/settings.json` templates |
+| `rucher status [--session X]`      | agent status (format below)                                                                                                        |
+| `rucher status --watch`            | same, refreshed continuously, for the dedicated pane                                                                               |
+| `rucher log [--session X] [-n 20]` | latest journal events                                                                                                              |
+| `rucher log --md [--session X]`    | journal as markdown, one line per event with commit and report link, for archiving in a repo                                       |
+| `rucher sessions`                  | active and paused sessions, last activity                                                                                          |
+| `rucher resume <name>`             | runs `claude --resume <name>` for that session                                                                                     |
+| `rucher hook session-start`        | hook entry point, reads the hook JSON on stdin                                                                                     |
+| `rucher serve`                     | the stdio MCP server                                                                                                               |
+
+Default session: the most recently active one of the current group.
+
+`rucher status` format:
+
+```
+16:41
+
+On the table
+  ⚙️ Step 11 Preview/Run — applying (main working, not ready)
+
+Waiting on you
+  1. 👀 setParent fix (develop) — review, name branch
+
+Running
+  ⏳ Step 13 — bricks moved to sidebar
+
+⚙️ main working · 💬 discussing · ❓ answer · 👀 review · 📥 apply · 🧪 test · ✅ commit · 🌿 branch · ⏳ running
+```
+
+`--watch` is a plain redraw loop polling the database every second. Ink arrives with the TUI, not before.
+
+Advantages over generated files:
+
+- No external `glow` or `watch`, no partial-write glitches.
+- Colors and width adapted to the terminal by the CLI itself.
+- One source of truth: the database.
+- The CLI and the MCP server share the same data access code.
+
+## Storage and concurrency
+
+- Stdio server: each `claude` session starts its own process. SQLite in WAL mode handles concurrent access.
+- Group determined by the launch directory: the database is looked up by walking up to `.rucher/`.
+- Fork reports stay markdown files written by the forks; the database only stores their path.
+
+## Integration
+
+- Shipped as a Claude Code plugin from day one: MCP server, `SessionStart` hook and, later, the `rucher` skill in one install (`claude plugin marketplace add <path>` then `claude plugin install rucher@...`).
+- The `rucher` CLI is linked globally so it is available in the terminal pane.
+- The multi-agent block of the user's global `CLAUDE.md` shrinks to behavior rules; all format and status-file rules disappear, replaced by "use the rucher tools".
+
+### Usage rules
+
+Decision: forks call `agent_update` and `agent_done` themselves (they inherit the MCP tools); the main agent keeps `agent_start`, `table_set`, `queue_reorder` and the session tools.
+
+Usage rules live at three levels:
+
+| Where                   | Content                                                                                          | Why                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| MCP server instructions | who calls what, when to update (before and after each piece of work), never a status in the chat | injected everywhere the server is connected, forks included; cut at 4,096 characters by Claude Code |
+| Tool descriptions       | when to call each tool, allowed status values                                                    | read by the model at every call                                                                     |
+| `rucher` skill          | full workflow: two-phase forks, applying a fork, worktrees, reports                              | loaded on demand, invocable with `/rucher`                                                          |
+
+The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and the rucher skill".
+
+## Stack
+
+- pnpm monorepo, Vite+ toolchain (`vp check`, `vp test`, `vp pack`, `vp run`).
+- TypeScript, Node 24 baseline, `node:sqlite` (no native dependencies).
+- MCP TypeScript SDK v2 (`@modelcontextprotocol/server`), Zod 4, server `instructions`.
+- CLI parser: citty.
+- Tests: Vitest, temp database per test for the data layer and tool handlers, snapshot tests of the `rucher status` text.
+
+## Roadmap
+
+**Milestone 1**
+
+- [ ] SQLite schema and data layer
+- [ ] `rucher init` and group resolution
+- [ ] `SessionStart` hook writing session rows, server session resolution
+- [ ] Agent and table tools, `log_event`
+- [ ] `rucher status` (with `--watch`), `rucher log`
+- [ ] Plugin install; dogfooding on real groups
+
+**Milestone 2**
+
+- [ ] `session_new`, `session_list`, `session_drop`, `rucher sessions`, `rucher resume`
+- [ ] `session_resume_info` and `log_read` with journal injection on resume
+- [ ] `queue_reorder`
+- [ ] `rucher log --md`
+- [ ] Temporary session purge
+
+**Milestone 3**
+
+- [ ] `rucher` skill in the plugin
+- [ ] `SubagentStop` hook as a safety net for agents left `running`
+- [ ] Open source polish: CI, publishing
+- [ ] Interactive TUI view, reuse by Rucher Core as internal tools
+
+## Open questions
+
+- [ ] Pairing mechanism between the hook and the MCP server process (parent pid or other): spike.
+- [ ] Do hooks fired inside a fork carry the parent session id?
+- [ ] A single HTTP server (daemon) instead of one stdio process per session?
+- [ ] Purge delay for temporary sessions.
+- [ ] How to attach a session to the right group when `claude` is started outside any meta directory.
