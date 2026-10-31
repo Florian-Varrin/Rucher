@@ -74,7 +74,9 @@ events (
 
 The MCP server process never receives the Claude session id; only hooks do. A `SessionStart` hook is therefore part of the install.
 
-- The hook runs `rucher hook session-start`, which reads the hook JSON on stdin (`session_id`, `cwd`, `source`, `session_title`) and upserts the session row. It also leaves a pairing record so the MCP server started for the same `claude` process can resolve its own session. The pairing mechanism (parent process id or equivalent) is settled by a spike before implementation.
+- The hook runs `rucher hook session-start`, which reads the hook JSON on stdin (`session_id`, `cwd`, `source`, `session_title`) and upserts the session row, recording the `claude` process id it receives as `CLAUDE_PID`.
+- The MCP server resolves its own session from the `CLAUDE_CODE_SESSION_ID` environment variable, which Claude Code sets on MCP server processes (observed on 2.1.316, undocumented). Fallback: its parent process id matches the `CLAUDE_PID` recorded by the hook. Last resort: the `session` tool argument.
+- One MCP server process serves the main agent and all its sub-agents, so tools never assume a single caller.
 - Every tool accepts an optional `session` argument as an override; by default the server uses its resolved session.
 - A Carnet session name is the Claude Code session title. `session_new` records the name and purpose; the hook syncs the title on the next start. Resuming by name goes through Claude Code itself: `rucher resume <name>` runs `claude --resume <name>`, and the hook injects the journal summary when `source` is `resume`.
 - Unnamed sessions are recorded with status `temporary`, hidden from `rucher sessions` by default, and purged automatically after a few idle days when they hold no agents and no events. `session_new` promotes a temporary session to `active`.
@@ -247,8 +249,9 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 
 ## Open questions
 
-- [ ] Pairing mechanism between the hook and the MCP server process (parent pid or other): spike.
-- [ ] Do hooks fired inside a fork carry the parent session id?
+- [x] Session resolution in the MCP server: `CLAUDE_CODE_SESSION_ID` env var, parent pid fallback (spike, 2026-10-31).
+- [x] Hooks fired inside a sub-agent (fork or not) carry the parent `session_id` plus `agent_id` and `agent_type` (spike, 2026-10-31).
+- [ ] Confirm `CLAUDE_CODE_SESSION_ID` is also set for interactive sessions and user-scope servers (expected; dogfooding).
 - [ ] A single HTTP server (daemon) instead of one stdio process per session?
 - [ ] Purge delay for temporary sessions.
 - [ ] How to attach a session to the right group when `claude` is started outside any meta directory.
