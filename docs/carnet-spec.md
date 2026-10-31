@@ -28,7 +28,7 @@ Today the main agent rewrites `agents-status.md` and `log.md` itself, following 
 A group is a meta directory holding related repos (for example `~/Work/MyCity/` with `api/`, `web/`, `infra/`). Claude sessions are started from the meta directory or from any repo inside it.
 
 - Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repos).
-- Created by `rucher init`, which also registers the group in `~/.rucher/groups.json` so the CLI can list groups from anywhere.
+- Created by `rucher init`, which detects the repos (child directories holding a `.git`), writes `group.json`, and registers the group in `~/.rucher/groups.json` so the CLI can list groups from anywhere.
 - Resolution: walk up from the current directory (or from the MCP roots) until a `.rucher/` folder is found. Starting `claude` inside `MyCity/api/` attaches the session to MyCity and records the repo on the session.
 - Group instructions and repo access stay native to Claude Code: the meta directory's `CLAUDE.md` loads as an ancestor file, and `permissions.additionalDirectories` in its `.claude/settings.json` grants access to the repos. `rucher init` scaffolds both as templates. Carnet stores no instruction text.
 
@@ -43,6 +43,7 @@ sessions (
   purpose TEXT,
   status TEXT,                -- temporary | active | paused | dropped
   cwd TEXT, repo TEXT,
+  claude_pid INTEGER,         -- from the hook, parent-pid fallback for the server
   created_at, last_active_at
 )
 
@@ -60,7 +61,9 @@ agents (
 
 table_items (
   session TEXT PRIMARY KEY REFERENCES sessions(id),
-  text TEXT, main_working INTEGER, updated_at
+  text TEXT,
+  status TEXT,                -- user-action status of the line when main is not working
+  main_working INTEGER, updated_at
 )
 
 events (
@@ -98,10 +101,10 @@ All tools take `session` as an optional override.
 
 **On the table**
 
-| Tool          | Parameters         | Effect                                        |
-| ------------- | ------------------ | --------------------------------------------- |
-| `table_set`   | text, main_working | the "On the table" line, ⚙️ when main_working |
-| `table_clear` | —                  | empties the section                           |
+| Tool          | Parameters                  | Effect                                                                                                                                 |
+| ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `table_set`   | text, main_working, status? | the "On the table" line, ⚙️ when main_working, else the emoji of `status` (default 💬); `status` is refused together with main_working |
+| `table_clear` | —                           | empties the section                                                                                                                    |
 
 **Sessions**
 
@@ -139,7 +142,7 @@ Tools only write to the database; display is the CLI's job.
 Rules enforced by the server:
 
 - User-action emojis are refused for the main agent's own work.
-- A note longer than 60 characters is truncated; paths and backticks are stripped.
+- A note longer than 60 characters is truncated; paths and backticks are stripped. Applied to agent names, notes and the table text.
 - Order of "Waiting on you": answer first, then review in plan order, then the rest; `queue_reorder` can override it.
 - Agents are never deleted: `agent_drop` closes them, and events keep the history.
 
