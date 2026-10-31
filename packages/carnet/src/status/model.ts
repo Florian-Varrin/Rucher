@@ -47,3 +47,5 @@ export function isAgentStatus(value: unknown): value is AgentStatus {
 export function isUserActionStatus(value: unknown): value is UserActionStatus {
   return typeof value === "string" && (USER_ACTION_STATUSES as readonly string[]).includes(value);
 }
+
+export const OPEN_AGENT_STATUSES = ["running", ...USER_ACTION_STATUSES] as const;

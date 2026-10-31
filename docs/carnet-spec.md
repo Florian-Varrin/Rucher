@@ -86,7 +86,9 @@ The MCP server process never receives the Claude session id; only hooks do. A `S
 
 ## MCP tools
 
-All tools take `session` as an optional override.
+All tools take `session` as an optional override. Each returns one short text line for the model (and the entity as structured content). Carnet rule violations (unknown agent, duplicate name, bad status) come back as tool errors with a code, so the model can correct itself. Without a resolvable session the server answers `NO_SESSION`.
+
+When the server is shipped through a plugin, Claude Code names the tools `mcp__plugin_<plugin>_<server>__<tool>` (for example `mcp__plugin_rucher_carnet__agent_start`).
 
 **Agents**
 
@@ -228,10 +230,10 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 
 **Milestone 1**
 
-- [ ] SQLite schema and data layer
-- [ ] `rucher init` and group resolution
+- [x] SQLite schema and data layer
+- [x] Group resolution (`rucher init` logic in the library)
 - [ ] `SessionStart` hook writing session rows, server session resolution
-- [ ] Agent and table tools, `log_event`
+- [x] Agent and table tools, `queue_reorder`, `log_event` (MCP server in `@rucher/carnet/mcp`)
 - [ ] `rucher status` (with `--watch`), `rucher log`
 - [ ] Plugin install; dogfooding on real groups
 
@@ -239,7 +241,6 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 
 - [ ] `session_new`, `session_list`, `session_drop`, `rucher sessions`, `rucher resume`
 - [ ] `session_resume_info` and `log_read` with journal injection on resume
-- [ ] `queue_reorder`
 - [ ] `rucher log --md`
 - [ ] Temporary session purge
 
