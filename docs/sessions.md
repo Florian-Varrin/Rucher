@@ -38,14 +38,15 @@ cd ~/groups/shop && rucher status --watch
 
 ## Name it
 
-Unnamed sessions stay `temporary`. Name the ones you want to come back to: ask Claude to name the session (it calls `session_new` with a name and a one-line purpose), then run `/rename` in Claude Code with the same name so both sides match.
+Unnamed sessions stay `temporary`. Name the ones you want to come back to with `/rename` in Claude Code:
 
 ```text
-> name this session shop-auth, purpose: login flow
 /rename shop-auth
 ```
 
-`session_new` can also rename a session that already has a name; it only refuses a name another session of the group already uses. Starting Claude with a title (`claude -n shop-auth`) names the Carnet session too, as long as it has no name yet.
+The Carnet session takes the name with your next message, and becomes `active`. Starting Claude with a title (`claude -n shop-auth`) names it from the start. A later `/rename` renames it again; a name another session of the group already uses is ignored, and the session keeps its current name.
+
+You can also ask Claude to name the session (it calls `session_new` with a name and a one-line purpose). It then asks you to run `/rename` with the same name, so Claude Code's own title matches.
 
 ## See what is going on
 

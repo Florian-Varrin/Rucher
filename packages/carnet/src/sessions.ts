@@ -94,6 +94,25 @@ export function ensureSession(ctx: Ctx, id: string, cwd?: string, group?: Group)
   return requireSession(ctx, id);
 }
 
+function titleAvailable(ctx: Ctx, id: string, title: string): boolean {
+  const owner = sessionByName(ctx, title);
+  return !owner || owner.id === id;
+}
+
+export function adoptTitle(ctx: Ctx, id: string, rawTitle: string | undefined): Session {
+  const session = requireSession(ctx, id);
+  const title = rawTitle?.trim() || null;
+  if (title === null || title === session.name || !titleAvailable(ctx, id, title)) return session;
+  ctx.db
+    .prepare(
+      `UPDATE sessions
+       SET name = ?, status = CASE WHEN status = 'temporary' THEN 'active' ELSE status END
+       WHERE id = ?`,
+    )
+    .run(title, id);
+  return requireSession(ctx, id);
+}
+
 export function upsertFromHook(
   ctx: Ctx,
   group: Group,
@@ -103,33 +122,19 @@ export function upsertFromHook(
   const at = nowIso(ctx);
   const claudePid = parseProcessId(env.CLAUDE_PID);
   const repo = repoNameFor(group, payload.cwd);
-  const title = payload.session_title?.trim() || null;
   const existing = getSession(ctx, payload.session_id);
   if (!existing) {
     ctx.db
       .prepare(
-        `INSERT INTO sessions (id, name, status, cwd, repo, claude_pid, hooked_at, created_at, last_active_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sessions (id, status, cwd, repo, claude_pid, hooked_at, created_at, last_active_at)
+         VALUES (?, 'temporary', ?, ?, ?, ?, ?, ?)`,
       )
-      .run(
-        payload.session_id,
-        title,
-        title ? 'active' : 'temporary',
-        payload.cwd ?? null,
-        repo,
-        claudePid,
-        at,
-        at,
-        at,
-      );
+      .run(payload.session_id, payload.cwd ?? null, repo, claudePid, at, at, at);
   } else {
-    const adoptTitle = title !== null && existing.name === null;
     ctx.db
       .prepare(
         `UPDATE sessions
-         SET last_active_at = ?, hooked_at = ?, cwd = ?, repo = ?, claude_pid = ?,
-             name = CASE WHEN ? THEN ? ELSE name END,
-             status = CASE WHEN ? AND status = 'temporary' THEN 'active' ELSE status END
+         SET last_active_at = ?, hooked_at = ?, cwd = ?, repo = ?, claude_pid = ?
          WHERE id = ?`,
       )
       .run(
@@ -138,13 +143,10 @@ export function upsertFromHook(
         payload.cwd ?? existing.cwd,
         repo ?? existing.repo,
         claudePid ?? existing.claudePid,
-        adoptTitle ? 1 : 0,
-        title,
-        adoptTitle ? 1 : 0,
         payload.session_id,
       );
   }
-  return requireSession(ctx, payload.session_id);
+  return adoptTitle(ctx, payload.session_id, payload.session_title);
 }
 
 export function touchSession(ctx: Ctx, id: string): void {

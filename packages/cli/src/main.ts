@@ -2,7 +2,7 @@ import { CarnetError, openCarnet } from '@rucher/carnet';
 import { defineCommand } from 'citty';
 import { groupAdd, groupRemove, groupShow, groupSync } from './commands/group.ts';
 import { groupsForget, groupsList, groupsPrune } from './commands/groups.ts';
-import { sessionStart, subagentStart, subagentStop } from './commands/hook.ts';
+import { sessionStart, subagentStart, subagentStop, userPromptSubmit } from './commands/hook.ts';
 import { init } from './commands/init.ts';
 import { logOnce } from './commands/log.ts';
 import { resumeTarget, runTarget } from './commands/resume.ts';
@@ -295,6 +295,15 @@ const hookCommand = defineCommand({
       meta: { name: 'session-start', description: 'SessionStart hook: records the session' },
       async run() {
         process.exitCode = sessionStart(await readStdin(), processIo());
+      },
+    }),
+    'user-prompt-submit': defineCommand({
+      meta: {
+        name: 'user-prompt-submit',
+        description: 'UserPromptSubmit hook: names the session after a /rename',
+      },
+      async run() {
+        process.exitCode = userPromptSubmit(await readStdin(), processIo());
       },
     }),
     'subagent-start': defineCommand({

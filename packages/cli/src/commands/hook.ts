@@ -1,8 +1,10 @@
 import {
   CarnetError,
   handleSessionStart,
+  handleUserPromptSubmit,
   openCarnet,
   parseHookPayload,
+  parsePromptPayload,
   parseSubagentPayload,
 } from '@rucher/carnet';
 import type { Io } from '../io.ts';
@@ -53,4 +55,20 @@ export function subagentStart(stdinText: string, io: Io): number {
 
 export function subagentStop(stdinText: string, io: Io): number {
   return subagentHook('stopSubagent', stdinText, io);
+}
+
+export function userPromptSubmit(stdinText: string, io: Io): number {
+  try {
+    const payload = parsePromptPayload(stdinText);
+    const carnet = openCarnet({ cwd: payload.cwd ?? io.cwd, env: io.env });
+    try {
+      handleUserPromptSubmit(carnet, payload);
+    } finally {
+      carnet.close();
+    }
+  } catch (error) {
+    if (error instanceof CarnetError && error.code === 'NO_GROUP') return 0;
+    io.stderr(`rucher hook: ${error instanceof Error ? error.message : String(error)}\n`);
+  }
+  return 0;
 }

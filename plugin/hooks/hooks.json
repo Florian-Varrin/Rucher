@@ -32,6 +32,17 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rucher hook user-prompt-submit",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

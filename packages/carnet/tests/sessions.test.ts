@@ -1,7 +1,15 @@
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
-import { CarnetError, handleSessionStart, parseHookPayload } from '../src/index.ts';
-import { makeCarnet, SESSION } from './helpers.ts';
+import { writeFileSync } from 'node:fs';
+import {
+  CarnetError,
+  handleSessionStart,
+  handleUserPromptSubmit,
+  parseHookPayload,
+  parsePromptPayload,
+  transcriptTitle,
+} from '../src/index.ts';
+import { makeCarnet, SESSION, tempDirectory } from './helpers.ts';
 
 test('hook upsert creates a temporary session and records repo and pid', () => {
   const { carnet, root } = makeCarnet();
@@ -21,7 +29,7 @@ test('hook upsert creates a temporary session and records repo and pid', () => {
   expect(carnet.sessions.list({ includeTemporary: true })).toHaveLength(1);
 });
 
-test('repeat hook updates activity and adopts a title once', () => {
+test('repeat hook updates activity and follows a changed title', () => {
   const { carnet, root } = makeCarnet();
   const first = carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root });
   const second = carnet.sessions.upsertFromHook({
@@ -37,7 +45,7 @@ test('repeat hook updates activity and adopts a title once', () => {
     cwd: root,
     session_title: 'other',
   });
-  expect(third.name).toBe('banner');
+  expect(third.name).toBe('other');
 });
 
 test('a titled first start is active immediately', () => {
@@ -151,4 +159,52 @@ test('find refuses ambiguous, too short and unknown references', () => {
   expect(codeOf('9cd')).toContain('at least 4 characters');
   expect(codeOf('ffff')).toBe('SESSION_NOT_FOUND: Unknown session "ffff"');
   expect(codeOf('shop-typo')).toBe('SESSION_NOT_FOUND: Unknown session "shop-typo"');
+});
+
+test('a title taken by another session is not adopted', () => {
+  const { carnet, root } = makeCarnet();
+  carnet.sessions.upsertFromHook({ session_id: 'other', cwd: root, session_title: 'shop-auth' });
+  const session = carnet.sessions.upsertFromHook({
+    session_id: SESSION,
+    cwd: root,
+    session_title: 'shop-auth',
+  });
+  expect(session).toMatchObject({ name: null, status: 'temporary' });
+  expect(carnet.sessions.byName('shop-auth')?.id).toBe('other');
+});
+
+test('the prompt hook names the session from the payload title', () => {
+  const { carnet, root } = makeCarnet();
+  carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root });
+  const payload = parsePromptPayload(
+    JSON.stringify({ session_id: SESSION, cwd: root, session_title: 'shop-auth', prompt: 'hi' }),
+  );
+  expect(handleUserPromptSubmit(carnet, payload)).toMatchObject({
+    name: 'shop-auth',
+    status: 'active',
+  });
+  const unchanged = handleUserPromptSubmit(carnet, payload);
+  expect(unchanged.name).toBe('shop-auth');
+});
+
+test('without a payload title the prompt hook reads the last transcript title', () => {
+  const { carnet, root } = makeCarnet();
+  const transcript = join(tempDirectory('transcript-'), 'session.jsonl');
+  const line = (title: string) =>
+    JSON.stringify({ type: 'custom-title', customTitle: title, sessionId: SESSION });
+  writeFileSync(transcript, `${line('shop-old')}\n{"type":"user"}\n${line('shop-cart')}\n`);
+  expect(transcriptTitle(transcript)).toBe('shop-cart');
+  expect(transcriptTitle(join(root, 'missing.jsonl'))).toBeUndefined();
+  const session = handleUserPromptSubmit(carnet, {
+    session_id: SESSION,
+    cwd: root,
+    transcript_path: transcript,
+  });
+  expect(session).toMatchObject({ name: 'shop-cart', status: 'active' });
+});
+
+test('the prompt hook leaves a session without any title untouched', () => {
+  const { carnet, root } = makeCarnet();
+  const session = handleUserPromptSubmit(carnet, { session_id: SESSION, cwd: root });
+  expect(session).toMatchObject({ name: null, status: 'temporary' });
 });

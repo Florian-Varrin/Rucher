@@ -55,6 +55,12 @@ export {
   sessionLabel,
 } from './resume.ts';
 export { type HookSubagentPayload, parseSubagentPayload } from './hook/subagent.ts';
+export {
+  handleUserPromptSubmit,
+  type HookPromptPayload,
+  parsePromptPayload,
+  transcriptTitle,
+} from './hook/user-prompt-submit.ts';
 export { PAIRING_WINDOW_MILLISECONDS, STOPPED_NOTE } from './subagents.ts';
 export type {
   HookEnv,

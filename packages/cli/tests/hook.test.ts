@@ -2,7 +2,12 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { initGroup, openCarnet } from '@rucher/carnet';
 import { expect, test } from 'vite-plus/test';
-import { sessionStart, subagentStart, subagentStop } from '../src/commands/hook.ts';
+import {
+  sessionStart,
+  subagentStart,
+  subagentStop,
+  userPromptSubmit,
+} from '../src/commands/hook.ts';
 import { makeIo, SESSION, tempDirectory } from './helpers.ts';
 
 function group() {
@@ -104,4 +109,22 @@ test('subagent hooks never fail, even without agent_id or group', () => {
   const io2 = makeIo();
   expect(subagentStart(JSON.stringify({ session_id: SESSION }), io2)).toBe(0);
   expect(io2.errors.join('')).toContain('agent_id');
+});
+
+test('the prompt hook names the session after a /rename and never fails', () => {
+  const { root, env } = group();
+  const io = makeIo({ env });
+  sessionStart(JSON.stringify({ session_id: SESSION, cwd: root, source: 'startup' }), io);
+  const prompt = JSON.stringify({ session_id: SESSION, cwd: root, session_title: 'shop-auth' });
+  expect(userPromptSubmit(prompt, io)).toBe(0);
+  expect(io.output).toEqual([]);
+  const carnet = openCarnet({ cwd: root, env });
+  expect(carnet.sessions.get(SESSION)).toMatchObject({ name: 'shop-auth', status: 'active' });
+  carnet.close();
+  const outside = makeIo({ env: { RUCHER_HOME: tempDirectory('home-') } });
+  expect(
+    userPromptSubmit(JSON.stringify({ session_id: SESSION, cwd: tempDirectory() }), outside),
+  ).toBe(0);
+  expect(outside.errors).toEqual([]);
+  expect(userPromptSubmit('{}', makeIo())).toBe(0);
 });
