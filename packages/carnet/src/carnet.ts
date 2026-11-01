@@ -33,7 +33,7 @@ import {
   touchSession,
   upsertFromHook,
 } from "./sessions.ts";
-import { renderStatus } from "./status/render.ts";
+import { renderSections, renderStatus } from "./status/render.ts";
 import { buildStatusView } from "./status/view.ts";
 import { pairSubagent, stopSubagent } from "./subagents.ts";
 import { clearTable, getTable, setTable, type SetTableInput } from "./table.ts";
@@ -101,6 +101,7 @@ export class Carnet {
   readonly status = {
     view: (session: Session) => buildStatusView(this.ctx, session),
     render: (session: Session) => renderStatus(buildStatusView(this.ctx, session)),
+    sections: (session: Session) => renderSections(buildStatusView(this.ctx, session)),
   };
 
   close(): void {

@@ -15,19 +15,19 @@ function truncate(line: string, columns: number): string {
   return chars.length > columns ? `${chars.slice(0, Math.max(columns - 1, 1)).join("")}…` : line;
 }
 
-export function colorizeStatus(text: string, io: Io): string {
+function colorizeLine(line: string, io: Io): string {
   const p = paint(io);
-  const lines = text.split("\n");
-  return lines
-    .map((line, index) => {
-      if (index === 0 || line === LEGEND) return p.dim(line);
-      const cut = truncate(line, io.columns);
-      if (SECTION_HEADERS.has(line)) return p.bold(cut);
-      if (line.startsWith("  ⚙️")) return p.yellow(cut);
-      if (line === "  nothing") return p.dim(cut);
-      return cut;
-    })
-    .join("\n");
+  if (line === LEGEND) return p.dim(line);
+  const cut = truncate(line, io.columns);
+  if (SECTION_HEADERS.has(line)) return p.bold(cut);
+  if (line.startsWith("  ⚙️")) return p.yellow(cut);
+  if (line === "  nothing") return p.dim(cut);
+  return cut;
+}
+
+export function colorizeStatus(text: string, io: Io): string {
+  const [time, ...rest] = text.split("\n");
+  return [paint(io).dim(time), ...rest.map((line) => colorizeLine(line, io))].join("\n");
 }
 
 export function sessionWhere(carnet: Carnet, session: Session): string | null {
@@ -38,7 +38,7 @@ function sessionHeader(carnet: Carnet, session: Session, io: Io): string {
   const p = paint(io);
   const name = session.name ?? session.id.slice(0, 8);
   const where = sessionWhere(carnet, session);
-  return p.cyan(`${name}${where ? ` · ${where}` : ""}`);
+  return p.cyan(truncate(`${name}${where ? ` · ${where}` : ""}`, io.columns));
 }
 
 function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
@@ -53,9 +53,14 @@ export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions)
     .list({ includeTemporary: true })
     .filter((s) => hasSomethingToShow(carnet, s));
   const sessions = active.length ? active : [resolveSession(carnet)];
-  return sessions
-    .map((s) => `${sessionHeader(carnet, s, io)}\n${colorizeStatus(carnet.status.render(s), io)}`)
-    .join("\n\n");
+  const blocks = sessions.map((s) => {
+    const sections = carnet.status.sections(s).split("\n");
+    return [sessionHeader(carnet, s, io), ...sections.map((line) => colorizeLine(line, io))].join(
+      "\n",
+    );
+  });
+  const time = paint(io).dim(carnet.status.view(sessions[0]).time);
+  return [time, "", blocks.join("\n\n"), "", paint(io).dim(LEGEND)].join("\n");
 }
 
 export function statusOnce(carnet: Carnet, io: Io, options: StatusOptions): void {

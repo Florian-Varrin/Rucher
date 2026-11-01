@@ -76,6 +76,7 @@ export { NOTE_MAX, sanitizeNote } from "./status/note.ts";
 export {
   MAIN_WORKING_SUFFIX,
   renderAgentLine,
+  renderSections,
   renderStatus,
   renderTableLine,
 } from "./status/render.ts";

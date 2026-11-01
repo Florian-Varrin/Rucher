@@ -13,8 +13,8 @@ export function renderAgentLine(line: StatusLine): string {
   return line.note ? `${line.emoji} ${line.name} — ${line.note}` : `${line.emoji} ${line.name}`;
 }
 
-export function renderStatus(view: StatusView): string {
-  const out: string[] = [view.time, ""];
+export function renderSections(view: StatusView): string {
+  const out: string[] = [];
   if (view.table) {
     out.push("On the table", `  ${renderTableLine(view.table)}`, "");
   }
@@ -26,6 +26,9 @@ export function renderStatus(view: StatusView): string {
   out.push("", "Running");
   if (view.running.length === 0) out.push("  nothing");
   for (const line of view.running) out.push(`  ${renderAgentLine(line)}`);
-  out.push("", LEGEND);
   return out.join("\n");
+}
+
+export function renderStatus(view: StatusView): string {
+  return [view.time, "", renderSections(view), "", LEGEND].join("\n");
 }

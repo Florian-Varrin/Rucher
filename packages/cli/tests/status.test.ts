@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vite-plus/test";
+import { LEGEND } from "@rucher/carnet";
 import { renderStatusView, statusWatch } from "../src/commands/status.ts";
 import { CliError } from "../src/session.ts";
 import { makeCarnet, makeIo, SESSION } from "./helpers.ts";
@@ -77,6 +78,22 @@ test("--all lists sessions with activity under a header, most recent first", () 
   expect(text).not.toContain("idle");
 });
 
+test("--all shows the clock and the legend once, and a header on every block", () => {
+  const { carnet, root } = seeded();
+  carnet.sessions.upsertFromHook({ session_id: "other", cwd: root, session_title: "other-work" });
+  carnet.agents.start("other", { name: "x", task: "t" });
+  const lines = renderStatusView(carnet, makeIo(), { all: true }).split("\n");
+  expect(lines[0]).toMatch(/^\d\d:\d\d$/);
+  expect(lines.filter((l) => /^\d\d:\d\d$/.test(l))).toHaveLength(1);
+  expect(lines.filter((l) => l === LEGEND)).toHaveLength(1);
+  expect(lines.at(-1)).toBe(LEGEND);
+  expect(lines.filter((l) => l === "Waiting on you")).toHaveLength(2);
+  const headers = lines.filter(
+    (l, i) => l !== "" && (lines[i + 1] === "Waiting on you" || lines[i + 1] === "On the table"),
+  );
+  expect(headers).toEqual(["other-work", "0360889d · api"]);
+});
+
 test("watch repaints only on change and stops on abort", async () => {
   const { carnet } = seeded();
   const io = makeIo();
@@ -102,5 +119,5 @@ test("--all headers show the cwd relative to its repo", () => {
     source: "resume",
   });
   const text = renderStatusView(carnet, makeIo(), { all: true });
-  expect(text.split("\n")[0]).toBe("0360889d · api/src/deep");
+  expect(text.split("\n")[2]).toBe("0360889d · api/src/deep");
 });
