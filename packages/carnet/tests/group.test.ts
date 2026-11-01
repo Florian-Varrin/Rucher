@@ -67,6 +67,18 @@ test("locateGroup falls back to the registry when started inside a repo", () => 
   expect(codeOf(() => locateGroup({ cwd: web, env }))).toBe("NO_GROUP");
 });
 
+test("locateGroup skips a .rucher folder without group.json, like the registry home", () => {
+  const home = tempDir("home-");
+  const env = { RUCHER_HOME: join(home, ".rucher") };
+  const api = join(home, "projects", "api");
+  mkdirSync(api, { recursive: true });
+  const meta = tempDir("meta-");
+  initGroup(meta, { env, repos: [api] });
+  expect(existsSync(join(home, ".rucher", "groups.json"))).toBe(true);
+  expect(findGroupRoot(api)).toBeNull();
+  expect(locateGroup({ cwd: api, env }).root).toBe(meta);
+});
+
 test("repoNameFor matches the repo containing a path", () => {
   const { meta, api, web, env } = setup();
   const group = initGroup(meta, { env, repos: [api, web] });

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { CarnetError } from "../errors.ts";
 import { readRegistry } from "./registry.ts";
@@ -33,8 +33,8 @@ export function repoNameFor(group: Group, path: string | undefined): string | nu
 export function findGroupRoot(from: string): string | null {
   let dir = resolve(from);
   for (;;) {
-    const marker = join(dir, GROUP_DIR);
-    if (existsSync(marker) && statSync(marker).isDirectory()) return dir;
+    // The registry home is also named .rucher, only group.json marks a group.
+    if (isGroupRoot(dir)) return dir;
     const parent = dirname(dir);
     if (parent === dir) return null;
     dir = parent;
