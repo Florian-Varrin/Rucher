@@ -14,7 +14,13 @@ function setup() {
   };
   const root = tempDirectory();
   mkdirSync(join(root, 'api'));
-  const group = { root, name: 'g', repos: [join(root, 'api')], dbPath: MEMORY_DB };
+  const group = {
+    root,
+    name: 'g',
+    repos: [join(root, 'api')],
+    hosts: ['claude-code'],
+    dbPath: MEMORY_DB,
+  };
   const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: clock.now });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   return { carnet, clock };
@@ -31,7 +37,7 @@ test('pairs subagents with running agents in start order, once', () => {
   expect(carnet.agents.pairSubagent(SESSION, 'id-a')?.name).toBe('alpha');
   expect(carnet.agents.pairSubagent(SESSION, 'id-c')?.name).toBe('charlie');
   expect(carnet.agents.pairSubagent(SESSION, 'id-d')).toBeUndefined();
-  expect(carnet.agents.get(SESSION, 'bravo')?.claudeAgentId).toBe('id-b');
+  expect(carnet.agents.get(SESSION, 'bravo')?.hostAgentId).toBe('id-b');
 });
 
 test('ignores agents started outside the pairing window or not running', () => {

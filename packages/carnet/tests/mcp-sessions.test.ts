@@ -79,7 +79,7 @@ test('session_resume_info gives the state, last events and resume command', asyn
   expect(info.text).toMatch(/Last events\n {2}\d\d:\d\d {2}started {2}banner {2}Add banner/);
   expect(info.text.endsWith('Resume with: rucher resume shop-cart')).toBe(true);
   const own = await call('session_resume_info');
-  expect(own.text).toContain(`Resume with: claude --resume ${SESSION}`);
+  expect(own.text).toContain(`Resume with: rucher resume ${SESSION}`);
 });
 
 test('log_read returns the last events oldest first', async () => {

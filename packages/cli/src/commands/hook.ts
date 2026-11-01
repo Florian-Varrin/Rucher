@@ -1,30 +1,19 @@
 import {
   CarnetError,
+  claudeCode,
   handleSessionStart,
   handleUserPromptSubmit,
+  type Host,
   openCarnet,
-  parseHookPayload,
-  parsePromptPayload,
-  parseSubagentPayload,
 } from '@rucher/carnet';
 import type { Io } from '../io.ts';
 
-export function sessionStart(stdinText: string, io: Io): number {
+// These payloads follow Claude Code's hook format, the only host with hooks today.
+const host: Host = claudeCode;
+
+function runHook(io: Io, run: () => void): number {
   try {
-    const payload = parseHookPayload(stdinText);
-    const carnet = openCarnet({ cwd: payload.cwd ?? io.cwd, env: io.env });
-    try {
-      const { additionalContext } = handleSessionStart(carnet, payload, {
-        CLAUDE_PID: io.env.CLAUDE_PID,
-        RUCHER_PURGE_DAYS: io.env.RUCHER_PURGE_DAYS,
-      });
-      if (additionalContext) {
-        const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext };
-        io.stdout(`${JSON.stringify({ hookSpecificOutput })}\n`);
-      }
-    } finally {
-      carnet.close();
-    }
+    run();
   } catch (error) {
     if (error instanceof CarnetError && error.code === 'NO_GROUP') return 0;
     io.stderr(`rucher hook: ${error instanceof Error ? error.message : String(error)}\n`);
@@ -32,22 +21,43 @@ export function sessionStart(stdinText: string, io: Io): number {
   return 0;
 }
 
-type SubagentAction = 'pairSubagent' | 'stopSubagent';
-
-function subagentHook(action: SubagentAction, stdinText: string, io: Io): number {
+function withCarnet(
+  cwd: string | undefined,
+  io: Io,
+  use: (carnet: ReturnType<typeof openCarnet>) => void,
+): void {
+  const carnet = openCarnet({ cwd: cwd ?? io.cwd, env: io.env });
   try {
-    const payload = parseSubagentPayload(stdinText);
-    const carnet = openCarnet({ cwd: payload.cwd ?? io.cwd, env: io.env });
-    try {
-      carnet.agents[action](payload.session_id, payload.agent_id);
-    } finally {
-      carnet.close();
-    }
-  } catch (error) {
-    if (error instanceof CarnetError && error.code === 'NO_GROUP') return 0;
-    io.stderr(`rucher hook: ${error instanceof Error ? error.message : String(error)}\n`);
+    use(carnet);
+  } finally {
+    carnet.close();
   }
-  return 0;
+}
+
+export function sessionStart(stdinText: string, io: Io): number {
+  return runHook(io, () => {
+    const payload = host.parseSessionPayload(stdinText);
+    withCarnet(payload.cwd, io, (carnet) => {
+      const { additionalContext } = handleSessionStart(carnet, payload, {
+        host: host.id,
+        processId: host.processId(io.env),
+        RUCHER_PURGE_DAYS: io.env.RUCHER_PURGE_DAYS,
+      });
+      if (additionalContext) {
+        const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext };
+        io.stdout(`${JSON.stringify({ hookSpecificOutput })}\n`);
+      }
+    });
+  });
+}
+
+function subagentHook(action: 'pairSubagent' | 'stopSubagent', stdinText: string, io: Io): number {
+  return runHook(io, () => {
+    const payload = host.parseSubagentPayload(stdinText);
+    withCarnet(payload.cwd, io, (carnet) => {
+      carnet.agents[action](payload.session_id, payload.agent_id);
+    });
+  });
 }
 
 export function subagentStart(stdinText: string, io: Io): number {
@@ -59,17 +69,10 @@ export function subagentStop(stdinText: string, io: Io): number {
 }
 
 export function userPromptSubmit(stdinText: string, io: Io): number {
-  try {
-    const payload = parsePromptPayload(stdinText);
-    const carnet = openCarnet({ cwd: payload.cwd ?? io.cwd, env: io.env });
-    try {
-      handleUserPromptSubmit(carnet, payload);
-    } finally {
-      carnet.close();
-    }
-  } catch (error) {
-    if (error instanceof CarnetError && error.code === 'NO_GROUP') return 0;
-    io.stderr(`rucher hook: ${error instanceof Error ? error.message : String(error)}\n`);
-  }
-  return 0;
+  return runHook(io, () => {
+    const payload = host.parsePromptPayload(stdinText);
+    withCarnet(payload.cwd, io, (carnet) => {
+      handleUserPromptSubmit(carnet, host, payload);
+    });
+  });
 }

@@ -68,6 +68,13 @@ ALTER TABLE agents ADD COLUMN done_at TEXT;
   `
 UPDATE sessions SET status = 'active' WHERE status = 'paused';
 `,
+  `
+ALTER TABLE sessions RENAME COLUMN claude_pid TO host_pid;
+ALTER TABLE sessions ADD COLUMN host TEXT NOT NULL DEFAULT 'claude-code';
+ALTER TABLE agents RENAME COLUMN claude_agent_id TO host_agent_id;
+DROP INDEX sessions_claude_pid;
+CREATE INDEX sessions_host_pid ON sessions(host, host_pid, hooked_at);
+`,
 ];
 
 export function schemaVersion(db: DatabaseSync): number {

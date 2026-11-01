@@ -176,7 +176,7 @@ const sessionsCommand = defineCommand({
 });
 
 const resumeCommand = defineCommand({
-  meta: { name: 'resume', description: 'Resume a named session in Claude Code' },
+  meta: { name: 'resume', description: 'Resume a named session in its host (Claude Code today)' },
   args: {
     name: { type: 'positional', description: 'Session name, id or id prefix', required: true },
   },
@@ -244,7 +244,8 @@ const groupCommand = defineCommand({
     sync: defineCommand({
       meta: {
         name: 'sync',
-        description: 'Rewrite additionalDirectories and the CLAUDE.md repo list from group.json',
+        description:
+          "Rewrite the hosts' context files (repo list, directory access) from group.json",
       },
       args: { ...colorArgument },
       run({ args }) {
@@ -290,7 +291,10 @@ const groupsCommand = defineCommand({
 });
 
 const hookCommand = defineCommand({
-  meta: { name: 'hook', description: 'Claude Code hook entry points (JSON payload on stdin)' },
+  meta: {
+    name: 'hook',
+    description: 'Agent host hook entry points (Claude Code, JSON payload on stdin)',
+  },
   subCommands: {
     'session-start': defineCommand({
       meta: { name: 'session-start', description: 'SessionStart hook: records the session' },
@@ -339,7 +343,7 @@ export const main = defineCommand({
   meta: {
     name: 'rucher',
     version: packageJson.version,
-    description: 'Status, journal and sessions of your Claude Code sub-agents',
+    description: 'Status, journal and sessions of your coding agents (Claude Code today)',
   },
   subCommands: {
     init: initCommand,

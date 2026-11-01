@@ -20,7 +20,7 @@ test('without a hook row, resolves from CLAUDE_CODE_SESSION_ID and creates a tem
 
 test('resolves from the claude pid recorded by the hook', () => {
   const { carnet, root } = makeCarnet();
-  carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root }, { CLAUDE_PID: '4242' });
+  carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root }, { processId: 4242 });
   const resolver = createSessionResolver({ carnet, env: {}, ppid: 4242, cwd: root });
   expect(resolver.resolve()).toBe(SESSION);
 });
@@ -67,7 +67,7 @@ test('the hook row for the parent pid wins over a provisional env id', () => {
   const { carnet, root } = makeCarnet();
   carnet.sessions.upsertFromHook(
     { session_id: SESSION, cwd: root, source: 'resume' },
-    { CLAUDE_PID: '7' },
+    { processId: 7 },
   );
   const resolver = createSessionResolver({
     carnet,
@@ -90,16 +90,16 @@ test('a resume hook arriving after the server started takes over on the next cal
   expect(resolver.resolve()).toBe(PROVISIONAL);
   carnet.sessions.upsertFromHook(
     { session_id: PROVISIONAL, cwd: root, source: 'startup' },
-    { CLAUDE_PID: '7' },
+    { processId: 7 },
   );
   carnet.sessions.upsertFromHook(
     { session_id: SESSION, cwd: root, source: 'resume' },
-    { CLAUDE_PID: '7' },
+    { processId: 7 },
   );
   expect(resolver.resolve()).toBe(SESSION);
   carnet.sessions.upsertFromHook(
     { session_id: 'cleared', cwd: root, source: 'clear' },
-    { CLAUDE_PID: '7' },
+    { processId: 7 },
   );
   expect(resolver.resolve()).toBe('cleared');
 });
@@ -108,11 +108,11 @@ test('after a --continue style resume, forks are paired in the real session', ()
   const { carnet, root } = makeCarnet();
   carnet.sessions.upsertFromHook(
     { session_id: PROVISIONAL, cwd: root, source: 'startup' },
-    { CLAUDE_PID: '7' },
+    { processId: 7 },
   );
   carnet.sessions.upsertFromHook(
     { session_id: SESSION, cwd: root, source: 'resume' },
-    { CLAUDE_PID: '7' },
+    { processId: 7 },
   );
   const resolver = createSessionResolver({
     carnet,

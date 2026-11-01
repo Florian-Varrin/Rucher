@@ -18,7 +18,13 @@ export function makeClock(start = '2026-10-31T15:41:00.000Z'): () => Date {
 export function makeCarnet(): { carnet: Carnet; root: string } {
   const root = tempDirectory();
   mkdirSync(join(root, 'api'));
-  const group = { root, name: 'test-group', repos: [join(root, 'api')], dbPath: MEMORY_DB };
+  const group = {
+    root,
+    name: 'test-group',
+    repos: [join(root, 'api')],
+    hosts: ['claude-code'],
+    dbPath: MEMORY_DB,
+  };
   const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: makeClock() });
   carnet.sessions.upsertFromHook({
     session_id: SESSION,

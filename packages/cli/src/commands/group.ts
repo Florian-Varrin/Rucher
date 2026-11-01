@@ -8,7 +8,7 @@ import {
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
-import { syncClaudeMd, syncSettings } from './init.ts';
+import { syncContextFiles } from './init.ts';
 
 export function groupShow(io: Io): number {
   const colors = paint(io);
@@ -21,16 +21,13 @@ export function groupShow(io: Io): number {
 }
 
 function syncNotes(group: Group, mode: 'merge' | 'exact'): string[] {
-  const settings = syncSettings(group, mode);
-  const claudeMd = syncClaudeMd(group);
-  return [
-    settings === 'unchanged' ? null : `${settings} .claude/settings.json`,
-    claudeMd === 'unchanged'
-      ? null
-      : claudeMd === 'no-markers'
-        ? 'CLAUDE.md has no rucher:repos markers, update its repo list yourself'
-        : `${claudeMd} CLAUDE.md`,
-  ].filter((line): line is string => line !== null);
+  return syncContextFiles(group, mode)
+    .filter(({ result }) => result !== 'unchanged')
+    .map(({ path, result }) =>
+      result === 'no-markers'
+        ? `${path} has no rucher:repos markers, update its repo list yourself`
+        : `${result} ${path}`,
+    );
 }
 
 function withNotes(line: string, notes: string[]): string {

@@ -32,7 +32,7 @@ import {
   requireSession,
   findSession,
   type Session,
-  sessionByClaudePid,
+  sessionByHostProcess,
   sessionByName,
   touchSession,
   upsertFromHook,
@@ -75,7 +75,8 @@ export class Carnet {
     drop: (id: string) => dropSession(this.ctx, id),
     default: () => defaultSession(this.ctx),
     byName: (name: string) => sessionByName(this.ctx, name),
-    byClaudePid: (processId: number) => sessionByClaudePid(this.ctx, processId),
+    byHostProcess: (host: string, processId: number) =>
+      sessionByHostProcess(this.ctx, host, processId),
   };
 
   readonly agents = {
@@ -89,10 +90,10 @@ export class Carnet {
       dropAgent(this.ctx, session, name, reason),
     list: (session: string, options?: ListAgentsOptions) => listAgents(this.ctx, session, options),
     reorderQueue: (session: string, names: string[]) => reorderQueue(this.ctx, session, names),
-    pairSubagent: (session: string, claudeAgentId: string) =>
-      pairSubagent(this.ctx, session, claudeAgentId),
-    stopSubagent: (session: string, claudeAgentId: string) =>
-      stopSubagent(this.ctx, session, claudeAgentId),
+    pairSubagent: (session: string, hostAgentId: string) =>
+      pairSubagent(this.ctx, session, hostAgentId),
+    stopSubagent: (session: string, hostAgentId: string) =>
+      stopSubagent(this.ctx, session, hostAgentId),
   };
 
   readonly table = {

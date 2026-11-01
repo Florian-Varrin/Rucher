@@ -1,9 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { CarnetError, type Group, initGroup } from '@rucher/carnet';
+import { resolve } from 'node:path';
+import {
+  CarnetError,
+  type ContextFileResult,
+  type Group,
+  hostById,
+  initGroup,
+} from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
-import { groupClaudeMd, groupSettings, replaceReposBlock } from '../templates.ts';
 
 export interface InitOptions {
   directory?: string | undefined;
@@ -11,48 +15,15 @@ export interface InitOptions {
   repos?: string[] | undefined;
 }
 
-interface Settings {
-  permissions?: { additionalDirectories?: string[] } & Record<string, unknown>;
-  [key: string]: unknown;
+export interface ContextFileSync {
+  path: string;
+  result: ContextFileResult;
 }
 
-export function syncSettings(
-  group: Group,
-  mode: 'merge' | 'exact' = 'merge',
-): 'written' | 'updated' | 'unchanged' {
-  const path = join(group.root, '.claude', 'settings.json');
-  if (!existsSync(path)) {
-    if (group.repos.length === 0) return 'unchanged';
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, groupSettings(group));
-    return 'written';
-  }
-  const settings = JSON.parse(readFileSync(path, 'utf8')) as Settings;
-  const current = settings.permissions?.additionalDirectories ?? [];
-  const next =
-    mode === 'exact'
-      ? group.repos
-      : [...current, ...group.repos.filter((repo) => !current.includes(repo))];
-  if (next.length === current.length && next.every((repo, index) => repo === current[index])) {
-    return 'unchanged';
-  }
-  settings.permissions = { ...settings.permissions, additionalDirectories: next };
-  writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`);
-  return 'updated';
-}
-
-export function syncClaudeMd(group: Group): 'written' | 'updated' | 'unchanged' | 'no-markers' {
-  const path = join(group.root, 'CLAUDE.md');
-  if (!existsSync(path)) {
-    writeFileSync(path, groupClaudeMd(group));
-    return 'written';
-  }
-  const content = readFileSync(path, 'utf8');
-  const next = replaceReposBlock(content, group);
-  if (next === null) return 'no-markers';
-  if (next === content) return 'unchanged';
-  writeFileSync(path, next);
-  return 'updated';
+export function syncContextFiles(group: Group, mode: 'merge' | 'exact'): ContextFileSync[] {
+  return group.hosts.flatMap((id) =>
+    hostById(id).contextFiles.map((file) => ({ path: file.path, result: file.sync(group, mode) })),
+  );
 }
 
 export function init(options: InitOptions, io: Io): number {
@@ -78,19 +49,18 @@ export function init(options: InitOptions, io: Io): number {
     `  repos: ${group.repos.length ? group.repos.join(', ') : 'none yet, add them with `rucher group add <path>`'}`,
     `  database: ${group.dbPath}`,
   ];
-  const claudeMd = syncClaudeMd(group);
-  lines.push(
-    claudeMd === 'written'
-      ? '  wrote CLAUDE.md (group instructions template)'
-      : `  kept existing CLAUDE.md ${colors.dim('(add the rucher:repos markers to keep its repo list in sync, and a line: multi-agent work uses the rucher tools)')}`,
-  );
-  const settings = syncSettings(group);
-  if (settings !== 'unchanged') {
-    lines.push(`  ${settings} .claude/settings.json (additionalDirectories = the repos)`);
+  for (const { path, result } of syncContextFiles(group, 'merge')) {
+    if (result === 'unchanged') continue;
+    lines.push(
+      result === 'no-markers'
+        ? `  kept existing ${path} ${colors.dim('(add the rucher:repos markers to keep its repo list in sync, and a line: multi-agent work uses the rucher tools)')}`
+        : `  ${result} ${path}`,
+    );
   }
+  const hosts = group.hosts.map((id) => hostById(id).displayName).join(' or ');
   lines.push(
     '',
-    'Next: start claude in this directory, then `rucher status --watch` in a side pane.',
+    `Next: start ${hosts} in this directory, then \`rucher status --watch\` in a side pane.`,
   );
   io.stdout(`${lines.join('\n')}\n`);
   return 0;

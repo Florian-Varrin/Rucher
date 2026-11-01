@@ -31,6 +31,10 @@ export function findSession(carnet: Carnet, reference: string): Session {
 export function resolveSession(carnet: Carnet, reference?: string): Session {
   if (reference) return findSession(carnet, reference);
   const session = carnet.sessions.default();
-  if (!session) throw new CliError('No session in this group yet', 'start claude inside the group');
+  if (!session)
+    throw new CliError(
+      'No session in this group yet',
+      'start a Claude Code session inside the group',
+    );
   return session;
 }

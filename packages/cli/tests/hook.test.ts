@@ -34,7 +34,7 @@ test('records the session of a group with pid and repo', () => {
   expect(carnet.sessions.get(SESSION)).toMatchObject({
     status: 'temporary',
     repo: api.split('/').at(-1),
-    claudePid: 4242,
+    hostPid: 4242,
   });
   carnet.close();
 });
@@ -92,7 +92,7 @@ test('subagent hooks flag a fork that stopped without agent_done', () => {
   const after = openCarnet({ cwd: root, env });
   expect(after.agents.get(SESSION, 'lost')).toMatchObject({
     status: 'review',
-    claudeAgentId: 'a1',
+    hostAgentId: 'a1',
   });
   after.close();
 });

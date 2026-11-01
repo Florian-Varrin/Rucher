@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { CarnetError } from '../errors.ts';
 import { openDatabase } from '../db/open.ts';
+import { DEFAULT_HOST, hostById } from '../hosts/host.ts';
 import {
   DB_FILE,
   GROUP_DIRECTORY,
@@ -16,6 +17,7 @@ import { registerGroup } from './registry.ts';
 export interface InitOptions {
   name?: string | undefined;
   repos?: string[] | undefined;
+  hosts?: string[] | undefined;
   env?: NodeJS.ProcessEnv | undefined;
 }
 
@@ -38,8 +40,11 @@ export function initGroup(directory: string, options: InitOptions = {}): Group {
   }
   const name = options.name ?? basename(root);
   const repos = (options.repos ?? []).map((repo) => resolveRepo(root, repo));
+  const hosts = (options.hosts?.length ? options.hosts : [DEFAULT_HOST]).map(
+    (id) => hostById(id).id,
+  );
   mkdirSync(join(groupDirectory, REPORTS_DIRECTORY), { recursive: true });
-  writeGroupFile(root, { name, repos });
+  writeGroupFile(root, { name, repos, hosts });
   openDatabase(join(groupDirectory, DB_FILE)).close();
   registerGroup({ name, path: root }, options.env);
   return loadGroup(root);
@@ -49,7 +54,11 @@ export function addGroupRepo(root: string, repo: string): Group {
   const group = loadGroup(resolve(root));
   const path = resolveRepo(group.root, repo);
   if (!group.repos.includes(path)) {
-    writeGroupFile(group.root, { name: group.name, repos: [...group.repos, path] });
+    writeGroupFile(group.root, {
+      name: group.name,
+      repos: [...group.repos, path],
+      hosts: group.hosts,
+    });
   }
   return loadGroup(group.root);
 }
@@ -63,6 +72,7 @@ export function removeGroupRepo(root: string, repo: string): Group {
   writeGroupFile(group.root, {
     name: group.name,
     repos: group.repos.filter((repo) => repo !== path),
+    hosts: group.hosts,
   });
   return loadGroup(group.root);
 }

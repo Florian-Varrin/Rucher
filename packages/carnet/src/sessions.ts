@@ -1,6 +1,7 @@
 import { type Ctx, nowIso } from './context.ts';
 import { CarnetError } from './errors.ts';
 import { type Group, repoNameFor } from './group/locate.ts';
+import { DEFAULT_HOST, type HostSessionPayload } from './hosts/host.ts';
 
 export type SessionStatus = 'temporary' | 'active' | 'dropped';
 
@@ -11,7 +12,8 @@ export interface Session {
   status: SessionStatus;
   cwd: string | null;
   repo: string | null;
-  claudePid: number | null;
+  host: string;
+  hostPid: number | null;
   hookedAt: string | null;
   createdAt: string;
   lastActiveAt: string;
@@ -24,21 +26,18 @@ interface SessionRow {
   status: SessionStatus;
   cwd: string | null;
   repo: string | null;
-  claude_pid: number | null;
+  host: string;
+  host_pid: number | null;
   hooked_at: string | null;
   created_at: string;
   last_active_at: string;
 }
 
-export interface HookSessionPayload {
-  session_id: string;
-  cwd?: string | undefined;
-  source?: string | undefined;
-  session_title?: string | undefined;
-}
+export type HookSessionPayload = HostSessionPayload;
 
 export interface HookEnv {
-  CLAUDE_PID?: string | undefined;
+  host?: string | undefined;
+  processId?: number | null | undefined;
   RUCHER_PURGE_DAYS?: string | undefined;
 }
 
@@ -48,7 +47,7 @@ export interface ListSessionsOptions {
 }
 
 const COLUMNS =
-  'id, name, purpose, status, cwd, repo, claude_pid, hooked_at, created_at, last_active_at';
+  'id, name, purpose, status, cwd, repo, host, host_pid, hooked_at, created_at, last_active_at';
 
 function toSession(row: SessionRow): Session {
   return {
@@ -58,16 +57,12 @@ function toSession(row: SessionRow): Session {
     status: row.status,
     cwd: row.cwd,
     repo: row.repo,
-    claudePid: row.claude_pid,
+    host: row.host,
+    hostPid: row.host_pid,
     hookedAt: row.hooked_at,
     createdAt: row.created_at,
     lastActiveAt: row.last_active_at,
   };
-}
-
-function parseProcessId(value: string | undefined): number | null {
-  const processId = Number(value);
-  return Number.isInteger(processId) && processId > 0 ? processId : null;
 }
 
 export function getSession(ctx: Ctx, id: string): Session | undefined {
@@ -121,21 +116,22 @@ export function upsertFromHook(
   env: HookEnv = {},
 ): Session {
   const at = nowIso(ctx);
-  const claudePid = parseProcessId(env.CLAUDE_PID);
+  const host = env.host ?? DEFAULT_HOST;
+  const hostPid = env.processId ?? null;
   const repo = repoNameFor(group, payload.cwd);
   const existing = getSession(ctx, payload.session_id);
   if (!existing) {
     ctx.db
       .prepare(
-        `INSERT INTO sessions (id, status, cwd, repo, claude_pid, hooked_at, created_at, last_active_at)
-         VALUES (?, 'temporary', ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sessions (id, status, cwd, repo, host, host_pid, hooked_at, created_at, last_active_at)
+         VALUES (?, 'temporary', ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(payload.session_id, payload.cwd ?? null, repo, claudePid, at, at, at);
+      .run(payload.session_id, payload.cwd ?? null, repo, host, hostPid, at, at, at);
   } else {
     ctx.db
       .prepare(
         `UPDATE sessions
-         SET last_active_at = ?, hooked_at = ?, cwd = ?, repo = ?, claude_pid = ?
+         SET last_active_at = ?, hooked_at = ?, cwd = ?, repo = ?, host = ?, host_pid = ?
          WHERE id = ?`,
       )
       .run(
@@ -143,7 +139,8 @@ export function upsertFromHook(
         at,
         payload.cwd ?? existing.cwd,
         repo ?? existing.repo,
-        claudePid ?? existing.claudePid,
+        host,
+        hostPid ?? existing.hostPid,
         payload.session_id,
       );
   }
@@ -249,13 +246,17 @@ export function findSession(ctx: Ctx, reference: string): Session {
   throw new CarnetError('SESSION_NOT_FOUND', `Unknown session "${reference}"${hint}`);
 }
 
-export function sessionByClaudePid(ctx: Ctx, processId: number): Session | undefined {
+export function sessionByHostProcess(
+  ctx: Ctx,
+  host: string,
+  processId: number,
+): Session | undefined {
   const row = ctx.db
     .prepare(
       `SELECT ${COLUMNS} FROM sessions
-       WHERE claude_pid = ? AND hooked_at IS NOT NULL
+       WHERE host = ? AND host_pid = ? AND hooked_at IS NOT NULL
        ORDER BY hooked_at DESC LIMIT 1`,
     )
-    .get(processId) as SessionRow | undefined;
+    .get(host, processId) as SessionRow | undefined;
   return row && toSession(row);
 }

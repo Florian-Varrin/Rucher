@@ -3,6 +3,7 @@ import * as z from 'zod/v4';
 import type { Carnet } from '../carnet.ts';
 import { EVENT_TYPES } from '../events.ts';
 import { reportPathFor, reportsDirectoryOf } from '../group/locate.ts';
+import { hostById } from '../hosts/host.ts';
 import { formatEventLine, resumeContext, sessionLabel } from '../resume.ts';
 import { EMOJI, OPEN_AGENT_STATUSES, USER_ACTION_STATUSES } from '../status/model.ts';
 import { renderAgentLine, renderTableLine } from '../status/render.ts';
@@ -232,7 +233,7 @@ const sessionNew = defineTool({
   run: (carnet, sessionId, args) => {
     const named = carnet.sessions.name(sessionId, args.name, args.purpose);
     return {
-      text: `Session named ${named.name}. Ask the human to run /rename ${named.name} in Claude Code so the titles match.`,
+      text: `Session named ${named.name}. ${hostById(named.host).renameInstruction(named.name ?? args.name)}`,
       data: { session: named },
     };
   },
@@ -284,7 +285,7 @@ const sessionResumeInfo = defineTool({
   }),
   run: (carnet, sessionId, args) => {
     const target = args.name ? carnet.sessions.find(args.name) : carnet.sessions.require(sessionId);
-    const resume = target.name ? `rucher resume ${target.name}` : `claude --resume ${target.id}`;
+    const resume = `rucher resume ${target.name ?? target.id}`;
     return {
       text: `${resumeContext(carnet, target)}\n\nResume with: ${resume}`,
       data: { session: target, resume },

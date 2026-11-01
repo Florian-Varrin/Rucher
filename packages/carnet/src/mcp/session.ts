@@ -1,5 +1,6 @@
 import type { Carnet } from '../carnet.ts';
 import { CarnetError } from '../errors.ts';
+import { DEFAULT_HOST, type Host, hostById } from '../hosts/host.ts';
 
 const FULL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -8,6 +9,7 @@ export interface SessionResolverOptions {
   env?: NodeJS.ProcessEnv | undefined;
   ppid?: number | undefined;
   cwd?: string | undefined;
+  host?: Host | undefined;
 }
 
 export interface SessionResolver {
@@ -19,17 +21,18 @@ export function createSessionResolver({
   env = process.env,
   ppid = process.ppid,
   cwd = process.cwd(),
+  host = hostById(DEFAULT_HOST),
 }: SessionResolverOptions): SessionResolver {
   // Not cached: after --continue or the resume picker, the server env keeps a provisional
   // startup id, and the hook that records the real one can arrive after the server starts.
   function resolveOwn(): string {
-    const hooked = carnet.sessions.byClaudePid(ppid);
+    const hooked = carnet.sessions.byHostProcess(host.id, ppid);
     if (hooked) return hooked.id;
-    const fromEnvironment = env.CLAUDE_CODE_SESSION_ID;
+    const fromEnvironment = host.sessionIdFromEnvironment(env);
     if (fromEnvironment) return carnet.sessions.ensure(fromEnvironment, cwd).id;
     throw new CarnetError(
       'NO_SESSION',
-      'Cannot tell which Claude session this is: pass `session`, or install the rucher SessionStart hook',
+      `Cannot tell which ${host.displayName} session this is: pass \`session\`, or install the rucher SessionStart hook`,
     );
   }
 
@@ -38,7 +41,7 @@ export function createSessionResolver({
       return carnet.sessions.find(override).id;
     } catch (error) {
       if (!(error instanceof CarnetError) || error.code !== 'SESSION_NOT_FOUND') throw error;
-      // A full Claude session id the hook never recorded still gets its row.
+      // A full session id the hook never recorded still gets its row.
       if (FULL_ID.test(override)) return carnet.sessions.ensure(override, cwd).id;
       throw error;
     }

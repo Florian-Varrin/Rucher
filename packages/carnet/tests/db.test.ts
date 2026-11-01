@@ -42,8 +42,8 @@ test('upgrades a version 1 database and keeps its rows', async () => {
   old.close();
   const db = openDatabase(path);
   expect(schemaVersion(db)).toBe(migrations.length);
-  expect(db.prepare('SELECT name, claude_agent_id FROM agents').all()).toEqual([
-    { name: 'a', claude_agent_id: null },
+  expect(db.prepare('SELECT name, host_agent_id FROM agents').all()).toEqual([
+    { name: 'a', host_agent_id: null },
   ]);
   db.close();
 });
@@ -61,8 +61,8 @@ test('upgrades a version 2 database: existing sessions get no hooked_at', async 
   old.close();
   const db = openDatabase(path);
   expect(schemaVersion(db)).toBe(migrations.length);
-  expect(db.prepare('SELECT id, claude_pid, hooked_at FROM sessions').all()).toEqual([
-    { id: 's', claude_pid: 7, hooked_at: null },
+  expect(db.prepare('SELECT id, host_pid, hooked_at FROM sessions').all()).toEqual([
+    { id: 's', host_pid: 7, hooked_at: null },
   ]);
   db.close();
 });
@@ -117,5 +117,30 @@ test('a fresh database refuses the paused status', () => {
       )
       .run(),
   ).toThrowError(/CHECK/);
+  db.close();
+});
+
+test('upgrades a version 5 database: Claude columns become host columns', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const path = join(tempDirectory(), 'carnet.db');
+  const old = new DatabaseSync(path);
+  for (const migration of migrations.slice(0, 5)) old.exec(migration);
+  old.exec('PRAGMA user_version = 5');
+  old.exec(
+    `INSERT INTO sessions (id, claude_pid, hooked_at, created_at, last_active_at) VALUES ('s', 7, 'x', 'x', 'x');
+     INSERT INTO agents (session, name, status, claude_agent_id, started_at, updated_at) VALUES ('s', 'a', 'running', 'agent-1', 'x', 'x');`,
+  );
+  old.close();
+  const db = openDatabase(path);
+  expect(schemaVersion(db)).toBe(migrations.length);
+  expect(db.prepare('SELECT id, host, host_pid FROM sessions').all()).toEqual([
+    { id: 's', host: 'claude-code', host_pid: 7 },
+  ]);
+  expect(db.prepare('SELECT name, host_agent_id FROM agents').all()).toEqual([
+    { name: 'a', host_agent_id: 'agent-1' },
+  ]);
+  const indexes = db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all();
+  expect(indexes).toContainEqual({ name: 'sessions_host_pid' });
+  expect(indexes).not.toContainEqual({ name: 'sessions_claude_pid' });
   db.close();
 });

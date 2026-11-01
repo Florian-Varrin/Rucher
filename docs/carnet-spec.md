@@ -27,10 +27,19 @@ Today the main agent rewrites `agents-status.md` and `log.md` itself, following 
 
 A group is a meta directory for a set of related repos (for example `~/groups/shop`). It holds context only: the group `CLAUDE.md`, `.claude/settings.json` whose `additionalDirectories` lists the repos, and the Carnet database. The repos stay at their own paths. Claude sessions start from the meta directory, so the shared context loads and every repo is reachable.
 
-- Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repo paths).
+- Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repo paths, hosts).
 - Created by `rucher init [--name X] [--repos a,b]`, which writes `group.json`, scaffolds `CLAUDE.md` and `.claude/settings.json` when absent, and registers the group in `~/.rucher/groups.json`. `rucher group add <path>` adds a repo later and merges it into `additionalDirectories`.
-- Resolution: walk up from the current directory (then from `CLAUDE_PROJECT_DIR`) until a `.rucher/` folder is found; otherwise match the directory against the repo paths of the registered groups. So a session started inside a repo attaches to its group, and its `repo` column is the repo folder name.
+- Resolution: walk up from the current directory (then from the project directory each host exposes, `CLAUDE_PROJECT_DIR` for Claude Code) until a `.rucher/` folder is found; otherwise match the directory against the repo paths of the registered groups. So a session started inside a repo attaches to its group, and its `repo` column is the repo folder name.
 - Carnet stores no instruction text: the group `CLAUDE.md` is native Claude Code context.
+
+## Hosts
+
+A host is the tool that runs the sessions Carnet observes. Claude Code is the only host today; Core's `AgentBackend` (see rucher-spec) is the driver side of the same idea.
+
+- Everything host-specific sits in one module per host (`packages/carnet/src/hosts/`): hook payload parsing (including the title read from the transcript), how a process finds its own session (process id and session id environment variables), the resume command, the group context files, and the wording shown to the model.
+- Per session: `sessions.host` records which host recorded the row (`claude-code` by default).
+- Per group: `hosts` in `group.json` (default `["claude-code"]` when absent) lists the hosts whose context files `rucher init` and `group sync|add|remove` write: `.claude/settings.json` and `CLAUDE.md` for Claude Code.
+- The rest (groups, sessions, agents, statuses, table, journal, views, MCP tools) is host-agnostic.
 
 ## Data model
 
@@ -38,12 +47,13 @@ One SQLite database per group, at `<meta>/.rucher/carnet.db`, WAL mode.
 
 ```sql
 sessions (
-  id TEXT PRIMARY KEY,        -- Claude Code session id
+  id TEXT PRIMARY KEY,        -- the host's session id (Claude Code session id today)
   name TEXT UNIQUE,           -- set by session_new, equals the Claude session title
   purpose TEXT,
   status TEXT,                -- temporary | active | dropped
   cwd TEXT, repo TEXT,
-  claude_pid INTEGER,         -- from the hook, matched against the server's parent pid
+  host TEXT,                  -- host that recorded the row, 'claude-code' by default
+  host_pid INTEGER,           -- host process id from the hook, matched against the server's parent pid
   hooked_at TEXT,             -- last SessionStart hook for this row, set only by the hook
   created_at, last_active_at
 )
@@ -56,7 +66,7 @@ agents (
   note TEXT,                  -- displayed text, under 60 characters
   report_path TEXT, base_commit TEXT, worktree TEXT,
   queue_order INTEGER,        -- order in "Waiting on you"
-  claude_agent_id TEXT,       -- Claude subagent id paired by the SubagentStart hook
+  host_agent_id TEXT,         -- host subagent id paired by the SubagentStart hook
   pending_status TEXT,        -- outcome stored by agent_done until the fork really stops
   done_at TEXT,               -- when agent_done was called
   started_at, updated_at,
@@ -81,8 +91,8 @@ events (
 
 The MCP server process never receives the Claude session id; only hooks do. A `SessionStart` hook is therefore part of the install.
 
-- The hook runs `rucher hook session-start`, which reads the hook JSON on stdin (`session_id`, `cwd`, `source`, `session_title`) and upserts the session row, recording the `claude` process id it receives as `CLAUDE_PID`.
-- The MCP server resolves its own session on every call, first hit wins: the `session` tool argument; the row most recently recorded by the hook (`hooked_at`) whose `claude_pid` is the server's parent process id; the `CLAUDE_CODE_SESSION_ID` environment variable (set by Claude Code on MCP server processes, observed on 2.1.316, undocumented), used only when no hook row matches. The environment variable is not trusted first: when the session is picked after startup (`--continue`, the resume picker), Claude Code starts the servers with a provisional id that never gets a transcript, and only the hook sees the real one, sometimes after the server started (spike, 2026-11-01). `claude --resume <id>` keeps the id.
+- The hook runs `rucher hook session-start`, which reads the hook JSON on stdin (`session_id`, `cwd`, `source`, `session_title`) and upserts the session row, recording the `claude` process id it receives as `CLAUDE_PID` in `host_pid`.
+- The MCP server resolves its own session on every call, first hit wins: the `session` tool argument; the row most recently recorded by the hook (`hooked_at`) for the same host whose `host_pid` is the server's parent process id; the `CLAUDE_CODE_SESSION_ID` environment variable (set by Claude Code on MCP server processes, observed on 2.1.316, undocumented), used only when no hook row matches. The environment variable is not trusted first: when the session is picked after startup (`--continue`, the resume picker), Claude Code starts the servers with a provisional id that never gets a transcript, and only the hook sees the real one, sometimes after the server started (spike, 2026-11-01). `claude --resume <id>` keeps the id.
 - `/clear` starts a new Claude session in the same process: the hook records it, so Carnet follows the new conversation. Agents still open in the previous session stay there, visible with `rucher status --all`.
 - Rows split by an older server (tools written under a provisional id) are joined with `rucher sessions merge <from> <into>`.
 - One MCP server process serves the main agent and all its sub-agents, so tools never assume a single caller.
@@ -170,7 +180,7 @@ No generated markdown files: the `rucher` CLI reads the SQLite database and rend
 | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rucher init [directory] [--name X] [--repos a,b]`     | creates `.rucher/` in the meta directory with the repo paths, registers the group, writes `CLAUDE.md` and `.claude/settings.json` templates when absent                                                                                                                                                                                                                                                                    |
 | `rucher group show` / `rucher group add <path>`        | shows the current group; adds a repo path, merges it into `.claude/settings.json` and refreshes the `rucher:repos` block of the group `CLAUDE.md`                                                                                                                                                                                                                                                                          |
-| `rucher group remove <path>` / `rucher group sync`     | removes a repo path, then rewrites `additionalDirectories` in `.claude/settings.json` (other settings kept) and the `rucher:repos` block of `CLAUDE.md` from `group.json`; `sync` does the rewrite alone. Nothing syncs automatically                                                                                                                                                                                      |
+| `rucher group remove <path>` / `rucher group sync`     | removes a repo path, then rewrites the context files of the group's hosts from `group.json` (Claude Code: `additionalDirectories` in `.claude/settings.json`, other settings kept, and the `rucher:repos` block of `CLAUDE.md`); `sync` does the rewrite alone. Nothing syncs automatically                                                                                                                                |
 | `rucher groups list` / `forget <name\|path>` / `prune` | registered groups of the machine, missing meta directories flagged; `forget` unregisters one (a name shared by several groups is refused, use the path); `prune` unregisters the missing ones. Never pruned on read                                                                                                                                                                                                        |
 | `rucher status [--session X] [--all]`                  | agent status of the default session (most recently active, re-resolved on every repaint) or of a named one, its name and repo-relative cwd on the clock line (`16:41 - shop-auth · api`; a dropped session says so); `--all` shows every session with open agents or a table line, most recent first, each headed by its name and cwd relative to its repo (`api/src`), with one clock on top and one legend at the bottom |
 | `rucher status --watch [--interval s]`                 | same, repainted when the output changes, for the dedicated pane                                                                                                                                                                                                                                                                                                                                                            |
@@ -178,7 +188,7 @@ No generated markdown files: the `rucher` CLI reads the SQLite database and rend
 | `rucher log --md [--session X]`                        | journal as markdown, one line per event with commit and report link, for archiving in a repo                                                                                                                                                                                                                                                                                                                               |
 | `rucher sessions [--all]`                              | named sessions: name, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temporary and dropped ones                                                                                                                                                                                                                                                                                              |
 | `rucher sessions merge <from> <into>`                  | moves agents (a name already used in `into` is closed in `from`), events and the table line (when `into` has none) into `into`, carries the name when `into` has none, then drops `from`; nothing merges automatically                                                                                                                                                                                                     |
-| `rucher resume <name>`                                 | runs `claude --resume <id>` for that session, from its original cwd                                                                                                                                                                                                                                                                                                                                                        |
+| `rucher resume <name>`                                 | runs the session host's resume command (`claude --resume <id>`), from its original cwd                                                                                                                                                                                                                                                                                                                                     |
 | `rucher hook session-start`                            | hook entry point, reads the hook JSON on stdin, records the session, prints the resume context on `source: resume`; exits 0 outside a group or on any error                                                                                                                                                                                                                                                                |
 | `rucher hook user-prompt-submit`                       | syncs the Claude session title to the session name on every prompt; no output, exits 0 in every case                                                                                                                                                                                                                                                                                                                       |
 | `rucher hook subagent-start`                           | pairs the started subagent with its Carnet agent; exits 0 in every case                                                                                                                                                                                                                                                                                                                                                    |

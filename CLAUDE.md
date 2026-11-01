@@ -20,7 +20,7 @@ Multi-agent work in this repo follows `docs/workflow.md`: agent status and journ
 - Tests in Vitest next to each package (`tests/`), temp database per test.
 - Workspace packages import each other's sources through the `development` export condition: `vp check` and `vp test` need no prior build. Only the built-binary test needs `pnpm run build`.
 - Comments: few, short, explain why only when not obvious.
-- Names: no abbreviations (`directory`, `reference`, `index`, `event`, not `dir`, `ref`, `i`, `e`). Allowed short names: `io`, `env`, `id`, `db`, `ctx`. Names that mirror an external API keep its spelling (`cwd`, `ppid`, `session_id`, `CLAUDE_PID`, citty `args`).
+- Names: no abbreviations (`directory`, `reference`, `index`, `event`, not `dir`, `ref`, `i`, `e`). Allowed short names: `io`, `env`, `id`, `db`, `ctx`. Names that mirror an external API keep its spelling (`cwd`, `ppid`, `session_id`, `CLAUDE_PID`, citty `args`). Host-specific names (`CLAUDE_PID`, `CLAUDE_CODE_SESSION_ID`, `claude --resume`, `CLAUDE.md`) stay in `packages/carnet/src/hosts/`.
 - Style: single quotes, enforced by Oxfmt.
 
 <!--VITE PLUS START-->

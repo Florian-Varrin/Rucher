@@ -43,11 +43,30 @@ export {
   rucherHome,
   unregisterGroups,
 } from './group/registry.ts';
+export { handleSessionStart, type SessionStartResult } from './hook/session-start.ts';
+export { handleUserPromptSubmit } from './hook/user-prompt-submit.ts';
 export {
-  handleSessionStart,
-  parseHookPayload,
-  type SessionStartResult,
-} from './hook/session-start.ts';
+  claudeCode,
+  groupInstructions,
+  groupSettings,
+  REPOS_END,
+  REPOS_START,
+  replaceReposBlock,
+  reposBlock,
+  transcriptTitle,
+} from './hosts/claude-code.ts';
+export {
+  allHosts,
+  type ContextFile,
+  type ContextFileResult,
+  DEFAULT_HOST,
+  type Host,
+  hostById,
+  type HostPromptPayload,
+  type HostSessionPayload,
+  type HostSubagentPayload,
+  type ResumeCommand,
+} from './hosts/host.ts';
 export { type MergeResult } from './merge.ts';
 export { DEFAULT_PURGE_DAYS, purgeDays } from './purge.ts';
 export {
@@ -58,13 +77,6 @@ export {
   type ResumeContextOptions,
   sessionLabel,
 } from './resume.ts';
-export { type HookSubagentPayload, parseSubagentPayload } from './hook/subagent.ts';
-export {
-  handleUserPromptSubmit,
-  type HookPromptPayload,
-  parsePromptPayload,
-  transcriptTitle,
-} from './hook/user-prompt-submit.ts';
 export { PAIRING_WINDOW_MILLISECONDS, STOPPED_NOTE } from './subagents.ts';
 export type {
   HookEnv,

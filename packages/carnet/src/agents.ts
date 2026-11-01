@@ -14,7 +14,7 @@ export interface Agent {
   baseCommit: string | null;
   worktree: string | null;
   queueOrder: number | null;
-  claudeAgentId: string | null;
+  hostAgentId: string | null;
   pendingStatus: AgentStatus | null;
   doneAt: string | null;
   startedAt: string;
@@ -53,7 +53,7 @@ export interface AgentRow {
   base_commit: string | null;
   worktree: string | null;
   queue_order: number | null;
-  claude_agent_id: string | null;
+  host_agent_id: string | null;
   pending_status: AgentStatus | null;
   done_at: string | null;
   started_at: string;
@@ -71,7 +71,7 @@ export function toAgent(row: AgentRow): Agent {
     baseCommit: row.base_commit,
     worktree: row.worktree,
     queueOrder: row.queue_order,
-    claudeAgentId: row.claude_agent_id,
+    hostAgentId: row.host_agent_id,
     pendingStatus: row.pending_status,
     doneAt: row.done_at,
     startedAt: row.started_at,
@@ -178,7 +178,7 @@ export function finishAgent(
       'UPDATE agents SET pending_status = ?, note = ?, report_path = ?, done_at = ?, updated_at = ? WHERE session = ? AND name = ?',
     )
     .run(status, REPORTING_NOTE, input.reportPath, at, at, session, name);
-  if (!agent.claudeAgentId) publishPending(ctx, session, name);
+  if (!agent.hostAgentId) publishPending(ctx, session, name);
   return requireAgent(ctx, session, name);
 }
 

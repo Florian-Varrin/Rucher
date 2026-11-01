@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { CarnetError } from '../errors.ts';
+import { allHosts, DEFAULT_HOST } from '../hosts/host.ts';
 import { readRegistry } from './registry.ts';
 
 export const GROUP_DIRECTORY = '.rucher';
@@ -12,12 +13,14 @@ export interface Group {
   root: string;
   name: string;
   repos: string[];
+  hosts: string[];
   dbPath: string;
 }
 
 export interface GroupFile {
   name: string;
   repos: string[];
+  hosts?: string[] | undefined;
 }
 
 export function isInside(directory: string, path: string): boolean {
@@ -74,6 +77,7 @@ export function loadGroup(root: string): Group {
     root,
     name: file.name,
     repos: (file.repos ?? []).map((repo) => resolve(root, repo)),
+    hosts: file.hosts?.length ? file.hosts : [DEFAULT_HOST],
     dbPath: join(root, GROUP_DIRECTORY, DB_FILE),
   };
 }
@@ -93,10 +97,10 @@ function groupByRepo(path: string, env?: NodeJS.ProcessEnv): Group | null {
 }
 
 export function locateGroup({ cwd = process.cwd(), env = process.env }: LocateOptions = {}): Group {
-  const candidates = [
-    resolve(cwd),
-    ...(env.CLAUDE_PROJECT_DIR ? [resolve(env.CLAUDE_PROJECT_DIR)] : []),
-  ];
+  const projectDirectories = allHosts()
+    .map((host) => host.projectDirectory(env))
+    .filter((directory): directory is string => directory !== undefined);
+  const candidates = [resolve(cwd), ...projectDirectories.map((directory) => resolve(directory))];
   for (const directory of candidates) {
     const root = findGroupRoot(directory);
     if (root) return loadGroup(root);

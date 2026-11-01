@@ -1,6 +1,6 @@
 # Rucher
 
-Components and workflows for multi-agent development on top of Claude Code.
+Components and workflows for multi-agent development with coding agents. Claude Code is the supported host today.
 
 > _Rucher_ is French for apiary: a set of hives, each with its queen and its workers.
 > Rucher is a set of sessions, each with its main agent and its sub-agents.
@@ -62,7 +62,7 @@ rucher status --watch                  # the status pane
 rucher log                             # the journal
 rucher log --md > journal.md           # the journal as markdown
 rucher group remove ~/code/shop-infra  # drop a repo
-rucher group sync                      # rewrite settings and the CLAUDE.md repo list from group.json
+rucher group sync                      # rewrite the hosts' context files (CLAUDE.md, settings) from group.json
 rucher groups list                     # every registered group, missing ones flagged
 rucher groups prune                    # forget groups whose meta directory is gone
 rucher sessions                        # named sessions

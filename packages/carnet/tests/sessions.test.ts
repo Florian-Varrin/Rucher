@@ -5,8 +5,7 @@ import {
   CarnetError,
   handleSessionStart,
   handleUserPromptSubmit,
-  parseHookPayload,
-  parsePromptPayload,
+  claudeCode,
   transcriptTitle,
 } from '../src/index.ts';
 import { makeCarnet, SESSION, tempDirectory } from './helpers.ts';
@@ -15,16 +14,17 @@ test('hook upsert creates a temporary session and records repo and pid', () => {
   const { carnet, root } = makeCarnet();
   const session = carnet.sessions.upsertFromHook(
     { session_id: SESSION, cwd: join(root, 'api', 'src'), source: 'startup' },
-    { CLAUDE_PID: '4242' },
+    { processId: 4242 },
   );
   expect(session).toMatchObject({
     id: SESSION,
     name: null,
     status: 'temporary',
     repo: 'api',
-    claudePid: 4242,
+    hostPid: 4242,
+    host: 'claude-code',
   });
-  expect(carnet.sessions.byClaudePid(4242)?.id).toBe(SESSION);
+  expect(carnet.sessions.byHostProcess('claude-code', 4242)?.id).toBe(SESSION);
   expect(carnet.sessions.list()).toEqual([]);
   expect(carnet.sessions.list({ includeTemporary: true })).toHaveLength(1);
 });
@@ -105,9 +105,9 @@ test('ensure creates a temporary row when the hook was missed', () => {
   expect(carnet.sessions.ensure(SESSION).createdAt).toBe(session.createdAt);
 });
 
-test('parseHookPayload validates and handleSessionStart upserts', () => {
+test('the Claude Code session payload is validated and handleSessionStart upserts', () => {
   const { carnet, root } = makeCarnet();
-  const payload = parseHookPayload(
+  const payload = claudeCode.parseSessionPayload(
     JSON.stringify({
       session_id: SESSION,
       cwd: root,
@@ -121,8 +121,8 @@ test('parseHookPayload validates and handleSessionStart upserts', () => {
     source: 'startup',
     session_title: undefined,
   });
-  expect(handleSessionStart(carnet, payload, { CLAUDE_PID: '7' }).session.claudePid).toBe(7);
-  expect(() => parseHookPayload('{}')).toThrowError(TypeError);
+  expect(handleSessionStart(carnet, payload, { processId: 7 }).session.hostPid).toBe(7);
+  expect(() => claudeCode.parseSessionPayload('{}')).toThrowError(TypeError);
 });
 
 test('find accepts a name, a full id or a unique id prefix, names first', () => {
@@ -176,14 +176,14 @@ test('a title taken by another session is not adopted', () => {
 test('the prompt hook names the session from the payload title', () => {
   const { carnet, root } = makeCarnet();
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root });
-  const payload = parsePromptPayload(
+  const payload = claudeCode.parsePromptPayload(
     JSON.stringify({ session_id: SESSION, cwd: root, session_title: 'shop-auth', prompt: 'hi' }),
   );
-  expect(handleUserPromptSubmit(carnet, payload)).toMatchObject({
+  expect(handleUserPromptSubmit(carnet, claudeCode, payload)).toMatchObject({
     name: 'shop-auth',
     status: 'active',
   });
-  const unchanged = handleUserPromptSubmit(carnet, payload);
+  const unchanged = handleUserPromptSubmit(carnet, claudeCode, payload);
   expect(unchanged.name).toBe('shop-auth');
 });
 
@@ -195,7 +195,7 @@ test('without a payload title the prompt hook reads the last transcript title', 
   writeFileSync(transcript, `${line('shop-old')}\n{"type":"user"}\n${line('shop-cart')}\n`);
   expect(transcriptTitle(transcript)).toBe('shop-cart');
   expect(transcriptTitle(join(root, 'missing.jsonl'))).toBeUndefined();
-  const session = handleUserPromptSubmit(carnet, {
+  const session = handleUserPromptSubmit(carnet, claudeCode, {
     session_id: SESSION,
     cwd: root,
     transcript_path: transcript,
@@ -205,6 +205,6 @@ test('without a payload title the prompt hook reads the last transcript title', 
 
 test('the prompt hook leaves a session without any title untouched', () => {
   const { carnet, root } = makeCarnet();
-  const session = handleUserPromptSubmit(carnet, { session_id: SESSION, cwd: root });
+  const session = handleUserPromptSubmit(carnet, claudeCode, { session_id: SESSION, cwd: root });
   expect(session).toMatchObject({ name: null, status: 'temporary' });
 });

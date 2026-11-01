@@ -1,6 +1,6 @@
 # Sessions
 
-How Rucher tracks your Claude Code conversations, and how to name, watch, resume and drop them. For the multi-agent rules see [workflow.md](workflow.md); for the data model see [carnet-spec.md](carnet-spec.md).
+How Rucher tracks your coding agent's conversations (Claude Code today), and how to name, watch, resume and drop them. For the multi-agent rules see [workflow.md](workflow.md); for the data model see [carnet-spec.md](carnet-spec.md).
 
 ## What a session is
 
@@ -67,7 +67,7 @@ From inside Claude, the main agent has the same view through `session_list`, `se
 rucher resume shop-auth
 ```
 
-`rucher resume <name|id>` looks the session up and runs `claude --resume <id>` from the directory the session started in (Claude Code stores conversations per project directory). It resumes by id because a Carnet name and a Claude title can drift apart. A dropped session can still be resumed, with a warning.
+`rucher resume <name|id>` looks the session up and runs its host's resume command, `claude --resume <id>` for Claude Code, from the directory the session started in (Claude Code stores conversations per project directory). It resumes by id because a Carnet name and a Claude title can drift apart. A dropped session can still be resumed, with a warning.
 
 On resume, the `SessionStart` hook adds context to the conversation: the session's status view and its last 20 journal events, capped at about 2000 characters (oldest events dropped first). Claude picks up where it stopped without you pasting anything.
 

@@ -14,7 +14,13 @@ const DAY = 24 * 60 * 60 * 1000;
 
 function clockedCarnet() {
   const root = tempDirectory();
-  const group = { root, name: 'shop', repos: [join(root, 'api')], dbPath: MEMORY_DB };
+  const group = {
+    root,
+    name: 'shop',
+    repos: [join(root, 'api')],
+    hosts: ['claude-code'],
+    dbPath: MEMORY_DB,
+  };
   let time = Date.parse('2026-10-20T09:00:00.000Z');
   const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: () => new Date(time) });
   return {

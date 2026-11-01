@@ -161,7 +161,7 @@ One Node process: the Ink TUI, an orchestrator, and one SDK session per agent. N
 
 ### Multiple backends
 
-The orchestrator and the UI only talk to an `AgentBackend` interface and to normalized events, never to the SDKs directly. The MVP only implements Claude; OpenCode comes next.
+The orchestrator and the UI only talk to an `AgentBackend` interface and to normalized events, never to the SDKs directly. The MVP only implements Claude; OpenCode comes next. Carnet already isolates what it observes from Claude Code as a host (see carnet-spec, Hosts); a backend records its sessions as that host.
 
 ```ts
 interface AgentBackend {
