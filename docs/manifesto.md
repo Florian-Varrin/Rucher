@@ -78,7 +78,7 @@ _Carnet_ is French for notebook.
 
 ## Progression
 
-1. **Workflow** — the rules in `CLAUDE.md`, proven daily. _Done._
+1. **Workflow** — the rules in `CLAUDE.md`, proven daily, now [in the repo](workflow.md). _Done._
 2. **Groups** — one meta directory per set of repos.
 3. **Carnet + CLI** — state leaves markdown and moves into a database, written by the agents through MCP; the `rucher` CLI replaces the status files.
 4. **Sessions** — registry, resume by name, temporary sessions.

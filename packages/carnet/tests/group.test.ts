@@ -32,15 +32,20 @@ test("initGroup creates the marker, the database and the registry entry", () => 
   const group = initGroup(root, { env });
   expect(group.name).toBe(root.split("/").at(-1));
   expect(group.repos).toEqual(["api", "web"]);
+  expect(group.reposPinned).toBe(false);
   expect(existsSync(group.dbPath)).toBe(true);
   expect(loadGroup(root)).toEqual(group);
+  mkdirSync(join(root, "infra", ".git"), { recursive: true });
+  expect(loadGroup(root).repos).toEqual(["api", "infra", "web"]);
   expect(readRegistry(env)).toEqual([{ name: group.name, path: root }]);
 });
 
 test("initGroup refuses an existing group and honours explicit options", () => {
   const { root, env } = metaDir();
   initGroup(root, { env, name: "mycity", repos: ["api"] });
-  expect(loadGroup(root)).toMatchObject({ name: "mycity", repos: ["api"] });
+  expect(loadGroup(root)).toMatchObject({ name: "mycity", repos: ["api"], reposPinned: true });
+  mkdirSync(join(root, "infra", ".git"), { recursive: true });
+  expect(loadGroup(root).repos).toEqual(["api"]);
   expect(() => initGroup(root, { env })).toThrowError(CarnetError);
 });
 

@@ -52,17 +52,19 @@ const agentStart = defineTool({
 const agentUpdate = defineTool({
   name: "agent_update",
   description:
-    "Change an agent's status and displayed note. Forks use it with status `running` to show progress; the main agent uses user-action statuses (discussing, answer, review, apply, test, commit, branch) as the next step moves. Use agent_drop to close.",
+    "Change an agent's status and displayed note. Forks use it with status `running` to show progress; the main agent uses user-action statuses (discussing, answer, review, apply, test, commit, branch) as the next step moves, and sets report_path after copying a report to its final place. Use agent_drop to close.",
   schema: z.object({
     name: agentName,
     status: z.enum(OPEN_AGENT_STATUSES).describe("Next action: running means the fork is working"),
     note: z.string().optional().describe("Under 60 characters, no paths, no backticks"),
+    report_path: z.string().optional().describe("New absolute path of the report, when it moved"),
     session,
   }),
   run: (carnet, sessionId, args) => {
     const agent = carnet.agents.update(sessionId, args.name, {
       status: args.status,
       note: args.note,
+      reportPath: args.report_path,
     });
     const text = renderAgentLine({
       name: agent.name,

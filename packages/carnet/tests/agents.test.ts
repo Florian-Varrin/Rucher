@@ -32,6 +32,15 @@ test("start, update, finish and drop follow the lifecycle and log events", () =>
   });
   expect(finished).toMatchObject({ status: "answer", reportPath: "/tmp/banner.md" });
 
+  const moved = carnet.agents.update(SESSION, "banner", {
+    status: "answer",
+    reportPath: "/repo/dev/claude/forks/banner.md",
+  });
+  expect(moved.reportPath).toBe("/repo/dev/claude/forks/banner.md");
+  expect(carnet.agents.update(SESSION, "banner", { status: "answer" }).reportPath).toBe(
+    "/repo/dev/claude/forks/banner.md",
+  );
+
   const dropped = carnet.agents.drop(SESSION, "banner", "superseded");
   expect(dropped.status).toBe("closed");
   expect(carnet.agents.list(SESSION)).toEqual([]);

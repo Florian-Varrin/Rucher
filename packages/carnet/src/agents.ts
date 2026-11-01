@@ -28,6 +28,7 @@ export interface StartAgentInput {
 export interface UpdateAgentInput {
   status: AgentStatus;
   note?: string;
+  reportPath?: string;
 }
 
 export interface FinishAgentInput {
@@ -118,9 +119,9 @@ export function updateAgent(
   const note = input.note === undefined ? null : sanitizeNote(input.note);
   ctx.db
     .prepare(
-      "UPDATE agents SET status = ?, note = COALESCE(?, note), updated_at = ? WHERE session = ? AND name = ?",
+      "UPDATE agents SET status = ?, note = COALESCE(?, note), report_path = COALESCE(?, report_path), updated_at = ? WHERE session = ? AND name = ?",
     )
-    .run(input.status, note, nowIso(ctx), session, name);
+    .run(input.status, note, input.reportPath ?? null, nowIso(ctx), session, name);
   return requireAgent(ctx, session, name);
 }
 

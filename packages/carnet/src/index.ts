@@ -16,9 +16,10 @@ export {
   isEventType,
   type LogEventInput,
 } from "./events.ts";
-export { detectRepos, initGroup, type InitOptions } from "./group/init.ts";
+export { initGroup, type InitOptions } from "./group/init.ts";
 export {
   DB_FILE,
+  detectRepos,
   findGroupRoot,
   type Group,
   GROUP_DIR,

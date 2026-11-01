@@ -9,6 +9,7 @@ Main agent:
 - agent_start right before dispatching a fork (name, task). Names are short, no paths.
 - table_set with main_working=true before applying, testing or fixing yourself; table_set with a status (or table_clear) when done.
 - log_event when a step is answered, applied, tested, committed or dropped.
+- When a fork finishes: say one line "<name> finished, report ready", copy its report to dev/claude/forks/<name>.md and call agent_update with the new report_path. Present the report only when asked.
 - agent_drop when a fork's work is committed or abandoned. queue_reorder to change the handling order.
 - agent_list to recall where things stand.
 

@@ -34,7 +34,7 @@ export function init(options: InitOptions, io: Io): number {
 
   const lines = [
     `${p.bold(group.name)} initialised in ${group.root}`,
-    `  repos: ${group.repos.length ? group.repos.join(", ") : "none detected"}`,
+    `  repos: ${group.repos.length ? group.repos.join(", ") : "none yet, detected automatically as you add them"}`,
     `  database: ${group.dbPath}`,
   ];
   const claudeMd = join(group.root, "CLAUDE.md");
@@ -44,11 +44,17 @@ export function init(options: InitOptions, io: Io): number {
       ? "  wrote CLAUDE.md (group instructions template)"
       : `  kept existing CLAUDE.md ${p.dim("(add a line: multi-agent work uses the rucher tools)")}`,
   );
-  lines.push(
-    writeIfAbsent(settings, groupSettings(group))
-      ? "  wrote .claude/settings.json (additionalDirectories for the repos)"
-      : `  kept existing .claude/settings.json ${p.dim(`(suggested: ${groupSettings(group).trim()})`)}`,
-  );
+  if (group.repos.length === 0) {
+    lines.push(
+      "  no .claude/settings.json: nothing to grant until repos arrive (single-repo group, or add them later)",
+    );
+  } else {
+    lines.push(
+      writeIfAbsent(settings, groupSettings(group))
+        ? "  wrote .claude/settings.json (additionalDirectories for the repos)"
+        : `  kept existing .claude/settings.json ${p.dim(`(suggested: ${groupSettings(group).trim()})`)}`,
+    );
+  }
   lines.push(
     "",
     "Next: start claude in this directory or in a repo, then `rucher status --watch` in a side pane.",

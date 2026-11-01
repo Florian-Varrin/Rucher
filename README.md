@@ -15,13 +15,13 @@ Early. Personal tooling first, open source in the making. Nothing is published y
 
 ## Components
 
-| Component    | Role                                                                                            | State                              |
-| ------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Workflow     | Rules for multi-agent work: two-phase forks, parallel work, sequential review, reports in files | in use, moving into this repo      |
-| Groups       | One meta directory per set of related repos: repo map, shared instructions, directory access    | next                               |
-| Carnet       | Shared state: agent statuses, "On the table", sessions, journal. Library + SQLite + MCP server  | [spec](docs/carnet-spec.md)        |
-| CLI `rucher` | Human entry point: `status`, `log`, `sessions`, `resume`                                        | [spec](docs/carnet-spec.md)        |
-| Core + TUI   | SDK wrapper, agents, forks, permissions; one-window terminal UI                                 | [spec](docs/rucher-spec.md), later |
+| Component    | Role                                                                                            | State                                |
+| ------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Workflow     | Rules for multi-agent work: two-phase forks, parallel work, sequential review, reports in files | [docs/workflow.md](docs/workflow.md) |
+| Groups       | One meta directory per set of related repos: repo map, shared instructions, directory access    | next                                 |
+| Carnet       | Shared state: agent statuses, "On the table", sessions, journal. Library + SQLite + MCP server  | [spec](docs/carnet-spec.md)          |
+| CLI `rucher` | Human entry point: `status`, `log`, `sessions`, `resume`                                        | [spec](docs/carnet-spec.md)          |
+| Core + TUI   | SDK wrapper, agents, forks, permissions; one-window terminal UI                                 | [spec](docs/rucher-spec.md), later   |
 
 ## Repository layout
 
@@ -63,7 +63,7 @@ rucher log                  # the journal
 Wire Claude Code with the plugin (MCP server plus `SessionStart` hook), the repo being its own marketplace:
 
 ```bash
-claude plugin marketplace add ~/Projects/Perso/rucher/rucher
+claude plugin marketplace add ~/Projects/Groups/rucher
 claude plugin install rucher@rucher
 ```
 

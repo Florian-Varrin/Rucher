@@ -62,8 +62,13 @@ test("main and fork lifecycle through the protocol", async () => {
     (await call("log_event", { type: "committed", agent: "banner", commit: "abc123" })).text,
   ).toBe("logged committed banner abc123");
 
+  await call("agent_update", {
+    name: "banner",
+    status: "answer",
+    report_path: "/repo/forks/banner.md",
+  });
   const list = await call("agent_list");
-  expect(list.text).toBe("❓ banner [answer] — halfway (report: /tmp/banner.md)");
+  expect(list.text).toBe("❓ banner [answer] — halfway (report: /repo/forks/banner.md)");
   expect(list.data).toMatchObject({ agents: [{ name: "banner", status: "answer" }] });
 
   expect((await call("agent_drop", { name: "banner", reason: "merged" })).text).toBe(

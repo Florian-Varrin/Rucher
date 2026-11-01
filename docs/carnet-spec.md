@@ -27,8 +27,8 @@ Today the main agent rewrites `agents-status.md` and `log.md` itself, following 
 
 A group is a meta directory holding related repos (for example `~/Work/MyCity/` with `api/`, `web/`, `infra/`). Claude sessions are started from the meta directory or from any repo inside it.
 
-- Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repos).
-- Created by `rucher init`, which detects the repos (child directories holding a `.git`), writes `group.json`, and registers the group in `~/.rucher/groups.json` so the CLI can list groups from anywhere.
+- Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repos). A single repo can be its own group: run `rucher init` at the repo root and git-ignore `.rucher/`.
+- Created by `rucher init`, which writes `group.json` and registers the group in `~/.rucher/groups.json` so the CLI can list groups from anywhere. Repos (child directories holding a `.git`) are detected every time the group is loaded, unless `--repos` pinned a list in `group.json`.
 - Resolution: walk up from the current directory (or from the MCP roots) until a `.rucher/` folder is found. Starting `claude` inside `MyCity/api/` attaches the session to MyCity and records the repo on the session.
 - Group instructions and repo access stay native to Claude Code: the meta directory's `CLAUDE.md` loads as an ancestor file, and `permissions.additionalDirectories` in its `.claude/settings.json` grants access to the repos. `rucher init` scaffolds both as templates. Carnet stores no instruction text.
 
@@ -92,14 +92,14 @@ When the server is shipped through a plugin, Claude Code names the tools `mcp__p
 
 **Agents**
 
-| Tool            | Parameters                          | Effect                                                   |
-| --------------- | ----------------------------------- | -------------------------------------------------------- |
-| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`          |
-| `agent_update`  | name, status, note?                 | changes the status and the displayed text                |
-| `agent_done`    | name, report_path, has_questions    | moves to ❓ answer or 👀 review, logs `finished`         |
-| `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                            |
-| `agent_list`    | —                                   | structured list, so the main agent knows where it stands |
-| `queue_reorder` | names[]                             | order of "Waiting on you"                                |
+| Tool            | Parameters                          | Effect                                                                                                   |
+| --------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`                                                          |
+| `agent_update`  | name, status, note?, report_path?   | changes the status and the displayed text; `report_path` after main copied the report to its final place |
+| `agent_done`    | name, report_path, has_questions    | moves to ❓ answer or 👀 review, logs `finished`                                                         |
+| `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                                                                            |
+| `agent_list`    | —                                   | structured list, so the main agent knows where it stands                                                 |
+| `queue_reorder` | names[]                             | order of "Waiting on you"                                                                                |
 
 **On the table**
 
@@ -216,7 +216,7 @@ Usage rules live at three levels:
 | Tool descriptions       | when to call each tool, allowed status values                                                    | read by the model at every call                                                                     |
 | `rucher` skill          | full workflow: two-phase forks, applying a fork, worktrees, reports                              | loaded on demand, invocable with `/rucher`                                                          |
 
-The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and the rucher skill".
+The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and the rucher skill". The canonical rules live in [workflow.md](workflow.md); the user's global `CLAUDE.md` imports it.
 
 ## Stack
 

@@ -23,6 +23,16 @@ test("creates the group and both templates", () => {
   expect(settings).toEqual({ permissions: { additionalDirectories: ["./api", "./web"] } });
 });
 
+test("an empty folder gets an explicit hint about repos", () => {
+  const root = tempDir("meta-");
+  const io = makeIo({ cwd: root, env: { RUCHER_HOME: tempDir("home-") } });
+  expect(init({}, io)).toBe(0);
+  expect(io.out.join("")).toContain("none yet, detected automatically");
+  expect(io.out.join("")).toContain("no .claude/settings.json");
+  expect(existsSync(join(root, ".claude", "settings.json"))).toBe(false);
+  expect(existsSync(join(root, "CLAUDE.md"))).toBe(true);
+});
+
 test("keeps existing files, honours --repos and a target dir, refuses a second init", () => {
   const { root, io } = meta();
   writeFileSync(join(root, "CLAUDE.md"), "mine\n");

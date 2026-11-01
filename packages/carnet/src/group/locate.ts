@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { CarnetError } from "../errors.ts";
 
@@ -10,12 +10,21 @@ export interface Group {
   root: string;
   name: string;
   repos: string[];
+  reposPinned: boolean;
   dbPath: string;
 }
 
-interface GroupFile {
+export interface GroupFile {
   name: string;
   repos?: string[];
+}
+
+export function detectRepos(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+    .filter((entry) => existsSync(join(root, entry.name, ".git")))
+    .map((entry) => entry.name)
+    .sort();
 }
 
 export function findGroupRoot(from: string): string | null {
@@ -31,7 +40,13 @@ export function findGroupRoot(from: string): string | null {
 
 export function loadGroup(root: string): Group {
   const file = JSON.parse(readFileSync(join(root, GROUP_DIR, GROUP_FILE), "utf8")) as GroupFile;
-  return { root, name: file.name, repos: file.repos ?? [], dbPath: join(root, GROUP_DIR, DB_FILE) };
+  return {
+    root,
+    name: file.name,
+    repos: file.repos ?? detectRepos(root),
+    reposPinned: file.repos !== undefined,
+    dbPath: join(root, GROUP_DIR, DB_FILE),
+  };
 }
 
 export interface LocateOptions {

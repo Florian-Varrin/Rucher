@@ -7,7 +7,9 @@ Monorepo for Rucher: components and workflows for multi-agent development on top
 - `packages/carnet`: library, SQLite schema, MCP server (`docs/carnet-spec.md`).
 - `packages/cli`: the `rucher` binary, built on carnet.
 - `plugin/`: Claude Code plugin (hooks, MCP wiring, skill).
-- `docs/`: manifesto and specs. Specs are living documents: update them when a decision changes.
+- `docs/`: manifesto, specs and `workflow.md`. Specs are living documents: update them when a decision changes.
+
+Multi-agent work in this repo follows `docs/workflow.md`: agent status and journal through the rucher tools, never status files.
 
 ## Conventions
 
