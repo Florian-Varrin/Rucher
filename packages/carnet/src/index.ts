@@ -32,6 +32,9 @@ export {
   type LocateOptions,
   repoNameFor,
   repoPathFor,
+  REPORTS_DIRECTORY,
+  reportPathFor,
+  reportsDirectoryOf,
 } from './group/locate.ts';
 export {
   type GroupReference,

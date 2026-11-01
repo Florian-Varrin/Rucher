@@ -6,6 +6,7 @@ Wires [Carnet](../docs/carnet-spec.md) into Claude Code:
 - `SessionStart` hook (`rucher hook session-start`): records every session in the group database so the server and the CLI know which session is which.
 - `UserPromptSubmit` hook (`rucher hook user-prompt-submit`): picks up the session title after a `/rename`, so the session gets its name with the next message.
 - `SubagentStart` and `SubagentStop` hooks (`rucher hook subagent-start|subagent-stop`): pair each fork with its agent, and move a fork that stopped without `agent_done` to review.
+- `rucher` skill (`skills/rucher/SKILL.md`): the multi-agent workflow for the main agent (dispatching, applying, statuses, reports). It loads itself when you ask Claude for forks or parallel work, or with `/rucher`. Generated from [docs/workflow.md](../docs/workflow.md) by `pnpm run build`; edit the doc, not the skill.
 
 ## Prerequisites
 

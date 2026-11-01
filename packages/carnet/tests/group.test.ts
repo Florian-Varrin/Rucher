@@ -14,6 +14,8 @@ import {
   removeGroupRepo,
   repoNameFor,
   repoPathFor,
+  reportPathFor,
+  reportsDirectoryOf,
   unregisterGroups,
 } from '../src/index.ts';
 import { tempDirectory } from './helpers.ts';
@@ -41,6 +43,8 @@ test('initGroup records repo paths, creates the database and the registry entry'
   expect(group.name).toBe(meta.split('/').at(-1));
   expect(group.repos).toEqual([api, web]);
   expect(existsSync(group.dbPath)).toBe(true);
+  expect(existsSync(reportsDirectoryOf(group))).toBe(true);
+  expect(reportPathFor(group, 'banner')).toBe(join(meta, '.rucher', 'reports', 'banner.md'));
   expect(loadGroup(meta)).toEqual(group);
   expect(readRegistry(env)).toEqual([{ name: group.name, path: meta }]);
 });

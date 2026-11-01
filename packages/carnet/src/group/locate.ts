@@ -4,6 +4,7 @@ import { CarnetError } from '../errors.ts';
 import { readRegistry } from './registry.ts';
 
 export const GROUP_DIRECTORY = '.rucher';
+export const REPORTS_DIRECTORY = 'reports';
 export const GROUP_FILE = 'group.json';
 export const DB_FILE = 'carnet.db';
 
@@ -51,6 +52,14 @@ export function findGroupRoot(from: string): string | null {
     if (parent === directory) return null;
     directory = parent;
   }
+}
+
+export function reportsDirectoryOf(group: Group): string {
+  return join(group.root, GROUP_DIRECTORY, REPORTS_DIRECTORY);
+}
+
+export function reportPathFor(group: Group, agentName: string): string {
+  return join(reportsDirectoryOf(group), `${agentName}.md`);
 }
 
 export function isGroupRoot(directory: string): boolean {

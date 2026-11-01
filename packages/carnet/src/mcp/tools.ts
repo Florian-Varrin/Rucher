@@ -1,6 +1,8 @@
+import { mkdirSync } from 'node:fs';
 import * as z from 'zod/v4';
 import type { Carnet } from '../carnet.ts';
 import { EVENT_TYPES } from '../events.ts';
+import { reportPathFor, reportsDirectoryOf } from '../group/locate.ts';
 import { formatEventLine, resumeContext, sessionLabel } from '../resume.ts';
 import { EMOJI, OPEN_AGENT_STATUSES, USER_ACTION_STATUSES } from '../status/model.ts';
 import { renderAgentLine, renderTableLine } from '../status/render.ts';
@@ -33,7 +35,7 @@ const agentName = z.string().min(1).describe('Short agent name, no paths');
 const agentStart = defineTool({
   name: 'agent_start',
   description:
-    'Main agent only. Register a fork right before dispatching it. The agent appears as ⏳ running and a `started` event is logged.',
+    'Main agent only. Register a fork before dispatching it (launch it in a later message). The agent appears as ⏳ running and a `started` event is logged. The result gives the report destination: where main copies the fork report once it finishes, in the group meta directory, outside the repos.',
   schema: z.object({
     name: agentName,
     task: z.string().min(1).describe('One-line task given to the fork'),
@@ -48,7 +50,12 @@ const agentStart = defineTool({
       baseCommit: args.base_commit,
       worktree: args.worktree,
     });
-    return { text: `${EMOJI.running} ${agent.name} started`, data: { agent } };
+    mkdirSync(reportsDirectoryOf(carnet.group), { recursive: true });
+    const reportDestination = reportPathFor(carnet.group, agent.name);
+    return {
+      text: `${EMOJI.running} ${agent.name} started\nReport destination: ${reportDestination}`,
+      data: { agent, reportDestination },
+    };
   },
 });
 

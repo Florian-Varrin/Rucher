@@ -108,7 +108,7 @@ When the server is shipped through a plugin, Claude Code names the tools `mcp__p
 
 | Tool            | Parameters                          | Effect                                                                                                                                                                                 |
 | --------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`                                                                                                                                        |
+| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`, returns the report destination `.rucher/reports/<name>.md`                                                                            |
 | `agent_update`  | name, status, note?, report_path?   | changes the status and the displayed text (a running note is cleared when the status leaves running without a new note); `report_path` after main copied the report to its final place |
 | `agent_done`    | name, report_path, has_questions    | stores ❓ answer or 👀 review, published at the real stop (SubagentStop) or at once when unpaired; logs `finished` then                                                                |
 | `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                                                                                                                                                          |
@@ -223,7 +223,7 @@ Advantages over generated files:
 
 ## Integration
 
-- Shipped as a Claude Code plugin from day one: MCP server, `SessionStart` hook and, later, the `rucher` skill in one install. The repo is its own marketplace (`.claude-plugin/marketplace.json` at the root, plugin files in `plugin/`): `claude plugin marketplace add <repo path>` then `claude plugin install rucher@rucher`.
+- Shipped as a Claude Code plugin from day one: MCP server, hooks and the `rucher` skill in one install. The repo is its own marketplace (`.claude-plugin/marketplace.json` at the root, plugin files in `plugin/`): `claude plugin marketplace add <repo path>` then `claude plugin install rucher@rucher`.
 - The plugin calls `rucher` from the `PATH`, nothing is bundled: the `rucher` CLI is linked globally (`pnpm link --global` in `packages/cli`), which also makes it available in the terminal pane. Tools appear as `mcp__plugin_rucher_carnet__<tool>`.
 - The multi-agent block of the user's global `CLAUDE.md` shrinks to behavior rules; all format and status-file rules disappear, replaced by "use the rucher tools".
 
@@ -239,7 +239,7 @@ Usage rules live at three levels:
 | Tool descriptions       | when to call each tool, allowed status values                                                    | read by the model at every call                                                                     |
 | `rucher` skill          | full workflow: two-phase forks, applying a fork, worktrees, reports                              | loaded on demand, invocable with `/rucher`                                                          |
 
-The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and the rucher skill". The canonical rules live in [workflow.md](workflow.md); the user's global `CLAUDE.md` imports it.
+The canonical rules live in [workflow.md](workflow.md); the skill is generated from it at build time (sections between `<!-- skill:skip start -->` and `<!-- skill:skip end -->` are left out), and a test fails when the committed skill drifts. No `CLAUDE.md` block is needed; importing workflow.md from a `CLAUDE.md` stays possible for always-on rules. Fork reports are copied by the main agent to `.rucher/reports/<name>.md` in the group's meta directory (created by `rucher init` and by `agent_start`, whose result gives the destination), outside the repos.
 
 ## Stack
 
@@ -270,7 +270,7 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 
 **Milestone 3**
 
-- [ ] `rucher` skill in the plugin
+- [x] `rucher` skill in the plugin
 - [x] `SubagentStop` hook as a safety net for agents left `running`
 - [ ] Open source polish: CI, publishing
 - [ ] Interactive TUI view, reuse by Rucher Core as internal tools

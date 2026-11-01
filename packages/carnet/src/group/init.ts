@@ -6,6 +6,7 @@ import {
   DB_FILE,
   GROUP_DIRECTORY,
   GROUP_FILE,
+  REPORTS_DIRECTORY,
   type Group,
   type GroupFile,
   loadGroup,
@@ -37,7 +38,7 @@ export function initGroup(directory: string, options: InitOptions = {}): Group {
   }
   const name = options.name ?? basename(root);
   const repos = (options.repos ?? []).map((repo) => resolveRepo(root, repo));
-  mkdirSync(groupDirectory, { recursive: true });
+  mkdirSync(join(groupDirectory, REPORTS_DIRECTORY), { recursive: true });
   writeGroupFile(root, { name, repos });
   openDatabase(join(groupDirectory, DB_FILE)).close();
   registerGroup({ name, path: root }, options.env);

@@ -5,10 +5,10 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "vp run -r build",
+    "build": "vp run -r build && node packages/cli/scripts/build-skill.ts",
     "test": "vp run -r test",
     "check": "vp check",
-    "ready": "vp run -r build && vp check && vp run -r test",
+    "ready": "pnpm run build && vp check && vp run -r test",
     "prepare": "vp config",
     "changeset": "changeset"
   },

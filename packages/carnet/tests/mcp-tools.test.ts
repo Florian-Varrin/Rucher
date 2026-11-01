@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { beforeAll, expect, test } from 'vite-plus/test';
@@ -40,9 +42,11 @@ test("instructions fit Claude Code's limit and tools are listed", async () => {
 });
 
 test('main and fork lifecycle through the protocol', async () => {
-  expect((await call('agent_start', { name: 'banner', task: 'Add banner' })).text).toBe(
-    '⏳ banner started',
-  );
+  const started = await call('agent_start', { name: 'banner', task: 'Add banner' });
+  const destination = join(carnet.group.root, '.rucher', 'reports', 'banner.md');
+  expect(started.text).toBe(`⏳ banner started\nReport destination: ${destination}`);
+  expect(started.data).toMatchObject({ reportDestination: destination });
+  expect(existsSync(dirname(destination))).toBe(true);
   expect(
     (await call('agent_update', { name: 'banner', status: 'running', note: 'halfway' })).text,
   ).toBe('⏳ banner — halfway');
