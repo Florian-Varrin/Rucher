@@ -183,6 +183,7 @@ No generated markdown files: the `rucher` CLI reads the SQLite database and rend
 | `rucher hook subagent-start`                           | pairs the started subagent with its Carnet agent; exits 0 in every case                                                                                                                                                                                                             |
 | `rucher hook subagent-stop`                            | moves a paired agent still `running` to `review`; exits 0 in every case                                                                                                                                                                                                             |
 | `rucher serve`                                         | the stdio MCP server; the group is resolved lazily so the server always starts, tools answer `NO_GROUP` outside a group                                                                                                                                                             |
+| `rucher complete <shell>`                              | prints the completion script for zsh, bash, fish or powershell (`source <(rucher complete zsh)`); `rucher complete -- <words>` answers the shell with commands, flags, session names and short ids, group names and repo paths; silent outside a group                              |
 
 Default session: the most recently active one of the current group.
 

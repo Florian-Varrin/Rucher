@@ -41,6 +41,7 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
+    "@bomb.sh/tab": "catalog:",
     "@rucher/carnet": "workspace:*",
     "citty": "catalog:"
   },

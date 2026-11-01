@@ -26,4 +26,6 @@ test.skipIf(!existsSync(bin))('built binary runs help, init, hook and status', (
   const status = run(['status']);
   expect(status).toContain('Waiting on you\n  nothing');
   expect(run(['log'])).toBe('no events yet\n');
+  expect(run(['complete', 'zsh'])).toContain('#compdef rucher');
+  expect(run(['complete', '--', 'groups', 'forget', ''])).toContain('demo');
 });

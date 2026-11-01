@@ -83,6 +83,18 @@ claude plugin install rucher@rucher
 
 Details, update and uninstall in [plugin/README.md](plugin/README.md). For development, `claude --plugin-dir ./plugin` loads it from the working tree.
 
+### Shell completion
+
+`rucher complete <shell>` prints a completion script (zsh, bash, fish, powershell). Add the line for your shell to its rc file:
+
+```bash
+source <(rucher complete zsh)        # ~/.zshrc
+source <(rucher complete bash)       # ~/.bashrc
+rucher complete fish | source        # ~/.config/fish/config.fish
+```
+
+Commands and flags complete as you type; `--session`, `resume` and `sessions merge` offer session names, then short ids; `groups forget` offers group names, `group remove` the group's repos.
+
 ## Development
 
 ```bash
