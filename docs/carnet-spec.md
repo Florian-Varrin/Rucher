@@ -25,7 +25,7 @@ Today the main agent rewrites `agents-status.md` and `log.md` itself, following 
 
 ## Groups
 
-A group is a meta directory for a set of related repos (for example `~/Projects/RucherGroups/mycity`). It holds context only: the group `CLAUDE.md`, `.claude/settings.json` whose `additionalDirectories` lists the repos, and the Carnet database. The repos stay at their own paths. Claude sessions start from the meta directory, so the shared context loads and every repo is reachable.
+A group is a meta directory for a set of related repos (for example `~/groups/shop`). It holds context only: the group `CLAUDE.md`, `.claude/settings.json` whose `additionalDirectories` lists the repos, and the Carnet database. The repos stay at their own paths. Claude sessions start from the meta directory, so the shared context loads and every repo is reachable.
 
 - Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repo paths).
 - Created by `rucher init [--name X] [--repos a,b]`, which writes `group.json`, scaffolds `CLAUDE.md` and `.claude/settings.json` when absent, and registers the group in `~/.rucher/groups.json`. `rucher group add <path>` adds a repo later and merges it into `additionalDirectories`.

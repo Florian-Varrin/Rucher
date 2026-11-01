@@ -14,7 +14,7 @@ Wires [Carnet](../docs/carnet-spec.md) into Claude Code:
 ## Install
 
 ```bash
-claude plugin marketplace add ~/Projects/RucherGroups/rucher   # the repo is its own marketplace
+claude plugin marketplace add <path to your rucher clone>   # the repo is its own marketplace
 claude plugin install rucher@rucher
 claude plugin list
 ```

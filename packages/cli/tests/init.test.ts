@@ -19,12 +19,12 @@ function settingsOf(meta: string) {
 
 test("init with repos writes the group, the CLAUDE.md template and the settings", () => {
   const { meta, api, web, io } = setup();
-  expect(init({ name: "mycity", repos: [api, web] }, io)).toBe(0);
-  expect(io.out.join("")).toContain("mycity initialised");
+  expect(init({ name: "shop", repos: [api, web] }, io)).toBe(0);
+  expect(io.out.join("")).toContain("shop initialised");
   expect(io.out.join("")).toContain("written .claude/settings.json");
   expect(existsSync(join(meta, ".rucher", "carnet.db"))).toBe(true);
   const claudeMd = readFileSync(join(meta, "CLAUDE.md"), "utf8");
-  expect(claudeMd).toContain("# mycity");
+  expect(claudeMd).toContain("# shop");
   expect(claudeMd).toContain(`: ${api}`);
   expect(settingsOf(meta)).toEqual({ permissions: { additionalDirectories: [api, web] } });
 });

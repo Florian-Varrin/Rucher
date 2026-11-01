@@ -55,9 +55,9 @@ ln -s "$PWD/packages/cli/dist/cli.mjs" ~/.local/bin/rucher
 Then create a meta directory for each group of related repos. It holds context only (`CLAUDE.md`, `.claude/settings.json`, the Carnet database); the repos stay where they are and are referenced by path:
 
 ```bash
-mkdir -p ~/Projects/RucherGroups/mycity && cd ~/Projects/RucherGroups/mycity
-rucher init --name mycity --repos ~/code/mycity-api,~/code/mycity-web
-rucher group add ~/code/mycity-infra   # later additions
+mkdir -p ~/groups/shop && cd ~/groups/shop
+rucher init --name shop --repos ~/code/shop-api,~/code/shop-web
+rucher group add ~/code/shop-infra     # later additions
 rucher status --watch                  # the status pane
 rucher log                             # the journal
 ```
@@ -67,7 +67,7 @@ Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared con
 Wire Claude Code with the plugin (MCP server plus `SessionStart` hook), the repo being its own marketplace:
 
 ```bash
-claude plugin marketplace add ~/Projects/RucherGroups/rucher
+claude plugin marketplace add <path to your rucher clone>
 claude plugin install rucher@rucher
 ```
 

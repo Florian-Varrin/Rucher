@@ -19,12 +19,12 @@ Starting brick: [Carnet](carnet-spec.md) (library, MCP server and CLI for status
 
 Three levels: a group contains sessions, a session contains a main agent and sub-agents. A session corresponds to a feature, to a smaller task, or to a durable reused thread (for example "small ui changes").
 
-| Concept    | Role                                                                           | Fields                                                                                              |
-| ---------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| Group      | Set of related repos (for example MyCity, API Craft), with shared instructions | name, instructions, repos[]                                                                         |
-| Session    | Named unit of work, attached to a group: feature, small task or durable thread | name, group, type (persistent / temporary), repos involved, branch?, status, journal, last activity |
-| Main agent | Main agent of the session, the one you talk to by default                      | session_id, permission mode                                                                         |
-| Sub-agent  | Agent launched by the user for a precise task, persistent                      | name, session, session_id, parent_id, task, status, permission mode, worktree?                      |
+| Concept    | Role                                                                              | Fields                                                                                              |
+| ---------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Group      | Set of related repos (for example a shop's api and web), with shared instructions | name, instructions, repos[]                                                                         |
+| Session    | Named unit of work, attached to a group: feature, small task or durable thread    | name, group, type (persistent / temporary), repos involved, branch?, status, journal, last activity |
+| Main agent | Main agent of the session, the one you talk to by default                         | session_id, permission mode                                                                         |
+| Sub-agent  | Agent launched by the user for a precise task, persistent                         | name, session, session_id, parent_id, task, status, permission mode, worktree?                      |
 
 Rules:
 

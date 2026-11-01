@@ -43,7 +43,7 @@ test("initGroup records repo paths, creates the database and the registry entry"
 
 test("initGroup without repos, then addGroupRepo; missing paths are refused", () => {
   const { meta, api, env } = setup();
-  expect(initGroup(meta, { env, name: "mycity" }).repos).toEqual([]);
+  expect(initGroup(meta, { env, name: "shop" }).repos).toEqual([]);
   expect(addGroupRepo(meta, api).repos).toEqual([api]);
   expect(addGroupRepo(meta, api).repos).toEqual([api]);
   expect(codeOf(() => addGroupRepo(meta, join(meta, "nope")))).toBe("REPO_NOT_FOUND");

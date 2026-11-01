@@ -91,11 +91,11 @@ Replace the previous multi-agent section with:
 ## Multi-agent work (forks)
 
 - Agent status and the journal go through the rucher tools (Carnet MCP server, plugin `rucher`). Never write status files, never report status updates in chat.
-- Full rules: @/home/fvarrin/Projects/RucherGroups/rucher/docs/workflow.md
+- Full rules: @<path to your rucher clone>/docs/workflow.md
 ```
 
 Keep your `dev/claude/` rules (project context, `log.md`, topic files, `forks/` copies) as they are: Carnet replaces the status file and the fork-event lines of the log, not the narrative.
 
 ## Groups on disk
 
-One meta directory per group of related repos (for example under `~/Projects/RucherGroups/`: `rucher/`, `api-craft/`, `mycity/`). It holds context only: `CLAUDE.md`, `.claude/settings.json` with the repos as `additionalDirectories`, and the Carnet database in `.rucher/`. The repos stay at their own paths. `rucher init --repos <paths>` creates it, `rucher group add <path>` extends it, Claude sessions start from it, and `rucher status --watch` works from the meta directory or from any of its repos.
+One meta directory per group of related repos (for example under `~/groups/`: `rucher/`, `shop/`, `blog/`). It holds context only: `CLAUDE.md`, `.claude/settings.json` with the repos as `additionalDirectories`, and the Carnet database in `.rucher/`. The repos stay at their own paths. `rucher init --repos <paths>` creates it, `rucher group add <path>` extends it, Claude sessions start from it, and `rucher status --watch` works from the meta directory or from any of its repos.
