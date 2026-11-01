@@ -112,8 +112,8 @@ To use a local build instead of the published CLI: `ln -s "$PWD/packages/cli/dis
 Releases go through [Changesets](https://github.com/changesets/changesets) and GitHub Actions.
 
 - Pull requests run `.github/workflows/verify.yml`: build, check, test. Pull requests from forks run it without any secret.
-- Pushes that only change Markdown files, `docs/` or `.github/` skip the release; a changeset in `.changeset/` always triggers it.
-- Every other push to `master` is a release (`.github/workflows/production.yml`): it reads the pending changesets, verifies, bumps the versions, commits `CI : version bump [skip ci]` as `github-actions[bot]`, tags each bumped component (`carnet-v<version>`, `cli-v<version>`) and publishes them to npm. A push without a pending changeset fails.
+- Only pushes that change what ships trigger the release: `packages/` (not their Markdown), `plugin/` (not its README), `.claude-plugin/`, the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, or a pending changeset in `.changeset/`. Docs, `.github/` and other root files skip it.
+- Such a push to `master` is a release (`.github/workflows/production.yml`): it reads the pending changesets, verifies, bumps the versions, commits `CI : version bump [skip ci]` as `github-actions[bot]`, tags each bumped component (`carnet-v<version>`, `cli-v<version>`) and publishes them to npm. A push without a pending changeset fails.
 - `pnpm changeset` adds one. A summary starting with `internal:` releases without a changelog line.
 - Merging a pull request is a push to `master`: before merging one that changes code, make sure it carries a changeset (ask for one or add it to the branch).
 - `@rucher/carnet` and `@rucher/cli` are versioned independently; a carnet release also releases the cli. The Claude Code plugin has no code of its own and takes the cli version.

@@ -1,17 +1,22 @@
 name: Production release
 
 # Every push to master is a stable release; the CI bump commit carries [skip ci].
-# Pushes touching only docs or CI files skip it; a changeset always counts (patterns apply in order).
+# Only pushes touching what ships, or adding a changeset, release (patterns apply in order).
 on:
   push:
     branches:
       - master
     paths:
-      - '**'
-      - '!**.md'
-      - '!docs/**'
-      - '!.github/**'
-      - '.changeset/**'
+      - 'packages/**'
+      - '!packages/**/*.md'
+      - 'plugin/**'
+      - '!plugin/README.md'
+      - '.claude-plugin/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.changeset/*.md'
+      - '!.changeset/README.md'
   workflow_dispatch:
 
 concurrency:
