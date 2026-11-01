@@ -1,4 +1,11 @@
-import { type Carnet, LEGEND, repoPathFor, type Session } from '@rucher/carnet';
+import {
+  type Carnet,
+  LEGEND,
+  renderSections,
+  repoPathFor,
+  type Session,
+  type StatusView,
+} from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
 import { resolveSession } from '../session.ts';
@@ -45,24 +52,29 @@ function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
   return carnet.agents.list(session.id).length > 0 || carnet.table.get(session.id) !== undefined;
 }
 
-export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions): string {
-  if (!options.all) {
-    return colorizeStatus(carnet.status.render(resolveSession(carnet, options.session)), io);
+function sessionBlock(carnet: Carnet, session: Session, view: StatusView, io: Io): string {
+  const header = sessionHeader(carnet, session, io);
+  if (session.status === 'dropped') {
+    return [header, paint(io).dim('  dropped, see rucher sessions --all')].join('\n');
   }
-  const active = carnet.sessions
-    .list({ includeTemporary: true })
-    .filter((session) => hasSomethingToShow(carnet, session));
-  const [first = resolveSession(carnet), ...others] = active;
-  const sessions = [first, ...others];
+  const sections = renderSections(view).split('\n');
+  return [header, ...sections.map((line) => colorizeLine(line, io))].join('\n');
+}
+
+export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions): string {
+  const sessions = options.all
+    ? carnet.sessions
+        .list({ includeTemporary: true })
+        .filter((session) => hasSomethingToShow(carnet, session))
+    : [];
+  if (sessions.length === 0) sessions.push(resolveSession(carnet, options.session));
+  let time = '';
   const blocks = sessions.map((session) => {
-    const sections = carnet.status.sections(session).split('\n');
-    return [
-      sessionHeader(carnet, session, io),
-      ...sections.map((line) => colorizeLine(line, io)),
-    ].join('\n');
+    const view = carnet.status.view(session);
+    time ||= view.time;
+    return sessionBlock(carnet, session, view, io);
   });
-  const time = paint(io).dim(carnet.status.view(first).time);
-  return [time, '', blocks.join('\n\n'), '', paint(io).dim(LEGEND)].join('\n');
+  return [paint(io).dim(time), '', blocks.join('\n\n'), '', paint(io).dim(LEGEND)].join('\n');
 }
 
 export function statusOnce(carnet: Carnet, io: Io, options: StatusOptions): void {

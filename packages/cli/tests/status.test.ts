@@ -23,6 +23,7 @@ test('renders the default session as plain text without color', () => {
   expect(lines[0]).toMatch(/^\d\d:\d\d$/);
   expect(lines.slice(1)).toEqual([
     '',
+    '0360889d · api',
     'On the table',
     '  ⚙️ Step 1 — applying (main working, not ready)',
     '',
@@ -121,4 +122,39 @@ test('--all headers show the cwd relative to its repo', () => {
   });
   const text = renderStatusView(carnet, makeIo(), { all: true });
   expect(text.split('\n')[2]).toBe('0360889d · api/src/deep');
+});
+
+test('the single view names its session and follows the default on every render', () => {
+  const { carnet, root } = seeded();
+  carnet.sessions.name(SESSION, 'shop-auth');
+  expect(renderStatusView(carnet, makeIo(), {}).split('\n')[2]).toBe('shop-auth · api');
+  carnet.sessions.upsertFromHook({ session_id: 'later', cwd: root, session_title: 'shop-cart' });
+  const text = renderStatusView(carnet, makeIo(), {});
+  expect(text.split('\n')[2]).toBe('shop-cart');
+  expect(text).not.toContain('banner');
+});
+
+test('a dropped --session says so instead of showing stale data', () => {
+  const { carnet } = seeded();
+  carnet.sessions.name(SESSION, 'shop-auth');
+  carnet.sessions.drop(SESSION);
+  const lines = renderStatusView(carnet, makeIo(), { session: 'shop-auth' }).split('\n');
+  expect(lines.slice(2, 4)).toEqual(['shop-auth · api', '  dropped, see rucher sessions --all']);
+});
+
+test('--all --watch picks up a session that starts after the watch', async () => {
+  const { carnet, root } = seeded();
+  const io = makeIo();
+  const controller = new AbortController();
+  const done = statusWatch(carnet, io, {
+    all: true,
+    intervalMilliseconds: 5,
+    signal: controller.signal,
+  });
+  carnet.sessions.upsertFromHook({ session_id: 'later', cwd: root, session_title: 'shop-cart' });
+  carnet.agents.start('later', { name: 'cart', task: 't' });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  controller.abort();
+  await done;
+  expect(io.output.join('')).toContain('shop-cart');
 });

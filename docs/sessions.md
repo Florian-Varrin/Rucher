@@ -51,7 +51,7 @@ You can also ask Claude to name the session (it calls `session_new` with a name 
 
 | Command                                  | Shows                                                                                                                         |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `rucher status`                          | the default session: On the table, Waiting on you, Running, legend                                                            |
+| `rucher status`                          | the default session (the most recently active one), headed by its name: On the table, Waiting on you, Running, legend         |
 | `rucher status --session shop-auth`      | a given session, by name, id or id prefix (`-s` for short)                                                                    |
 | `rucher status --all`                    | every session with open agents or a table line: one clock, one block per session (name and repo-relative cwd), one legend     |
 | `rucher status --watch [--interval 2]`   | repaints when the output changes; combine with `--all` or `--session`                                                         |
