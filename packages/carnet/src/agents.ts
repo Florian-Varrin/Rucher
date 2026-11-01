@@ -119,9 +119,9 @@ export function updateAgent(
   const note = input.note === undefined ? null : sanitizeNote(input.note);
   ctx.db
     .prepare(
-      "UPDATE agents SET status = ?, note = COALESCE(?, note), report_path = COALESCE(?, report_path), updated_at = ? WHERE session = ? AND name = ?",
+      "UPDATE agents SET note = COALESCE(?, CASE WHEN status = 'running' AND ? <> 'running' THEN NULL ELSE note END), status = ?, report_path = COALESCE(?, report_path), updated_at = ? WHERE session = ? AND name = ?",
     )
-    .run(input.status, note, input.reportPath ?? null, nowIso(ctx), session, name);
+    .run(note, input.status, input.status, input.reportPath ?? null, nowIso(ctx), session, name);
   return requireAgent(ctx, session, name);
 }
 
@@ -135,7 +135,7 @@ export function finishAgent(
   const status: AgentStatus = input.hasQuestions ? "answer" : "review";
   ctx.db
     .prepare(
-      "UPDATE agents SET status = ?, report_path = ?, updated_at = ? WHERE session = ? AND name = ?",
+      "UPDATE agents SET status = ?, note = NULL, report_path = ?, updated_at = ? WHERE session = ? AND name = ?",
     )
     .run(status, input.reportPath, nowIso(ctx), session, name);
   logEvent(ctx, session, { type: "finished", agent: name, link: input.reportPath });

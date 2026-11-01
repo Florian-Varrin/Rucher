@@ -25,12 +25,13 @@ test("start, update, finish and drop follow the lifecycle and log events", () =>
     note: "see `src/x.ts` now",
   });
   expect(updated.note).toBe("see now");
+  expect(carnet.agents.update(SESSION, "banner", { status: "running" }).note).toBe("see now");
 
   const finished = carnet.agents.finish(SESSION, "banner", {
     reportPath: "/tmp/banner.md",
     hasQuestions: true,
   });
-  expect(finished).toMatchObject({ status: "answer", reportPath: "/tmp/banner.md" });
+  expect(finished).toMatchObject({ status: "answer", reportPath: "/tmp/banner.md", note: null });
 
   const moved = carnet.agents.update(SESSION, "banner", {
     status: "answer",
@@ -104,4 +105,13 @@ test("events.read returns the last N in chronological order", () => {
   const { carnet } = withSession();
   for (let i = 0; i < 5; i++) carnet.events.log(SESSION, { type: "committed", commit: `c${i}` });
   expect(carnet.events.read(SESSION, 2).map((e) => e.commit)).toEqual(["c3", "c4"]);
+});
+
+test("leaving running without a note clears the progress note", () => {
+  const { carnet } = withSession();
+  carnet.agents.start(SESSION, { name: "banner", task: "Add banner" });
+  carnet.agents.update(SESSION, "banner", { status: "running", note: "checks" });
+  expect(carnet.agents.update(SESSION, "banner", { status: "review" }).note).toBeNull();
+  carnet.agents.update(SESSION, "banner", { status: "review", note: "read part 2" });
+  expect(carnet.agents.update(SESSION, "banner", { status: "test" }).note).toBe("read part 2");
 });

@@ -92,14 +92,14 @@ When the server is shipped through a plugin, Claude Code names the tools `mcp__p
 
 **Agents**
 
-| Tool            | Parameters                          | Effect                                                                                                   |
-| --------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`                                                          |
-| `agent_update`  | name, status, note?, report_path?   | changes the status and the displayed text; `report_path` after main copied the report to its final place |
-| `agent_done`    | name, report_path, has_questions    | moves to ❓ answer or 👀 review, logs `finished`                                                         |
-| `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                                                                            |
-| `agent_list`    | —                                   | structured list, so the main agent knows where it stands                                                 |
-| `queue_reorder` | names[]                             | order of "Waiting on you"                                                                                |
+| Tool            | Parameters                          | Effect                                                                                                                                                                                 |
+| --------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`                                                                                                                                        |
+| `agent_update`  | name, status, note?, report_path?   | changes the status and the displayed text (a running note is cleared when the status leaves running without a new note); `report_path` after main copied the report to its final place |
+| `agent_done`    | name, report_path, has_questions    | moves to ❓ answer or 👀 review, clears the progress note, logs `finished`                                                                                                             |
+| `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                                                                                                                                                          |
+| `agent_list`    | —                                   | structured list, so the main agent knows where it stands                                                                                                                               |
+| `queue_reorder` | names[]                             | order of "Waiting on you"                                                                                                                                                              |
 
 **On the table**
 
