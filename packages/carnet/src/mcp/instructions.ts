@@ -16,7 +16,7 @@ Main agent:
 
 Forks:
 - agent_update (status running, short note) at meaningful progress.
-- agent_done with the report path as your LAST action; has_questions=true when the report asks the human something.
+- agent_done with the report path as your LAST tool action; has_questions=true when the report asks the human something. Then reply with one line only: the report holds the detail.
 - Never agent_start, never table_set.
 
 Statuses (emoji shown to the human = the NEXT action): running ⏳ fork working · discussing 💬 · answer ❓ human must answer · review 👀 human must review · apply 📥 · test 🧪 · commit ✅ · branch 🌿. Only the human applies, tests and commits.

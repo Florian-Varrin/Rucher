@@ -66,3 +66,22 @@ test('upgrades a version 2 database: existing sessions get no hooked_at', async 
   ]);
   db.close();
 });
+
+test('upgrades a version 3 database: open agents get no pending outcome', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const path = join(tempDirectory(), 'carnet.db');
+  const old = new DatabaseSync(path);
+  for (const migration of migrations.slice(0, 3)) old.exec(migration);
+  old.exec('PRAGMA user_version = 3');
+  old.exec(
+    `INSERT INTO sessions (id, created_at, last_active_at) VALUES ('s', 'x', 'x');
+     INSERT INTO agents (session, name, status, started_at, updated_at) VALUES ('s', 'a', 'review', 'x', 'x');`,
+  );
+  old.close();
+  const db = openDatabase(path);
+  expect(schemaVersion(db)).toBe(migrations.length);
+  expect(db.prepare('SELECT name, status, pending_status, done_at FROM agents').all()).toEqual([
+    { name: 'a', status: 'review', pending_status: null, done_at: null },
+  ]);
+  db.close();
+});

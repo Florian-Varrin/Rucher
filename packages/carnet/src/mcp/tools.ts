@@ -82,7 +82,7 @@ const agentUpdate = defineTool({
 const agentDone = defineTool({
   name: 'agent_done',
   description:
-    'Forks call this as their LAST action. Records the report path and moves the agent to ❓ answer (has_questions=true) or 👀 review. Logs a `finished` event.',
+    'Forks call this as their LAST tool action, then reply with one line. Records the report path and the outcome: ❓ answer (has_questions=true) or 👀 review, shown once the fork has really stopped. Logs a `finished` event then.',
   schema: z.object({
     name: agentName,
     report_path: z.string().min(1).describe('Absolute path of the markdown report'),
@@ -94,9 +94,11 @@ const agentDone = defineTool({
       reportPath: args.report_path,
       hasQuestions: args.has_questions,
     });
-    const text = args.has_questions
+    const outcome = args.has_questions
       ? `${EMOJI.answer} ${agent.name} needs answers`
       : `${EMOJI.review} ${agent.name} ready for review`;
+    const text =
+      agent.status === 'running' ? `${outcome} once you stop; reply with one line now` : outcome;
     return { text, data: { agent } };
   },
 });

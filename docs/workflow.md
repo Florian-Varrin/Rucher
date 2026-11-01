@@ -22,7 +22,7 @@ The rules of the game for a Claude Code session that drives sub-agents (forks) w
 | Main agent | `agent_drop`                           | when a fork's work is committed or abandoned                                 |
 | Main agent | `agent_list`                           | to recall where things stand                                                 |
 | Fork       | `agent_update` (`running`, short note) | at meaningful progress                                                       |
-| Fork       | `agent_done`                           | as its last action, with the report path                                     |
+| Fork       | `agent_done`                           | as its last tool action, with the report path, then a one-line reply         |
 
 Update **before and after** each piece of work, never batched at the end of a turn. Notes and table text stay under 60 characters, without paths or backticks.
 
@@ -31,7 +31,7 @@ Update **before and after** each piece of work, never batched at the end of a tu
 A fork starts from the main agent's context, works alone, writes its report to a file, updates its status, then waits.
 
 - Pick a short name (what the human will read in the status pane) and a one-line task. Call `agent_start` with both, then launch the fork in a later message: the SubagentStart hook pairs forks with Carnet agents in start order, so the agent must exist before the fork starts. Launch parallel forks in the same order as their `agent_start` calls.
-- The fork's prompt states: its agent name, the exact base commit, where to write its report (`<scratchpad>/<name>.md`), and that `agent_done` must be its last action with `has_questions` set when the report asks the human something.
+- The fork's prompt states: its agent name, the exact base commit, where to write its report (`<scratchpad>/<name>.md`), and that `agent_done` must be its last tool action with `has_questions` set when the report asks the human something, followed by a one-line final message. Until the fork has really stopped, the pane shows it as `⏳ running · reporting`.
 - Forks never commit, push or stash. Forks never write into `dev/claude/`; worktree isolation and git-ignore make that folder unavailable anyway.
 - Read-only analysis forks need no worktree.
 - Dev forks get their own git worktree only when the human allows worktrees. First step, always: `git reset --hard <exact base commit>`, then reinstall dependencies with the lockfile frozen, because worktrees can be created from stale commits.

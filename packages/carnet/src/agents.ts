@@ -15,6 +15,8 @@ export interface Agent {
   worktree: string | null;
   queueOrder: number | null;
   claudeAgentId: string | null;
+  pendingStatus: AgentStatus | null;
+  doneAt: string | null;
   startedAt: string;
   updatedAt: string;
 }
@@ -52,6 +54,8 @@ export interface AgentRow {
   worktree: string | null;
   queue_order: number | null;
   claude_agent_id: string | null;
+  pending_status: AgentStatus | null;
+  done_at: string | null;
   started_at: string;
   updated_at: string;
 }
@@ -68,12 +72,42 @@ export function toAgent(row: AgentRow): Agent {
     worktree: row.worktree,
     queueOrder: row.queue_order,
     claudeAgentId: row.claude_agent_id,
+    pendingStatus: row.pending_status,
+    doneAt: row.done_at,
     startedAt: row.started_at,
     updatedAt: row.updated_at,
   };
 }
 
+export const REPORTING_NOTE = 'reporting';
+export const PUBLISH_FALLBACK_MILLISECONDS = 120_000;
+
+export function publishPending(ctx: Ctx, session: string, name: string): void {
+  const row = ctx.db
+    .prepare('SELECT pending_status, report_path FROM agents WHERE session = ? AND name = ?')
+    .get(session, name) as Pick<AgentRow, 'pending_status' | 'report_path'> | undefined;
+  if (!row?.pending_status) return;
+  ctx.db
+    .prepare(
+      'UPDATE agents SET status = pending_status, pending_status = NULL, note = NULL, updated_at = ? WHERE session = ? AND name = ?',
+    )
+    .run(nowIso(ctx), session, name);
+  logEvent(ctx, session, { type: 'finished', agent: name, link: row.report_path ?? undefined });
+}
+
+// Covers a paired fork whose SubagentStop never arrives (crash, hook timeout).
+function publishOverdue(ctx: Ctx, session: string): void {
+  const before = new Date(ctx.now().getTime() - PUBLISH_FALLBACK_MILLISECONDS).toISOString();
+  const rows = ctx.db
+    .prepare(
+      'SELECT name FROM agents WHERE session = ? AND pending_status IS NOT NULL AND done_at <= ?',
+    )
+    .all(session, before) as unknown as Pick<AgentRow, 'name'>[];
+  for (const row of rows) publishPending(ctx, session, row.name);
+}
+
 export function getAgent(ctx: Ctx, session: string, name: string): Agent | undefined {
+  publishOverdue(ctx, session);
   const row = ctx.db
     .prepare('SELECT * FROM agents WHERE session = ? AND name = ?')
     .get(session, name) as AgentRow | undefined;
@@ -112,7 +146,7 @@ export function updateAgent(
   name: string,
   input: UpdateAgentInput,
 ): Agent {
-  requireAgent(ctx, session, name);
+  const current = requireAgent(ctx, session, name);
   if (!isAgentStatus(input.status) || input.status === 'closed') {
     throw new CarnetError(
       'INVALID_STATUS',
@@ -120,6 +154,7 @@ export function updateAgent(
     );
   }
   const note = input.note === undefined ? null : sanitizeNote(input.note);
+  if (current.pendingStatus) publishPending(ctx, session, name);
   ctx.db
     .prepare(
       "UPDATE agents SET note = COALESCE(?, CASE WHEN status = 'running' AND ? <> 'running' THEN NULL ELSE note END), status = ?, report_path = COALESCE(?, report_path), updated_at = ? WHERE session = ? AND name = ?",
@@ -134,14 +169,16 @@ export function finishAgent(
   name: string,
   input: FinishAgentInput,
 ): Agent {
-  requireAgent(ctx, session, name);
+  const agent = requireAgent(ctx, session, name);
   const status: AgentStatus = input.hasQuestions ? 'answer' : 'review';
+  const at = nowIso(ctx);
+  // A paired fork keeps writing its final message after agent_done; SubagentStop marks the real end.
   ctx.db
     .prepare(
-      'UPDATE agents SET status = ?, note = NULL, report_path = ?, updated_at = ? WHERE session = ? AND name = ?',
+      'UPDATE agents SET pending_status = ?, note = ?, report_path = ?, done_at = ?, updated_at = ? WHERE session = ? AND name = ?',
     )
-    .run(status, input.reportPath, nowIso(ctx), session, name);
-  logEvent(ctx, session, { type: 'finished', agent: name, link: input.reportPath });
+    .run(status, REPORTING_NOTE, input.reportPath, at, at, session, name);
+  if (!agent.claudeAgentId) publishPending(ctx, session, name);
   return requireAgent(ctx, session, name);
 }
 
@@ -157,6 +194,7 @@ export function dropAgent(ctx: Ctx, session: string, name: string, reason?: stri
 }
 
 export function listAgents(ctx: Ctx, session: string, options: ListAgentsOptions = {}): Agent[] {
+  publishOverdue(ctx, session);
   const where = options.includeClosed ? '' : "AND status != 'closed'";
   const rows = ctx.db
     .prepare(`SELECT * FROM agents WHERE session = ? ${where} ORDER BY started_at ASC, name ASC`)

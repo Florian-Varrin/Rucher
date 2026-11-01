@@ -5,6 +5,7 @@ export type {
   StartAgentInput,
   UpdateAgentInput,
 } from './agents.ts';
+export { PUBLISH_FALLBACK_MILLISECONDS, REPORTING_NOTE } from './agents.ts';
 export { Carnet, type CarnetOptions, type OpenCarnetOptions, openCarnet } from './carnet.ts';
 export { MEMORY_DB, openDatabase } from './db/open.ts';
 export { migrate, migrations, schemaVersion } from './db/schema.ts';

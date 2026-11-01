@@ -57,6 +57,8 @@ agents (
   report_path TEXT, base_commit TEXT, worktree TEXT,
   queue_order INTEGER,        -- order in "Waiting on you"
   claude_agent_id TEXT,       -- Claude subagent id paired by the SubagentStart hook
+  pending_status TEXT,        -- outcome stored by agent_done until the fork really stops
+  done_at TEXT,               -- when agent_done was called
   started_at, updated_at,
   PRIMARY KEY (session, name)
 )
@@ -92,7 +94,8 @@ The MCP server process never receives the Claude session id; only hooks do. A `S
 ### Forks that stop without `agent_done`
 
 - `SubagentStart` (`rucher hook subagent-start`) pairs Claude's `agent_id` with the oldest `running` agent of the session that has no pair yet and was started in the last minute. SubagentStart fires in dispatch order (spike, 2026-11-01, 4 and 5 parallel forks), and main calls `agent_start` in an earlier message than the launch, in launch order, so the order matches. A subagent with no candidate stays unpaired; a repeated start for the same `agent_id` keeps its pair.
-- `SubagentStop` (`rucher hook subagent-stop`) moves a paired agent still `running` to `review` with the note `stopped without agent_done`, and logs `finished` with that note. Agents that already called `agent_done` are left alone.
+- `SubagentStop` (`rucher hook subagent-stop`) moves a paired agent still `running` to `review` with the note `stopped without agent_done`, and logs `finished` with that note. A paired agent that already called `agent_done` gets its stored outcome instead.
+- `agent_done` stores the outcome (`pending_status`, `report_path`, `done_at`) and keeps a paired agent `running` with the note `reporting`, because the fork still writes its final message. `SubagentStop` publishes it and logs `finished` at the real stop. An unpaired agent publishes at once. Main's `agent_update` publishes any pending outcome first, then applies its status. A pending outcome older than 2 minutes is published on the next read.
 - Both hooks exit 0 in every case, outside a group included.
 
 ## MCP tools
@@ -107,7 +110,7 @@ When the server is shipped through a plugin, Claude Code names the tools `mcp__p
 | --------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`                                                                                                                                        |
 | `agent_update`  | name, status, note?, report_path?   | changes the status and the displayed text (a running note is cleared when the status leaves running without a new note); `report_path` after main copied the report to its final place |
-| `agent_done`    | name, report_path, has_questions    | moves to ❓ answer or 👀 review, clears the progress note, logs `finished`                                                                                                             |
+| `agent_done`    | name, report_path, has_questions    | stores ❓ answer or 👀 review, published at the real stop (SubagentStop) or at once when unpaired; logs `finished` then                                                                |
 | `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                                                                                                                                                          |
 | `agent_list`    | —                                   | structured list, so the main agent knows where it stands                                                                                                                               |
 | `queue_reorder` | names[]                             | order of "Waiting on you"                                                                                                                                                              |

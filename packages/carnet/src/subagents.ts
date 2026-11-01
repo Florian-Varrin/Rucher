@@ -1,4 +1,4 @@
-import { type Agent, type AgentRow, toAgent } from './agents.ts';
+import { type Agent, type AgentRow, publishPending, toAgent } from './agents.ts';
 import { type Ctx, nowIso } from './context.ts';
 import { logEvent } from './events.ts';
 
@@ -34,6 +34,10 @@ export function pairSubagent(ctx: Ctx, session: string, claudeAgentId: string): 
 export function stopSubagent(ctx: Ctx, session: string, claudeAgentId: string): Agent | undefined {
   const agent = byClaudeId(ctx, session, claudeAgentId);
   if (!agent || agent.status !== 'running') return undefined;
+  if (agent.pendingStatus) {
+    publishPending(ctx, session, agent.name);
+    return byClaudeId(ctx, session, claudeAgentId);
+  }
   ctx.db
     .prepare(
       "UPDATE agents SET status = 'review', note = ?, updated_at = ? WHERE session = ? AND name = ?",

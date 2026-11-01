@@ -61,6 +61,10 @@ ALTER TABLE agents ADD COLUMN claude_agent_id TEXT;
 ALTER TABLE sessions ADD COLUMN hooked_at TEXT;
 CREATE INDEX sessions_claude_pid ON sessions(claude_pid, hooked_at);
 `,
+  `
+ALTER TABLE agents ADD COLUMN pending_status TEXT;
+ALTER TABLE agents ADD COLUMN done_at TEXT;
+`,
 ];
 
 export function schemaVersion(db: DatabaseSync): number {
