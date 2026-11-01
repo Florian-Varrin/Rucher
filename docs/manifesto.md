@@ -46,7 +46,7 @@ We do not write a big TUI in one go. We add a brick when the lack is felt, use i
 
 | Component                | Role                                                                                                                          | Form                                                  |
 | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| **Multi-agent workflow** | The rules of the game: two-phase forks, parallel work and sequential review, reports in files, applying a fork, worktrees     | `CLAUDE.md` today, `rucher` skill tomorrow            |
+| **Multi-agent workflow** | The rules of the game: two-phase forks, parallel work and sequential review, reports in files, applying a fork, worktrees     | [docs](workflow.md) + the plugin's `rucher` skill     |
 | **Groups**               | One meta directory per set of related repos (a product's api, web and infra): repo map, shared instructions, directory access | folder + `CLAUDE.md` + `settings.json`                |
 | **Carnet**               | The shared state: agent statuses, "On the table", sessions, journal                                                           | library + SQLite database + MCP server for the agents |
 | **CLI `rucher`**         | The human entry point: `status`, `log`, `sessions`, `resume`, and later the TUI                                               | CLI built on Carnet                                   |
@@ -78,17 +78,17 @@ _Carnet_ is French for notebook.
 
 ## Progression
 
-1. **Workflow** — the rules in `CLAUDE.md`, proven daily, now [in the repo](workflow.md). _Done._
-2. **Groups** — one meta directory per set of repos.
-3. **Carnet + CLI** — state leaves markdown and moves into a database, written by the agents through MCP; the `rucher` CLI replaces the status files.
-4. **Sessions** — registry, resume by name, temporary sessions.
-5. **`rucher` skill + plugin** — the workflow packaged, installable in one command.
-6. **Core + TUI** — the engine, then the terminal interface launched by `rucher`, once the previous bricks have shown what is really missing.
-7. **Multiple backends** — when the need for other models is real.
+1. **Workflow** — the rules of the game, [documented](workflow.md). _Done._
+2. **Groups** — one meta directory per set of repos. _Done._
+3. **Carnet + CLI** — state leaves markdown and moves into a database, written by the agents through MCP; the `rucher` CLI replaces the status files. _Done._
+4. **Sessions** — registry, resume by name, temporary sessions. _Done._
+5. **`rucher` skill + plugin** — the workflow packaged, installable in one command. _Done._
+6. **Core + TUI** — the engine, then the terminal interface launched by `rucher`, once the previous bricks have shown what is really missing. _Next._
+7. **Multiple backends** — when the need for other models is real. _Prepared: Carnet and the CLI isolate Claude Code as a host._
 8. **GUI** — a graphical interface plugged into the same Core as the TUI, if the need arises.
 
 Each step stops where it is useful. The next one starts only if the lack is felt.
 
 ---
 
-Detailed specs: [Carnet and CLI](carnet-spec.md) · [Core + TUI](rucher-spec.md)
+Reference: [commands, tools and files](reference.md) · [workflow](workflow.md) · [sessions](sessions.md)

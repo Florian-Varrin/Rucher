@@ -32,5 +32,6 @@ dist-ssr
 # AI agent worktrees
 .claude/worktrees/
 
-# Local Claude context, never committed
-dev/claude/
+# Local context and internal specs, never committed
+/dev/
+/CLAUDE.md

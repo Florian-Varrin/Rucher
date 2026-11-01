@@ -1,6 +1,6 @@
 # rucher plugin for Claude Code
 
-Wires [Carnet](../docs/carnet-spec.md) into Claude Code:
+Wires [Carnet](../docs/reference.md) into Claude Code:
 
 - MCP server `carnet` (`rucher serve`): `agent_start`, `agent_update`, `agent_done`, `agent_drop`, `agent_list`, `queue_reorder`, `table_set`, `table_clear`, `log_event`, `log_read`, `session_new`, `session_list`, `session_drop`, `session_resume_info`.
 - `SessionStart` hook (`rucher hook session-start`): records every session in the group database so the server and the CLI know which session is which.

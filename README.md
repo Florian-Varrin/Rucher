@@ -19,11 +19,11 @@ Early (0.x), used daily by its author. Commands, APIs and the database schema ma
 | ------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------ |
 | Workflow     | Rules for multi-agent work: two-phase forks, parallel work, sequential review, reports in files | [docs/workflow.md](docs/workflow.md) |
 | Groups       | One meta directory per set of related repos: repo map, shared instructions, directory access    | done                                 |
-| Carnet       | Shared state: agent statuses, "On the table", sessions, journal. Library + SQLite + MCP server  | [spec](docs/carnet-spec.md)          |
-| CLI `rucher` | Human entry point: `status`, `log`, `sessions`, `resume`                                        | [spec](docs/carnet-spec.md)          |
+| Carnet       | Shared state: agent statuses, "On the table", sessions, journal. Library + SQLite + MCP server  | [reference](docs/reference.md)       |
+| CLI `rucher` | Human entry point: `status`, `log`, `sessions`, `resume`                                        | [reference](docs/reference.md)       |
 | Sessions     | Named, resumable sessions; temporary ones purged                                                | [docs/sessions.md](docs/sessions.md) |
 | Plugin       | Claude Code wiring: MCP server, hooks, `rucher` skill                                           | [plugin/README.md](plugin/README.md) |
-| Core + TUI   | SDK wrapper, agents, forks, permissions; one-window terminal UI                                 | [spec](docs/rucher-spec.md), later   |
+| Core + TUI   | SDK wrapper, agents, forks, permissions; one-window terminal UI                                 | later                                |
 
 ## Repository layout
 
@@ -31,7 +31,7 @@ Early (0.x), used daily by its author. Commands, APIs and the database schema ma
 packages/carnet   library, SQLite schema, MCP server
 packages/cli      the rucher binary
 plugin/           Claude Code plugin: hooks, MCP wiring, skill
-docs/             manifesto and specs
+docs/             manifesto, workflow, sessions, reference
 ```
 
 ## Requirements

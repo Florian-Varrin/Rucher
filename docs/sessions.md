@@ -1,6 +1,6 @@
 # Sessions
 
-How Rucher tracks your coding agent's conversations (Claude Code today), and how to name, watch, resume and drop them. For the multi-agent rules see [workflow.md](workflow.md); for the data model see [carnet-spec.md](carnet-spec.md).
+How Rucher tracks your coding agent's conversations (Claude Code today), and how to name, watch, resume and drop them. For the multi-agent rules see [workflow.md](workflow.md); for commands, tools and files see [reference.md](reference.md).
 
 ## What a session is
 

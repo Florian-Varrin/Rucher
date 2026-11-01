@@ -2,7 +2,7 @@
 
 Shared state for Rucher: groups, sessions, agents, the "On the table" line and the event journal, stored in one SQLite database per group (`<meta directory>/.rucher/carnet.db`, via `node:sqlite`).
 
-Used by the `rucher` CLI and the Carnet MCP server. See [`docs/carnet-spec.md`](https://github.com/Florian-Varrin/Rucher/blob/master/docs/carnet-spec.md) in the [repository](https://github.com/Florian-Varrin/Rucher).
+Used by the `rucher` CLI and the Carnet MCP server. See [`docs/reference.md`](https://github.com/Florian-Varrin/Rucher/blob/master/docs/reference.md) in the [repository](https://github.com/Florian-Varrin/Rucher).
 
 ```ts
 import { openCarnet } from '@rucher/carnet';
