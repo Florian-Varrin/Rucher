@@ -1,0 +1,6 @@
+{
+  "carnet": {
+    "command": "rucher",
+    "args": ["serve"]
+  }
+}

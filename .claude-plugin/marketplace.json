@@ -1,0 +1,17 @@
+{
+  "name": "rucher",
+  "owner": {
+    "name": "Florian Varrin"
+  },
+  "metadata": {
+    "description": "Rucher: components and workflows for multi-agent development on top of Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "rucher",
+      "source": "./plugin",
+      "description": "Carnet MCP server and SessionStart hook: agent statuses, sessions and journal",
+      "version": "0.0.0"
+    }
+  ]
+}

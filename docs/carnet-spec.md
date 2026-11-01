@@ -200,8 +200,8 @@ Advantages over generated files:
 
 ## Integration
 
-- Shipped as a Claude Code plugin from day one: MCP server, `SessionStart` hook and, later, the `rucher` skill in one install (`claude plugin marketplace add <path>` then `claude plugin install rucher@...`).
-- The `rucher` CLI is linked globally so it is available in the terminal pane.
+- Shipped as a Claude Code plugin from day one: MCP server, `SessionStart` hook and, later, the `rucher` skill in one install. The repo is its own marketplace (`.claude-plugin/marketplace.json` at the root, plugin files in `plugin/`): `claude plugin marketplace add <repo path>` then `claude plugin install rucher@rucher`.
+- The plugin calls `rucher` from the `PATH`, nothing is bundled: the `rucher` CLI is linked globally (`pnpm link --global` in `packages/cli`), which also makes it available in the terminal pane. Tools appear as `mcp__plugin_rucher_carnet__<tool>`.
 - The multi-agent block of the user's global `CLAUDE.md` shrinks to behavior rules; all format and status-file rules disappear, replaced by "use the rucher tools".
 
 ### Usage rules
@@ -235,7 +235,8 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 - [x] `SessionStart` hook writing session rows, server session resolution
 - [x] Agent and table tools, `queue_reorder`, `log_event` (MCP server in `@rucher/carnet/mcp`)
 - [x] `rucher status` (with `--watch`, `--all`), `rucher log`, `rucher init`, `rucher hook session-start`, `rucher serve`
-- [ ] Plugin install; dogfooding on real groups
+- [x] Plugin install (`plugin/`, local marketplace)
+- [ ] Dogfooding on real groups
 
 **Milestone 2**
 

@@ -46,6 +46,12 @@ pnpm run build                          # builds @rucher/carnet and @rucher/cli
 cd packages/cli && pnpm link --global   # puts `rucher` on your PATH
 ```
 
+If pnpm has no global bin directory (`ERR_PNPM_NO_GLOBAL_BIN_DIR`), a symlink does the same job:
+
+```bash
+ln -s "$PWD/packages/cli/dist/cli.mjs" ~/.local/bin/rucher
+```
+
 Then, in a meta directory holding your related repos:
 
 ```bash
@@ -54,7 +60,14 @@ rucher status --watch       # the status pane
 rucher log                  # the journal
 ```
 
-Claude Code wiring (MCP server `rucher serve` and the `SessionStart` hook `rucher hook session-start`) ships as a plugin in `plugin/`, see its README once it lands.
+Wire Claude Code with the plugin (MCP server plus `SessionStart` hook), the repo being its own marketplace:
+
+```bash
+claude plugin marketplace add ~/Projects/Perso/rucher/rucher
+claude plugin install rucher@rucher
+```
+
+Details, update and uninstall in [plugin/README.md](plugin/README.md). For development, `claude --plugin-dir ./plugin` loads it from the working tree.
 
 ## Development
 
