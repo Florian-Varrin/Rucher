@@ -8,7 +8,7 @@ import { init } from "./commands/init.ts";
 import { logOnce } from "./commands/log.ts";
 import { resumeTarget, runTarget } from "./commands/resume.ts";
 import { serve } from "./commands/serve.ts";
-import { sessionsOnce } from "./commands/sessions.ts";
+import { sessionsMerge, sessionsOnce } from "./commands/sessions.ts";
 import { statusOnce, statusWatch } from "./commands/status.ts";
 import { type Io, processIo, readStdin } from "./io.ts";
 import { CliError } from "./session.ts";
@@ -119,8 +119,8 @@ const logCommand = defineCommand({
   },
 });
 
-const sessionsCommand = defineCommand({
-  meta: { name: "sessions", description: "List the named sessions of the group" },
+const sessionsListCommand = defineCommand({
+  meta: { name: "list", description: "List the named sessions of the group" },
   args: {
     all: { type: "boolean", default: false, description: "Include temporary and dropped sessions" },
     ...colorArg,
@@ -133,6 +133,38 @@ const sessionsCommand = defineCommand({
       fail(io, error);
     }
   },
+});
+
+const sessionsMergeCommand = defineCommand({
+  meta: {
+    name: "merge",
+    description:
+      "Move the agents, table line and journal of one session into another, then drop it",
+  },
+  args: {
+    from: { type: "positional", description: "Session to empty (name or id)", required: true },
+    into: {
+      type: "positional",
+      description: "Session that keeps everything (name or id)",
+      required: true,
+    },
+  },
+  run({ args }) {
+    const io = processIo();
+    try {
+      const carnet = openCarnet({ cwd: io.cwd, env: io.env });
+      sessionsMerge(carnet, args.from, args.into, io);
+      carnet.close();
+    } catch (error) {
+      fail(io, error);
+    }
+  },
+});
+
+const sessionsCommand = defineCommand({
+  meta: { name: "sessions", description: "List or merge the sessions of the group" },
+  default: "list",
+  subCommands: { list: sessionsListCommand, merge: sessionsMergeCommand },
 });
 
 const resumeCommand = defineCommand({

@@ -42,3 +42,22 @@ test("upgrades a version 1 database and keeps its rows", async () => {
   ]);
   db.close();
 });
+
+test("upgrades a version 2 database: existing sessions get no hooked_at", async () => {
+  const { DatabaseSync } = await import("node:sqlite");
+  const path = join(tempDir(), "carnet.db");
+  const old = new DatabaseSync(path);
+  old.exec(migrations[0]);
+  old.exec(migrations[1]);
+  old.exec("PRAGMA user_version = 2");
+  old.exec(
+    "INSERT INTO sessions (id, claude_pid, created_at, last_active_at) VALUES ('s', 7, 'x', 'x')",
+  );
+  old.close();
+  const db = openDatabase(path);
+  expect(schemaVersion(db)).toBe(migrations.length);
+  expect(db.prepare("SELECT id, claude_pid, hooked_at FROM sessions").all()).toEqual([
+    { id: "s", claude_pid: 7, hooked_at: null },
+  ]);
+  db.close();
+});

@@ -5,6 +5,7 @@ export type CarnetErrorCode =
   | "NO_SESSION"
   | "SESSION_NOT_FOUND"
   | "SESSION_NAME_TAKEN"
+  | "SESSION_MERGE_INVALID"
   | "AGENT_EXISTS"
   | "AGENT_NOT_FOUND"
   | "INVALID_STATUS"

@@ -12,6 +12,7 @@ export interface Session {
   cwd: string | null;
   repo: string | null;
   claudePid: number | null;
+  hookedAt: string | null;
   createdAt: string;
   lastActiveAt: string;
 }
@@ -24,6 +25,7 @@ interface SessionRow {
   cwd: string | null;
   repo: string | null;
   claude_pid: number | null;
+  hooked_at: string | null;
   created_at: string;
   last_active_at: string;
 }
@@ -44,7 +46,8 @@ export interface ListSessionsOptions {
   includeDropped?: boolean;
 }
 
-const COLUMNS = "id, name, purpose, status, cwd, repo, claude_pid, created_at, last_active_at";
+const COLUMNS =
+  "id, name, purpose, status, cwd, repo, claude_pid, hooked_at, created_at, last_active_at";
 
 function toSession(row: SessionRow): Session {
   return {
@@ -55,6 +58,7 @@ function toSession(row: SessionRow): Session {
     cwd: row.cwd,
     repo: row.repo,
     claudePid: row.claude_pid,
+    hookedAt: row.hooked_at,
     createdAt: row.created_at,
     lastActiveAt: row.last_active_at,
   };
@@ -104,8 +108,8 @@ export function upsertFromHook(
   if (!existing) {
     ctx.db
       .prepare(
-        `INSERT INTO sessions (id, name, status, cwd, repo, claude_pid, created_at, last_active_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sessions (id, name, status, cwd, repo, claude_pid, hooked_at, created_at, last_active_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         payload.session_id,
@@ -116,18 +120,20 @@ export function upsertFromHook(
         pid,
         at,
         at,
+        at,
       );
   } else {
     const adoptTitle = title !== null && existing.name === null;
     ctx.db
       .prepare(
         `UPDATE sessions
-         SET last_active_at = ?, cwd = ?, repo = ?, claude_pid = ?,
+         SET last_active_at = ?, hooked_at = ?, cwd = ?, repo = ?, claude_pid = ?,
              name = CASE WHEN ? THEN ? ELSE name END,
              status = CASE WHEN ? AND status = 'temporary' THEN 'active' ELSE status END
          WHERE id = ?`,
       )
       .run(
+        at,
         at,
         payload.cwd ?? existing.cwd,
         repo ?? existing.repo,
@@ -210,7 +216,9 @@ export function sessionByName(ctx: Ctx, name: string): Session | undefined {
 export function sessionByClaudePid(ctx: Ctx, pid: number): Session | undefined {
   const row = ctx.db
     .prepare(
-      `SELECT ${COLUMNS} FROM sessions WHERE claude_pid = ? ORDER BY last_active_at DESC LIMIT 1`,
+      `SELECT ${COLUMNS} FROM sessions
+       WHERE claude_pid = ? AND hooked_at IS NOT NULL
+       ORDER BY hooked_at DESC LIMIT 1`,
     )
     .get(pid) as SessionRow | undefined;
   return row && toSession(row);

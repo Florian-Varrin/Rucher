@@ -16,6 +16,7 @@ import type { Ctx } from "./context.ts";
 import { openDatabase } from "./db/open.ts";
 import { logEvent, type LogEventInput, readEvents } from "./events.ts";
 import { type Group, type LocateOptions, locateGroup } from "./group/locate.ts";
+import { mergeSessions } from "./merge.ts";
 import {
   defaultSession,
   dropSession,
@@ -62,6 +63,7 @@ export class Carnet {
     upsertFromHook: (payload: HookSessionPayload, env?: HookEnv) =>
       upsertFromHook(this.ctx, this.group, payload, env),
     touch: (id: string) => touchSession(this.ctx, id),
+    merge: (fromId: string, intoId: string) => mergeSessions(this.ctx, fromId, intoId),
     name: (id: string, name: string, purpose?: string) => nameSession(this.ctx, id, name, purpose),
     list: (options?: ListSessionsOptions) => listSessions(this.ctx, options),
     drop: (id: string) => dropSession(this.ctx, id),

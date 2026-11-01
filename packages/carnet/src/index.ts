@@ -44,6 +44,7 @@ export {
   parseHookPayload,
   type SessionStartResult,
 } from "./hook/session-start.ts";
+export { type MergeResult } from "./merge.ts";
 export {
   formatEventLine,
   RESUME_EVENTS,

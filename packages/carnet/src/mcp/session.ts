@@ -18,20 +18,13 @@ export function createSessionResolver({
   ppid = process.ppid,
   cwd = process.cwd(),
 }: SessionResolverOptions): SessionResolver {
-  let cached: string | undefined;
-
+  // Not cached: after --continue or the resume picker, the server env keeps a provisional
+  // startup id, and the hook that records the real one can arrive after the server starts.
   function resolveOwn(): string {
-    if (cached) return cached;
-    const fromEnv = env.CLAUDE_CODE_SESSION_ID;
-    if (fromEnv) {
-      cached = carnet.sessions.ensure(fromEnv, cwd).id;
-      return cached;
-    }
-    const byPid = carnet.sessions.byClaudePid(ppid);
-    if (byPid) {
-      cached = byPid.id;
-      return cached;
-    }
+    const hooked = carnet.sessions.byClaudePid(ppid);
+    if (hooked) return hooked.id;
+    const fromEnvironment = env.CLAUDE_CODE_SESSION_ID;
+    if (fromEnvironment) return carnet.sessions.ensure(fromEnvironment, cwd).id;
     throw new CarnetError(
       "NO_SESSION",
       "Cannot tell which Claude session this is: pass `session`, or install the rucher SessionStart hook",

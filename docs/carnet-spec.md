@@ -43,7 +43,8 @@ sessions (
   purpose TEXT,
   status TEXT,                -- temporary | active | paused | dropped
   cwd TEXT, repo TEXT,
-  claude_pid INTEGER,         -- from the hook, parent-pid fallback for the server
+  claude_pid INTEGER,         -- from the hook, matched against the server's parent pid
+  hooked_at TEXT,             -- last SessionStart hook for this row, set only by the hook
   created_at, last_active_at
 )
 
@@ -79,7 +80,9 @@ events (
 The MCP server process never receives the Claude session id; only hooks do. A `SessionStart` hook is therefore part of the install.
 
 - The hook runs `rucher hook session-start`, which reads the hook JSON on stdin (`session_id`, `cwd`, `source`, `session_title`) and upserts the session row, recording the `claude` process id it receives as `CLAUDE_PID`.
-- The MCP server resolves its own session from the `CLAUDE_CODE_SESSION_ID` environment variable, which Claude Code sets on MCP server processes (observed on 2.1.316, undocumented). Fallback: its parent process id matches the `CLAUDE_PID` recorded by the hook. Last resort: the `session` tool argument.
+- The MCP server resolves its own session on every call, first hit wins: the `session` tool argument; the row most recently recorded by the hook (`hooked_at`) whose `claude_pid` is the server's parent process id; the `CLAUDE_CODE_SESSION_ID` environment variable (set by Claude Code on MCP server processes, observed on 2.1.316, undocumented), used only when no hook row matches. The environment variable is not trusted first: when the session is picked after startup (`--continue`, the resume picker), Claude Code starts the servers with a provisional id that never gets a transcript, and only the hook sees the real one, sometimes after the server started (spike, 2026-11-01). `claude --resume <id>` keeps the id.
+- `/clear` starts a new Claude session in the same process: the hook records it, so Carnet follows the new conversation. Agents still open in the previous session stay there, visible with `rucher status --all`.
+- Rows split by an older server (tools written under a provisional id) are joined with `rucher sessions merge <from> <into>`.
 - One MCP server process serves the main agent and all its sub-agents, so tools never assume a single caller.
 - Every tool accepts an optional `session` argument as an override; by default the server uses its resolved session.
 - A Carnet session name is the Claude Code session title. `session_new` records the name and purpose; the hook syncs the title on the next start. Resuming goes through Claude Code itself: `rucher resume <name>` looks the session up by Carnet name and runs `claude --resume <id>` from the session's original cwd (Claude Code stores conversations per project directory), since a Carnet name and a Claude title can drift apart. When `source` is `resume`, the hook prints `additionalContext`: the status view plus the last 20 events, capped at about 2000 characters by dropping the oldest events first.
@@ -170,6 +173,7 @@ No generated markdown files: the `rucher` CLI reads the SQLite database and rend
 | `rucher log [--session X] [-n 20]`                     | latest journal events                                                                                                                                                                                                                                                               |
 | `rucher log --md [--session X]`                        | journal as markdown, one line per event with commit and report link, for archiving in a repo                                                                                                                                                                                        |
 | `rucher sessions [--all]`                              | named sessions: name, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temporary and dropped ones                                                                                                                                                       |
+| `rucher sessions merge <from> <into>`                  | moves agents (a name already used in `into` is closed in `from`), events and the table line (when `into` has none) into `into`, carries the name when `into` has none, then drops `from`; nothing merges automatically                                                              |
 | `rucher resume <name>`                                 | runs `claude --resume <id>` for that session, from its original cwd                                                                                                                                                                                                                 |
 | `rucher hook session-start`                            | hook entry point, reads the hook JSON on stdin, records the session, prints the resume context on `source: resume`; exits 0 outside a group or on any error                                                                                                                         |
 | `rucher hook subagent-start`                           | pairs the started subagent with its Carnet agent; exits 0 in every case                                                                                                                                                                                                             |
@@ -266,7 +270,7 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 
 ## Open questions
 
-- [x] Session resolution in the MCP server: `CLAUDE_CODE_SESSION_ID` env var, parent pid fallback (spike, 2026-10-31).
+- [x] Session resolution in the MCP server: hook row by parent pid, `CLAUDE_CODE_SESSION_ID` fallback (spikes, 2026-10-31 and 2026-11-01).
 - [x] Hooks fired inside a sub-agent (fork or not) carry the parent `session_id` plus `agent_id` and `agent_type` (spike, 2026-10-31).
 - [ ] Confirm `CLAUDE_CODE_SESSION_ID` is also set for interactive sessions and user-scope servers (expected; dogfooding).
 - [ ] A single HTTP server (daemon) instead of one stdio process per session?

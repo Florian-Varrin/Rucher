@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vite-plus/test";
 import { resumeTarget } from "../src/commands/resume.ts";
-import { sessionsOnce } from "../src/commands/sessions.ts";
+import { sessionsMerge, sessionsOnce } from "../src/commands/sessions.ts";
 import { CliError } from "../src/session.ts";
 import { makeCarnet, makeIo, SESSION } from "./helpers.ts";
 
@@ -59,4 +59,17 @@ test("resume falls back to the current directory, warns on dropped, refuses unkn
   expect(resumeTarget(carnet, "shop-old", io).cwd).toBe(io.cwd);
   expect(io.err.join("")).toBe("warning: session shop-old was dropped\n");
   expect(() => resumeTarget(carnet, "nope", io)).toThrowError(CliError);
+});
+
+test("sessions merge moves everything into the target and reports it", () => {
+  const { carnet } = makeCarnet();
+  carnet.sessions.ensure("provisional");
+  carnet.agents.start("provisional", { name: "lost", task: "task" });
+  carnet.sessions.name(SESSION, "shop-auth");
+  const io = makeIo();
+  sessionsMerge(carnet, "provisional", "shop-auth", io);
+  expect(io.out.join("")).toContain("merged provisio into shop-auth");
+  expect(io.out.join("")).toContain("agents moved: lost");
+  expect(carnet.agents.get(SESSION, "lost")?.status).toBe("running");
+  expect(() => sessionsMerge(carnet, "missing", "shop-auth", makeIo())).toThrowError(CliError);
 });

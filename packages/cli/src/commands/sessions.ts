@@ -1,6 +1,7 @@
 import { type Carnet, formatClock, type Session } from "@rucher/carnet";
 import { paint } from "../color.ts";
 import type { Io } from "../io.ts";
+import { CliError } from "../session.ts";
 import { sessionWhere } from "./status.ts";
 
 export interface SessionsOptions {
@@ -48,5 +49,37 @@ export function sessionsOnce(carnet: Carnet, io: Io, options: SessionsOptions = 
     const line = [p.bold(name), muted ? p.dim(status) : status, ...rest].join("  ");
     return line.trimEnd();
   });
+  io.stdout(`${lines.join("\n")}\n`);
+}
+
+function findSession(carnet: Carnet, reference: string): Session {
+  const session = carnet.sessions.byName(reference) ?? carnet.sessions.get(reference);
+  if (!session)
+    throw new CliError(
+      `Unknown session "${reference}"`,
+      "pass a session name or id, see rucher sessions --all",
+    );
+  return session;
+}
+
+export function sessionsMerge(
+  carnet: Carnet,
+  fromReference: string,
+  intoReference: string,
+  io: Io,
+): void {
+  const from = findSession(carnet, fromReference);
+  const into = findSession(carnet, intoReference);
+  const result = carnet.sessions.merge(from.id, into.id);
+  const label = (session: Session) => session.name ?? session.id.slice(0, 8);
+  const lines = [
+    `merged ${label(from)} into ${label(result.session)}`,
+    `  agents moved: ${result.movedAgents.join(", ") || "none"}`,
+    ...(result.closedAgents.length
+      ? [`  agents closed (name already used): ${result.closedAgents.join(", ")}`]
+      : []),
+    `  events moved: ${result.movedEvents}`,
+    `  table line moved: ${result.movedTable ? "yes" : "no"}`,
+  ];
   io.stdout(`${lines.join("\n")}\n`);
 }

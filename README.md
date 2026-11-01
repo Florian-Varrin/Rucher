@@ -67,6 +67,7 @@ rucher groups list                     # every registered group, missing ones fl
 rucher groups prune                    # forget groups whose meta directory is gone
 rucher sessions                        # named sessions
 rucher resume shop-auth                # back into a named session
+rucher sessions merge <from> <into>    # join a session split by a resume
 ```
 
 Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared context and `additionalDirectories` gives access to the repos. Sessions started inside one of the repos attach to the same group.
