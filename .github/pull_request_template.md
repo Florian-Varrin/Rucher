@@ -1,0 +1,3 @@
+- What and why:
+- Changeset added (`pnpm changeset`), or not needed (docs only):
+- `pnpm run check` and `pnpm run test` pass:

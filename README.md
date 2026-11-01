@@ -11,16 +11,18 @@ Read the [manifesto](docs/manifesto.md) for the full picture.
 
 ## Status
 
-Early. Personal tooling first, open source in the making. Nothing is published yet.
+Early (0.x), used daily by its author. Commands, APIs and the database schema may change before 1.0. Published on npm as [`@rucher/cli`](https://www.npmjs.com/package/@rucher/cli) and [`@rucher/carnet`](https://www.npmjs.com/package/@rucher/carnet).
 
 ## Components
 
 | Component    | Role                                                                                            | State                                |
 | ------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------ |
 | Workflow     | Rules for multi-agent work: two-phase forks, parallel work, sequential review, reports in files | [docs/workflow.md](docs/workflow.md) |
-| Groups       | One meta directory per set of related repos: repo map, shared instructions, directory access    | next                                 |
+| Groups       | One meta directory per set of related repos: repo map, shared instructions, directory access    | done                                 |
 | Carnet       | Shared state: agent statuses, "On the table", sessions, journal. Library + SQLite + MCP server  | [spec](docs/carnet-spec.md)          |
 | CLI `rucher` | Human entry point: `status`, `log`, `sessions`, `resume`                                        | [spec](docs/carnet-spec.md)          |
+| Sessions     | Named, resumable sessions; temporary ones purged                                                | [docs/sessions.md](docs/sessions.md) |
+| Plugin       | Claude Code wiring: MCP server, hooks, `rucher` skill                                           | [plugin/README.md](plugin/README.md) |
 | Core + TUI   | SDK wrapper, agents, forks, permissions; one-window terminal UI                                 | [spec](docs/rucher-spec.md), later   |
 
 ## Repository layout
@@ -35,36 +37,34 @@ docs/             manifesto and specs
 ## Requirements
 
 - Node.js 24 or later (`node:sqlite` is used, no native build step)
-- pnpm
 - Claude Code installed and logged in
 
-## Install (from source, for now)
+## Quick start
 
 ```bash
-pnpm install
-pnpm run build                          # builds @rucher/carnet and @rucher/cli
-cd packages/cli && pnpm link --global   # puts `rucher` on your PATH
-```
+npm install -g @rucher/cli
+claude plugin marketplace add Florian-Varrin/Rucher
+claude plugin install rucher@rucher
 
-If pnpm has no global bin directory (`ERR_PNPM_NO_GLOBAL_BIN_DIR`), a symlink does the same job:
-
-```bash
-ln -s "$PWD/packages/cli/dist/cli.mjs" ~/.local/bin/rucher
-```
-
-Then create a meta directory for each group of related repos. It holds context only (`CLAUDE.md`, `.claude/settings.json`, the Carnet database); the repos stay where they are and are referenced by path:
-
-```bash
 mkdir -p ~/groups/shop && cd ~/groups/shop
 rucher init --name shop --repos ~/code/shop-api,~/code/shop-web
-rucher group add ~/code/shop-infra     # later additions
-rucher status --watch                  # the status pane
-rucher log                             # the journal
-rucher log --md > journal.md           # the journal as markdown
+rucher status --watch     # in a side pane
+claude                    # in another pane, from the same directory
+```
+
+A group is a meta directory for a set of related repos. It holds context only (`CLAUDE.md`, `.claude/settings.json`, the Carnet database); the repos stay where they are and are referenced by path. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.
+
+## Commands
+
+```bash
+rucher group add ~/code/shop-infra     # add a repo to the group
 rucher group remove ~/code/shop-infra  # drop a repo
 rucher group sync                      # rewrite the hosts' context files (CLAUDE.md, settings) from group.json
 rucher groups list                     # every registered group, missing ones flagged
 rucher groups prune                    # forget groups whose meta directory is gone
+rucher status --watch                  # the status pane
+rucher log                             # the journal
+rucher log --md > journal.md           # the journal as markdown
 rucher sessions                        # named sessions
 rucher resume shop-auth                # back into a named session
 rucher sessions merge <from> <into>    # join a session split by a resume
@@ -74,14 +74,7 @@ Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared con
 
 Naming, watching, resuming and dropping sessions: [docs/sessions.md](docs/sessions.md).
 
-Wire Claude Code with the plugin (MCP server plus `SessionStart` hook), the repo being its own marketplace:
-
-```bash
-claude plugin marketplace add <path to your rucher clone>
-claude plugin install rucher@rucher
-```
-
-Details, update and uninstall in [plugin/README.md](plugin/README.md). For development, `claude --plugin-dir ./plugin` loads it from the working tree.
+The plugin (MCP server, hooks and the `rucher` skill) comes from this repository, which is its own marketplace. Details, update and uninstall in [plugin/README.md](plugin/README.md).
 
 ### Shell completion
 
@@ -97,7 +90,10 @@ Commands and flags complete as you type; `--session`, `resume` and `sessions mer
 
 ## Development
 
+Requires pnpm 12 (pinned by `devEngines`; npm refuses to run inside the repo).
+
 ```bash
+git clone https://github.com/Florian-Varrin/Rucher.git && cd Rucher
 pnpm install
 pnpm run check       # format, lint, type check
 pnpm run test        # the built-binary test needs pnpm run build first
@@ -109,13 +105,17 @@ Inside the workspace, `@rucher/carnet` resolves to its sources through the `deve
 
 The toolchain is [Vite+](https://viteplus.dev). The `vite-plus` dev dependency is the source of truth; a global `vp` is optional.
 
+To use a local build instead of the published CLI: `ln -s "$PWD/packages/cli/dist/cli.mjs" ~/.local/bin/rucher` (after `npm uninstall -g @rucher/cli`), and `claude --plugin-dir ./plugin` to load the plugin from the working tree.
+
 ## Releasing
 
 Releases go through [Changesets](https://github.com/changesets/changesets) and GitHub Actions.
 
-- Pull requests run `.github/workflows/verify.yml`: build, check, test.
-- Every push to `master` is a release (`.github/workflows/production.yml`): it reads the pending changesets, verifies, bumps the versions, commits `CI : version bump [skip ci]` as `github-actions[bot]`, tags each bumped component (`carnet-v<version>`, `cli-v<version>`) and publishes them to npm. A push without a pending changeset fails.
+- Pull requests run `.github/workflows/verify.yml`: build, check, test. Pull requests from forks run it without any secret.
+- Pushes that only change Markdown files, `docs/` or `.github/` skip the release; a changeset in `.changeset/` always triggers it.
+- Every other push to `master` is a release (`.github/workflows/production.yml`): it reads the pending changesets, verifies, bumps the versions, commits `CI : version bump [skip ci]` as `github-actions[bot]`, tags each bumped component (`carnet-v<version>`, `cli-v<version>`) and publishes them to npm. A push without a pending changeset fails.
 - `pnpm changeset` adds one. A summary starting with `internal:` releases without a changelog line.
+- Merging a pull request is a push to `master`: before merging one that changes code, make sure it carries a changeset (ask for one or add it to the branch).
 - `@rucher/carnet` and `@rucher/cli` are versioned independently; a carnet release also releases the cli. The Claude Code plugin has no code of its own and takes the cli version.
 - pnpm is pinned by `devEngines` in `package.json`; `PNPM_VERSION` in the workflows must match (checked by CI).
 
@@ -123,7 +123,8 @@ Repository settings the release needs:
 
 - Secret `RELEASE_PAT`: a fine-grained token on this repository with `Contents: read and write`, used to push the bump commit and the tags.
 - Secret `NPM_TOKEN`: an npm automation token allowed to publish the `@rucher` scope.
-- Branch protection on `master`: let the `RELEASE_PAT` owner push, and require the `Verify` check on pull requests.
+- A ruleset on `master`: restrict deletions, block force pushes, require a pull request before merging, with the repository admin (the `RELEASE_PAT` owner) in the bypass list so direct pushes and the bump commit go through.
+- Pull requests: squash merging only, head branches deleted on merge; approval required before running workflows from first-time contributors' forks.
 
 ## Claude Code terms
 
