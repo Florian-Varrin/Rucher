@@ -41,7 +41,7 @@ sessions (
   id TEXT PRIMARY KEY,        -- Claude Code session id
   name TEXT UNIQUE,           -- set by session_new, equals the Claude session title
   purpose TEXT,
-  status TEXT,                -- temporary | active | paused | dropped
+  status TEXT,                -- temporary | active | dropped
   cwd TEXT, repo TEXT,
   claude_pid INTEGER,         -- from the hook, matched against the server's parent pid
   hooked_at TEXT,             -- last SessionStart hook for this row, set only by the hook
@@ -89,7 +89,7 @@ The MCP server process never receives the Claude session id; only hooks do. A `S
 - Every tool accepts an optional `session` argument as an override; by default the server uses its resolved session.
 - Wherever a session is referenced (the `session` override, `session_drop`, `session_resume_info`, every CLI argument and `--session`), Carnet accepts its name, its full id or a unique id prefix of at least 4 characters, tried in that order. An ambiguous prefix fails with `SESSION_AMBIGUOUS` listing the matching short ids; anything else unknown fails with `SESSION_NOT_FOUND`. Only a full Claude session id that no hook recorded gets a new row through the `session` override.
 - A Carnet session name is the Claude Code session title. `session_new` records the name and purpose. The Claude title is synced by the hooks: `SessionStart` and `UserPromptSubmit` (`rucher hook user-prompt-submit`) both carry `session_title`, so a `/rename`, which fires no hook of its own, names the session with the next prompt and promotes it to `active`; when the payload has no title, the last `custom-title` entry of the transcript is used. A title already used by another session is ignored. Resuming goes through Claude Code itself: `rucher resume <name>` looks the session up by Carnet name and runs `claude --resume <id>` from the session's original cwd (Claude Code stores conversations per project directory), since a Carnet name and a Claude title can drift apart. When `source` is `resume`, the hook prints `additionalContext`: the status view plus the last 20 events, capped at about 2000 characters by dropping the oldest events first.
-- Unnamed sessions are recorded with status `temporary`, hidden from `rucher sessions` by default, and purged automatically after a few idle days when they hold no agents and no events. `session_new` promotes a temporary session to `active`.
+- Unnamed sessions are recorded with status `temporary`, hidden from `rucher sessions` by default, and purged by the `SessionStart` hook after `RUCHER_PURGE_DAYS` idle days (default 3, measured on `last_active_at`) when they hold no agents and no events. Dropped sessions with no events are purged on the same delay. Events are never deleted, and the session the hook records is never purged. `session_new` promotes a temporary session to `active`.
 
 ### Forks that stop without `agent_done`
 
@@ -265,7 +265,7 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 - [x] `session_new`, `session_list`, `session_drop`, `rucher sessions`, `rucher resume`
 - [x] `session_resume_info` and `log_read` with journal injection on resume
 - [x] `rucher log --md`
-- [ ] Temporary session purge
+- [x] Temporary session purge
 
 **Milestone 3**
 
@@ -280,5 +280,5 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 - [x] Hooks fired inside a sub-agent (fork or not) carry the parent `session_id` plus `agent_id` and `agent_type` (spike, 2026-10-31).
 - [ ] Confirm `CLAUDE_CODE_SESSION_ID` is also set for interactive sessions and user-scope servers (expected; dogfooding).
 - [ ] A single HTTP server (daemon) instead of one stdio process per session?
-- [ ] Purge delay for temporary sessions.
+- [x] Purge delay for temporary sessions: 3 days, `RUCHER_PURGE_DAYS` override.
 - [x] A session started inside a repo attaches to its group through the registry and the repo paths.

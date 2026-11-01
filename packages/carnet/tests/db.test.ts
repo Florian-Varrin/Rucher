@@ -85,3 +85,37 @@ test('upgrades a version 3 database: open agents get no pending outcome', async 
   ]);
   db.close();
 });
+
+test('upgrades a version 4 database: paused sessions become active', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const path = join(tempDirectory(), 'carnet.db');
+  const old = new DatabaseSync(path);
+  const legacyFirst = (migrations[0] ?? '').replace(
+    "('temporary', 'active', 'dropped')",
+    "('temporary', 'active', 'paused', 'dropped')",
+  );
+  for (const migration of [legacyFirst, ...migrations.slice(1, 4)]) old.exec(migration);
+  old.exec('PRAGMA user_version = 4');
+  old.exec(
+    "INSERT INTO sessions (id, status, created_at, last_active_at) VALUES ('s', 'paused', 'x', 'x')",
+  );
+  old.close();
+  const db = openDatabase(path);
+  expect(schemaVersion(db)).toBe(migrations.length);
+  expect(db.prepare('SELECT id, status FROM sessions').all()).toEqual([
+    { id: 's', status: 'active' },
+  ]);
+  db.close();
+});
+
+test('a fresh database refuses the paused status', () => {
+  const db = openDatabase(MEMORY_DB);
+  expect(() =>
+    db
+      .prepare(
+        "INSERT INTO sessions (id, status, created_at, last_active_at) VALUES ('s', 'paused', 'x', 'x')",
+      )
+      .run(),
+  ).toThrowError(/CHECK/);
+  db.close();
+});

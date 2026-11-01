@@ -16,6 +16,7 @@ export function sessionStart(stdinText: string, io: Io): number {
     try {
       const { additionalContext } = handleSessionStart(carnet, payload, {
         CLAUDE_PID: io.env.CLAUDE_PID,
+        RUCHER_PURGE_DAYS: io.env.RUCHER_PURGE_DAYS,
       });
       if (additionalContext) {
         const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext };

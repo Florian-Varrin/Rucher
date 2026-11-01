@@ -7,7 +7,7 @@ CREATE TABLE sessions (
   name TEXT UNIQUE,
   purpose TEXT,
   status TEXT NOT NULL DEFAULT 'temporary'
-    CHECK (status IN ('temporary', 'active', 'paused', 'dropped')),
+    CHECK (status IN ('temporary', 'active', 'dropped')),
   cwd TEXT,
   repo TEXT,
   claude_pid INTEGER,
@@ -64,6 +64,9 @@ CREATE INDEX sessions_claude_pid ON sessions(claude_pid, hooked_at);
   `
 ALTER TABLE agents ADD COLUMN pending_status TEXT;
 ALTER TABLE agents ADD COLUMN done_at TEXT;
+`,
+  `
+UPDATE sessions SET status = 'active' WHERE status = 'paused';
 `,
 ];
 

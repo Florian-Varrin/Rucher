@@ -2,7 +2,7 @@ import { type Ctx, nowIso } from './context.ts';
 import { CarnetError } from './errors.ts';
 import { type Group, repoNameFor } from './group/locate.ts';
 
-export type SessionStatus = 'temporary' | 'active' | 'paused' | 'dropped';
+export type SessionStatus = 'temporary' | 'active' | 'dropped';
 
 export interface Session {
   id: string;
@@ -39,6 +39,7 @@ export interface HookSessionPayload {
 
 export interface HookEnv {
   CLAUDE_PID?: string | undefined;
+  RUCHER_PURGE_DAYS?: string | undefined;
 }
 
 export interface ListSessionsOptions {

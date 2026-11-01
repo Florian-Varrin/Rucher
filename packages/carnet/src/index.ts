@@ -46,6 +46,7 @@ export {
   type SessionStartResult,
 } from './hook/session-start.ts';
 export { type MergeResult } from './merge.ts';
+export { DEFAULT_PURGE_DAYS, purgeDays } from './purge.ts';
 export {
   formatEventLine,
   RESUME_EVENTS,

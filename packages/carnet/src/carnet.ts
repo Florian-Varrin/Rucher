@@ -17,6 +17,7 @@ import { openDatabase } from './db/open.ts';
 import { logEvent, type LogEventInput, readEvents } from './events.ts';
 import { type Group, type LocateOptions, locateGroup } from './group/locate.ts';
 import { mergeSessions } from './merge.ts';
+import { purgeSessions } from './purge.ts';
 import {
   defaultSession,
   dropSession,
@@ -67,6 +68,7 @@ export class Carnet {
       upsertFromHook(this.ctx, this.group, payload, env),
     touch: (id: string) => touchSession(this.ctx, id),
     merge: (fromId: string, intoId: string) => mergeSessions(this.ctx, fromId, intoId),
+    purge: (keepId: string, days: number) => purgeSessions(this.ctx, keepId, days),
     name: (id: string, name: string, purpose?: string) => nameSession(this.ctx, id, name, purpose),
     adoptTitle: (id: string, title: string | undefined) => adoptTitle(this.ctx, id, title),
     list: (options?: ListSessionsOptions) => listSessions(this.ctx, options),

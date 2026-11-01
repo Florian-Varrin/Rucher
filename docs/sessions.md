@@ -16,7 +16,6 @@ You never create a session by hand. The plugin's `SessionStart` hook records one
 | ----------- | ----------------------------------------------------------------------------------------- |
 | `temporary` | recorded but not named yet; hidden from `rucher sessions` unless `--all`                  |
 | `active`    | named, by `session_new` or by a Claude Code session title (`claude -n`, `/rename`)        |
-| `paused`    | reserved, nothing sets it yet                                                             |
 | `dropped`   | closed on request; its open agents are closed, its journal is kept; hidden unless `--all` |
 
 The **default session** of a group is the most recently active one that is not dropped. Every `rucher` command without `--session` uses it. Wherever a session is expected, you can give its name, its full id, or the start of its id as shown by `rucher sessions --all` (at least 4 characters, and unique).
@@ -95,7 +94,7 @@ rucher sessions merge <from> <into>   # moves agents, the table line and events 
 
 ## Housekeeping
 
-Temporary sessions pile up, one per unnamed conversation. A purge of temporary sessions idle for a few days with no agents and no events is planned; until then they are only hidden.
+Each time a session starts, the hook purges sessions idle for more than 3 days that never held any work: temporary sessions with no agents and no events, and dropped sessions with no events. Sessions with a journal are kept, and so is the session being started. Set `RUCHER_PURGE_DAYS` (a positive number of days) in the environment Claude Code runs in to change the delay.
 
 ## A typical day
 
