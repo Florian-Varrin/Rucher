@@ -60,6 +60,11 @@ rucher init --name shop --repos ~/code/shop-api,~/code/shop-web
 rucher group add ~/code/shop-infra     # later additions
 rucher status --watch                  # the status pane
 rucher log                             # the journal
+rucher log --md > journal.md           # the journal as markdown
+rucher group remove ~/code/shop-infra  # drop a repo
+rucher group sync                      # rewrite settings and the CLAUDE.md repo list from group.json
+rucher groups list                     # every registered group, missing ones flagged
+rucher groups prune                    # forget groups whose meta directory is gone
 ```
 
 Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared context and `additionalDirectories` gives access to the repos. Sessions started inside one of the repos attach to the same group.

@@ -30,6 +30,15 @@ export function repoNameFor(group: Group, path: string | undefined): string | nu
   return repo ? basename(repo) : null;
 }
 
+export function repoPathFor(group: Group, path: string | undefined | null): string | null {
+  if (!path) return null;
+  const abs = resolve(path);
+  const repo = group.repos.find((r) => isInside(r, abs));
+  if (!repo) return null;
+  const rel = relative(repo, abs);
+  return rel ? join(basename(repo), rel) : basename(repo);
+}
+
 export function findGroupRoot(from: string): string | null {
   let dir = resolve(from);
   for (;;) {

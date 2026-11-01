@@ -1,3 +1,5 @@
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { expect, test } from "vite-plus/test";
 import { renderStatusView, statusWatch } from "../src/commands/status.ts";
 import { CliError } from "../src/session.ts";
@@ -89,4 +91,16 @@ test("watch repaints only on change and stops on abort", async () => {
   controller.abort();
   await done;
   expect(io.out.at(-1)).toBe("\x1b[?25h");
+});
+
+test("--all headers show the cwd relative to its repo", () => {
+  const { carnet, root } = seeded();
+  mkdirSync(join(root, "api", "src", "deep"), { recursive: true });
+  carnet.sessions.upsertFromHook({
+    session_id: SESSION,
+    cwd: join(root, "api", "src", "deep"),
+    source: "resume",
+  });
+  const text = renderStatusView(carnet, makeIo(), { all: true });
+  expect(text.split("\n")[0]).toBe("0360889d · api/src/deep");
 });

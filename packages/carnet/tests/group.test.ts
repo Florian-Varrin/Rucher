@@ -10,7 +10,11 @@ import {
   locateGroup,
   openCarnet,
   readRegistry,
+  registerGroup,
+  removeGroupRepo,
   repoNameFor,
+  repoPathFor,
+  unregisterGroups,
 } from "../src/index.ts";
 import { tempDir } from "./helpers.ts";
 
@@ -96,4 +100,31 @@ test("openCarnet opens the group database from a repo of the group", () => {
   const session = carnet.sessions.upsertFromHook({ session_id: "s", cwd: join(api, "src") });
   expect(session.repo).toBe(api.split("/").at(-1));
   carnet.close();
+});
+
+test("repoPathFor gives the repo-relative path of a directory", () => {
+  const { meta, api, web, env } = setup();
+  const group = initGroup(meta, { env, repos: [api, web] });
+  const name = api.split("/").pop();
+  expect(repoPathFor(group, join(api, "src", "deep"))).toBe(`${name}/src/deep`);
+  expect(repoPathFor(group, api)).toBe(name);
+  expect(repoPathFor(group, meta)).toBeNull();
+  expect(repoPathFor(group, null)).toBeNull();
+});
+
+test("removeGroupRepo drops a repo path, unknown paths are refused", () => {
+  const { meta, api, web, env } = setup();
+  initGroup(meta, { env, repos: [api, web] });
+  expect(removeGroupRepo(meta, api).repos).toEqual([web]);
+  expect(loadGroup(meta).repos).toEqual([web]);
+  expect(codeOf(() => removeGroupRepo(meta, api))).toBe("REPO_NOT_FOUND");
+});
+
+test("unregisterGroups removes registry entries by path only", () => {
+  const env = { RUCHER_HOME: tempDir("home-") };
+  registerGroup({ name: "shop", path: "/a" }, env);
+  registerGroup({ name: "shop", path: "/b" }, env);
+  registerGroup({ name: "blog", path: "/c" }, env);
+  expect(unregisterGroups(["/a", "/c"], env)).toEqual([{ name: "shop", path: "/b" }]);
+  expect(readRegistry(env)).toEqual([{ name: "shop", path: "/b" }]);
 });

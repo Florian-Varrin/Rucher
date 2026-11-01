@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { CarnetError, openCarnet } from "@rucher/carnet";
 import { defineCommand, runMain } from "citty";
-import { groupAdd, groupShow } from "./commands/group.ts";
+import { groupAdd, groupRemove, groupShow, groupSync } from "./commands/group.ts";
+import { groupsForget, groupsList, groupsPrune } from "./commands/groups.ts";
 import { sessionStart } from "./commands/hook.ts";
 import { init } from "./commands/init.ts";
 import { logOnce } from "./commands/log.ts";
@@ -98,13 +99,18 @@ const logCommand = defineCommand({
   args: {
     ...sessionArg,
     count: { type: "string", alias: "n", default: "20", description: "Number of events" },
+    md: { type: "boolean", default: false, description: "Markdown output, for archiving" },
     ...colorArg,
   },
   run({ args }) {
     const io = processIo({ color: args.color });
     try {
       const carnet = openCarnet({ cwd: io.cwd, env: io.env });
-      logOnce(carnet, io, { session: args.session, count: Number(args.count) || 20 });
+      logOnce(carnet, io, {
+        session: args.session,
+        count: Number(args.count) || 20,
+        md: args.md,
+      });
     } catch (error) {
       fail(io, error);
     }
@@ -112,7 +118,10 @@ const logCommand = defineCommand({
 });
 
 const groupCommand = defineCommand({
-  meta: { name: "group", description: "Show the current group or add a repo to it" },
+  meta: {
+    name: "group",
+    description: "Show the current group, add or remove repos, sync its settings",
+  },
   subCommands: {
     show: defineCommand({
       meta: { name: "show", description: "Name, meta directory and repos of the current group" },
@@ -139,6 +148,66 @@ const groupCommand = defineCommand({
         } catch (error) {
           fail(io, error);
         }
+      },
+    }),
+    remove: defineCommand({
+      meta: { name: "remove", description: "Remove a repo path from the current group" },
+      args: {
+        path: { type: "positional", description: "Repo path", required: true },
+        ...colorArg,
+      },
+      run({ args }) {
+        const io = processIo({ color: args.color });
+        try {
+          process.exitCode = groupRemove(args.path, io);
+        } catch (error) {
+          fail(io, error);
+        }
+      },
+    }),
+    sync: defineCommand({
+      meta: {
+        name: "sync",
+        description: "Rewrite additionalDirectories and the CLAUDE.md repo list from group.json",
+      },
+      args: { ...colorArg },
+      run({ args }) {
+        const io = processIo({ color: args.color });
+        try {
+          process.exitCode = groupSync(io);
+        } catch (error) {
+          fail(io, error);
+        }
+      },
+    }),
+  },
+});
+
+const groupsCommand = defineCommand({
+  meta: { name: "groups", description: "Registered groups of this machine" },
+  subCommands: {
+    list: defineCommand({
+      meta: { name: "list", description: "Registered groups, missing ones flagged" },
+      args: { ...colorArg },
+      run({ args }) {
+        process.exitCode = groupsList(processIo({ color: args.color }));
+      },
+    }),
+    forget: defineCommand({
+      meta: { name: "forget", description: "Unregister a group by name or meta directory path" },
+      args: {
+        ref: { type: "positional", description: "Group name or path", required: true },
+        ...colorArg,
+      },
+      run({ args }) {
+        process.exitCode = groupsForget(args.ref, processIo({ color: args.color }));
+      },
+    }),
+    prune: defineCommand({
+      meta: { name: "prune", description: "Unregister groups whose meta directory is gone" },
+      args: { ...colorArg },
+      run({ args }) {
+        process.exitCode = groupsPrune(processIo({ color: args.color }));
       },
     }),
   },
@@ -174,6 +243,7 @@ const main = defineCommand({
     status: statusCommand,
     log: logCommand,
     group: groupCommand,
+    groups: groupsCommand,
     hook: hookCommand,
     serve: serveCommand,
   },

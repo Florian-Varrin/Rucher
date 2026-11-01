@@ -1,4 +1,4 @@
-import { type Carnet, LEGEND, type Session } from "@rucher/carnet";
+import { type Carnet, LEGEND, repoPathFor, type Session } from "@rucher/carnet";
 import { paint } from "../color.ts";
 import type { Io } from "../io.ts";
 import { resolveSession } from "../session.ts";
@@ -30,10 +30,15 @@ export function colorizeStatus(text: string, io: Io): string {
     .join("\n");
 }
 
-function sessionHeader(session: Session, io: Io): string {
+export function sessionWhere(carnet: Carnet, session: Session): string | null {
+  return repoPathFor(carnet.group, session.cwd) ?? session.repo;
+}
+
+function sessionHeader(carnet: Carnet, session: Session, io: Io): string {
   const p = paint(io);
   const name = session.name ?? session.id.slice(0, 8);
-  return p.cyan(`${name}${session.repo ? ` · ${session.repo}` : ""}`);
+  const where = sessionWhere(carnet, session);
+  return p.cyan(`${name}${where ? ` · ${where}` : ""}`);
 }
 
 function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
@@ -49,7 +54,7 @@ export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions)
     .filter((s) => hasSomethingToShow(carnet, s));
   const sessions = active.length ? active : [resolveSession(carnet)];
   return sessions
-    .map((s) => `${sessionHeader(s, io)}\n${colorizeStatus(carnet.status.render(s), io)}`)
+    .map((s) => `${sessionHeader(carnet, s, io)}\n${colorizeStatus(carnet.status.render(s), io)}`)
     .join("\n\n");
 }
 

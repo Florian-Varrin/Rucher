@@ -16,7 +16,10 @@ interface Settings {
   [key: string]: unknown;
 }
 
-export function syncSettings(group: Group): "written" | "updated" | "unchanged" {
+export function syncSettings(
+  group: Group,
+  mode: "merge" | "exact" = "merge",
+): "written" | "updated" | "unchanged" {
   const path = join(group.root, ".claude", "settings.json");
   if (!existsSync(path)) {
     if (group.repos.length === 0) return "unchanged";
@@ -26,12 +29,14 @@ export function syncSettings(group: Group): "written" | "updated" | "unchanged" 
   }
   const settings = JSON.parse(readFileSync(path, "utf8")) as Settings;
   const current = settings.permissions?.additionalDirectories ?? [];
-  const missing = group.repos.filter((r) => !current.includes(r));
-  if (missing.length === 0) return "unchanged";
-  settings.permissions = {
-    ...settings.permissions,
-    additionalDirectories: [...current, ...missing],
-  };
+  const next =
+    mode === "exact"
+      ? group.repos
+      : [...current, ...group.repos.filter((r) => !current.includes(r))];
+  if (next.length === current.length && next.every((r, i) => r === current[i])) {
+    return "unchanged";
+  }
+  settings.permissions = { ...settings.permissions, additionalDirectories: next };
   writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`);
   return "updated";
 }

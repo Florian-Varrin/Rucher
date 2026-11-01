@@ -16,7 +16,7 @@ export {
   isEventType,
   type LogEventInput,
 } from "./events.ts";
-export { addGroupRepo, initGroup, type InitOptions } from "./group/init.ts";
+export { addGroupRepo, initGroup, type InitOptions, removeGroupRepo } from "./group/init.ts";
 export {
   DB_FILE,
   findGroupRoot,
@@ -30,8 +30,15 @@ export {
   locateGroup,
   type LocateOptions,
   repoNameFor,
+  repoPathFor,
 } from "./group/locate.ts";
-export { type GroupRef, readRegistry, registerGroup, rucherHome } from "./group/registry.ts";
+export {
+  type GroupRef,
+  readRegistry,
+  registerGroup,
+  rucherHome,
+  unregisterGroups,
+} from "./group/registry.ts";
 export { handleSessionStart, parseHookPayload } from "./hook/session-start.ts";
 export type {
   HookEnv,

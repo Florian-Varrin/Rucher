@@ -1,5 +1,11 @@
 import { basename, resolve } from "node:path";
-import { addGroupRepo, CarnetError, locateGroup } from "@rucher/carnet";
+import {
+  addGroupRepo,
+  CarnetError,
+  type Group,
+  locateGroup,
+  removeGroupRepo,
+} from "@rucher/carnet";
 import { paint } from "../color.ts";
 import type { Io } from "../io.ts";
 import { syncClaudeMd, syncSettings } from "./init.ts";
@@ -14,24 +20,26 @@ export function groupShow(io: Io): number {
   return 0;
 }
 
-export function groupAdd(repo: string, io: Io): number {
-  const found = locateGroup({ cwd: io.cwd, env: io.env });
+function syncNotes(group: Group, mode: "merge" | "exact"): string[] {
+  const settings = syncSettings(group, mode);
+  const claudeMd = syncClaudeMd(group);
+  return [
+    settings === "unchanged" ? null : `${settings} .claude/settings.json`,
+    claudeMd === "unchanged"
+      ? null
+      : claudeMd === "no-markers"
+        ? "CLAUDE.md has no rucher:repos markers, update its repo list yourself"
+        : `${claudeMd} CLAUDE.md`,
+  ].filter((n): n is string => n !== null);
+}
+
+function withNotes(line: string, notes: string[]): string {
+  return `${line}${notes.length ? ` (${notes.join(", ")})` : ""}\n`;
+}
+
+function carnetErrors(io: Io, run: () => number): number {
   try {
-    const group = addGroupRepo(found.root, resolve(io.cwd, repo));
-    const settings = syncSettings(group);
-    const claudeMd = syncClaudeMd(group);
-    const notes = [
-      settings === "unchanged" ? null : `${settings} .claude/settings.json`,
-      claudeMd === "unchanged"
-        ? null
-        : claudeMd === "no-markers"
-          ? "CLAUDE.md has no rucher:repos markers, list it there yourself"
-          : `${claudeMd} CLAUDE.md`,
-    ].filter(Boolean);
-    io.stdout(
-      `added ${basename(resolve(io.cwd, repo))} to ${group.name}${notes.length ? ` (${notes.join(", ")})` : ""}\n`,
-    );
-    return 0;
+    return run();
   } catch (error) {
     if (error instanceof CarnetError) {
       io.stderr(`error: ${error.message}\n`);
@@ -39,4 +47,33 @@ export function groupAdd(repo: string, io: Io): number {
     }
     throw error;
   }
+}
+
+export function groupAdd(repo: string, io: Io): number {
+  const found = locateGroup({ cwd: io.cwd, env: io.env });
+  return carnetErrors(io, () => {
+    const path = resolve(io.cwd, repo);
+    const group = addGroupRepo(found.root, path);
+    io.stdout(withNotes(`added ${basename(path)} to ${group.name}`, syncNotes(group, "merge")));
+    return 0;
+  });
+}
+
+export function groupRemove(repo: string, io: Io): number {
+  const found = locateGroup({ cwd: io.cwd, env: io.env });
+  return carnetErrors(io, () => {
+    const path = resolve(io.cwd, repo);
+    const group = removeGroupRepo(found.root, path);
+    io.stdout(withNotes(`removed ${basename(path)} from ${group.name}`, syncNotes(group, "exact")));
+    return 0;
+  });
+}
+
+export function groupSync(io: Io): number {
+  const group = locateGroup({ cwd: io.cwd, env: io.env });
+  const notes = syncNotes(group, "exact");
+  io.stdout(
+    notes.length ? withNotes(`synced ${group.name}`, notes) : `${group.name} already in sync\n`,
+  );
+  return 0;
 }

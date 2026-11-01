@@ -26,14 +26,23 @@ export function readRegistry(env?: NodeJS.ProcessEnv): GroupRef[] {
   return parsed.groups ?? [];
 }
 
-export function registerGroup(ref: GroupRef, env?: NodeJS.ProcessEnv): GroupRef[] {
-  const groups = readRegistry(env).filter((g) => g.path !== ref.path);
-  groups.push(ref);
-  groups.sort((a, b) => a.name.localeCompare(b.name));
+function writeRegistry(groups: GroupRef[], env?: NodeJS.ProcessEnv): GroupRef[] {
+  groups.sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path));
   mkdirSync(rucherHome(env), { recursive: true });
   writeFileSync(
     registryPath(env),
     `${JSON.stringify({ groups } satisfies RegistryFile, null, 2)}\n`,
   );
   return groups;
+}
+
+export function registerGroup(ref: GroupRef, env?: NodeJS.ProcessEnv): GroupRef[] {
+  return writeRegistry([...readRegistry(env).filter((g) => g.path !== ref.path), ref], env);
+}
+
+export function unregisterGroups(paths: string[], env?: NodeJS.ProcessEnv): GroupRef[] {
+  return writeRegistry(
+    readRegistry(env).filter((g) => !paths.includes(g.path)),
+    env,
+  );
 }

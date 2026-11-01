@@ -45,3 +45,13 @@ export function addGroupRepo(root: string, repo: string): Group {
   }
   return loadGroup(group.root);
 }
+
+export function removeGroupRepo(root: string, repo: string): Group {
+  const group = loadGroup(resolve(root));
+  const path = resolve(group.root, repo);
+  if (!group.repos.includes(path)) {
+    throw new CarnetError("REPO_NOT_FOUND", `${path} is not a repo of ${group.name}`);
+  }
+  writeGroupFile(group.root, { name: group.name, repos: group.repos.filter((r) => r !== path) });
+  return loadGroup(group.root);
+}

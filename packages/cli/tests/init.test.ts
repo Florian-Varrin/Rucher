@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vite-plus/test";
-import { groupAdd, groupShow } from "../src/commands/group.ts";
+import { groupAdd, groupRemove, groupShow, groupSync } from "../src/commands/group.ts";
 import { init } from "../src/commands/init.ts";
 import { makeIo, tempDir } from "./helpers.ts";
 
@@ -79,4 +79,35 @@ test("group add extends group.json and merges into existing settings", () => {
   expect(groupAdd(join(meta, "missing"), bad)).toBe(1);
   expect(bad.err.join("")).toContain("does not exist");
   expect(init({}, makeIo({ cwd: meta, env }))).toBe(1);
+});
+
+test("group remove and group sync rewrite settings and CLAUDE.md from group.json", () => {
+  const { meta, api, web, io, env } = setup();
+  expect(init({ repos: [api, web] }, io)).toBe(0);
+  const settingsPath = join(meta, ".claude", "settings.json");
+  const settings = settingsOf(meta);
+  settings.permissions.allow = ["Bash(ls)"];
+  settings.permissions.additionalDirectories.push("/elsewhere");
+  writeFileSync(settingsPath, JSON.stringify(settings));
+
+  const removeIo = makeIo({ cwd: meta, env });
+  expect(groupRemove(api, removeIo)).toBe(0);
+  expect(removeIo.out.join("")).toContain("updated .claude/settings.json, updated CLAUDE.md");
+  expect(settingsOf(meta)).toEqual({
+    permissions: { additionalDirectories: [web], allow: ["Bash(ls)"] },
+  });
+  expect(readFileSync(join(meta, "CLAUDE.md"), "utf8")).not.toContain(api);
+
+  const again = makeIo({ cwd: meta, env });
+  expect(groupRemove(api, again)).toBe(1);
+  expect(again.err.join("")).toContain("is not a repo of");
+
+  writeFileSync(settingsPath, JSON.stringify({ permissions: { additionalDirectories: [] } }));
+  const syncIo = makeIo({ cwd: meta, env });
+  expect(groupSync(syncIo)).toBe(0);
+  expect(syncIo.out.join("")).toContain("updated .claude/settings.json");
+  expect(settingsOf(meta).permissions.additionalDirectories).toEqual([web]);
+  const noop = makeIo({ cwd: meta, env });
+  expect(groupSync(noop)).toBe(0);
+  expect(noop.out.join("")).toContain("already in sync");
 });
