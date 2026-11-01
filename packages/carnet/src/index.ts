@@ -62,6 +62,7 @@ export type {
   Session,
   SessionStatus,
 } from './sessions.ts';
+export { MINIMUM_ID_PREFIX, shortId } from './sessions.ts';
 export {
   AGENT_STATUSES,
   type AgentStatus,

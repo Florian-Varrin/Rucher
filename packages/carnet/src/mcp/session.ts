@@ -1,6 +1,8 @@
 import type { Carnet } from '../carnet.ts';
 import { CarnetError } from '../errors.ts';
 
+const FULL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface SessionResolverOptions {
   carnet: Carnet;
   env?: NodeJS.ProcessEnv | undefined;
@@ -31,9 +33,20 @@ export function createSessionResolver({
     );
   }
 
+  function resolveOverride(override: string): string {
+    try {
+      return carnet.sessions.find(override).id;
+    } catch (error) {
+      if (!(error instanceof CarnetError) || error.code !== 'SESSION_NOT_FOUND') throw error;
+      // A full Claude session id the hook never recorded still gets its row.
+      if (FULL_ID.test(override)) return carnet.sessions.ensure(override, cwd).id;
+      throw error;
+    }
+  }
+
   return {
     resolve(override) {
-      const id = override ? carnet.sessions.ensure(override, cwd).id : resolveOwn();
+      const id = override ? resolveOverride(override) : resolveOwn();
       carnet.sessions.touch(id);
       return id;
     },

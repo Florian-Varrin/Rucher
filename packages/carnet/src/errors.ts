@@ -4,6 +4,7 @@ export type CarnetErrorCode =
   | 'REPO_NOT_FOUND'
   | 'NO_SESSION'
   | 'SESSION_NOT_FOUND'
+  | 'SESSION_AMBIGUOUS'
   | 'SESSION_NAME_TAKEN'
   | 'SESSION_MERGE_INVALID'
   | 'AGENT_EXISTS'

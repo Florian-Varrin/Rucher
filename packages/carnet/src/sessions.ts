@@ -213,6 +213,39 @@ export function sessionByName(ctx: Ctx, name: string): Session | undefined {
   return row && toSession(row);
 }
 
+export const MINIMUM_ID_PREFIX = 4;
+
+export function shortId(id: string): string {
+  return id.slice(0, 8);
+}
+
+export function findSession(ctx: Ctx, reference: string): Session {
+  const byName = sessionByName(ctx, reference);
+  if (byName) return byName;
+  const byId = getSession(ctx, reference);
+  if (byId) return byId;
+  const isIdPrefix = /^[0-9a-f-]+$/i.test(reference);
+  if (isIdPrefix && reference.length >= MINIMUM_ID_PREFIX) {
+    const rows = ctx.db
+      .prepare(`SELECT ${COLUMNS} FROM sessions WHERE id LIKE ? ORDER BY last_active_at DESC`)
+      .all(`${reference.toLowerCase()}%`) as unknown as SessionRow[];
+    const [only, ...others] = rows;
+    if (only && others.length === 0) return toSession(only);
+    if (only) {
+      const matches = rows.map((row) => shortId(row.id)).join(', ');
+      throw new CarnetError(
+        'SESSION_AMBIGUOUS',
+        `Session id "${reference}" matches several sessions: ${matches}`,
+      );
+    }
+  }
+  const hint =
+    isIdPrefix && reference.length < MINIMUM_ID_PREFIX
+      ? ` (an id prefix needs at least ${MINIMUM_ID_PREFIX} characters)`
+      : '';
+  throw new CarnetError('SESSION_NOT_FOUND', `Unknown session "${reference}"${hint}`);
+}
+
 export function sessionByClaudePid(ctx: Ctx, processId: number): Session | undefined {
   const row = ctx.db
     .prepare(

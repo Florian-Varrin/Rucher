@@ -1,7 +1,7 @@
 import { type Carnet, formatClock, type Session } from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
-import { CliError } from '../session.ts';
+import { findSession } from '../session.ts';
 import { sessionWhere } from './status.ts';
 
 export interface SessionsOptions {
@@ -56,16 +56,6 @@ export function sessionsOnce(carnet: Carnet, io: Io, options: SessionsOptions = 
     return styled.join('  ').trimEnd();
   });
   io.stdout(`${lines.join('\n')}\n`);
-}
-
-function findSession(carnet: Carnet, reference: string): Session {
-  const session = carnet.sessions.byName(reference) ?? carnet.sessions.get(reference);
-  if (!session)
-    throw new CliError(
-      `Unknown session "${reference}"`,
-      'pass a session name or id, see rucher sessions --all',
-    );
-  return session;
 }
 
 export function sessionsMerge(

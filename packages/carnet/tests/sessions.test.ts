@@ -116,3 +116,39 @@ test('parseHookPayload validates and handleSessionStart upserts', () => {
   expect(handleSessionStart(carnet, payload, { CLAUDE_PID: '7' }).session.claudePid).toBe(7);
   expect(() => parseHookPayload('{}')).toThrowError(TypeError);
 });
+
+test('find accepts a name, a full id or a unique id prefix, names first', () => {
+  const { carnet, root } = makeCarnet();
+  const first = '9cd374b8-9225-4ad8-8407-f38398966ed3';
+  const second = '9cd3aaaa-1111-4222-8333-444455556666';
+  carnet.sessions.ensure(first, root);
+  carnet.sessions.ensure(second, root);
+  carnet.sessions.name(second, 'shop-auth');
+  expect(carnet.sessions.find('shop-auth').id).toBe(second);
+  expect(carnet.sessions.find(first).id).toBe(first);
+  expect(carnet.sessions.find('9cd374b8').id).toBe(first);
+  expect(carnet.sessions.find('9CD374').id).toBe(first);
+  carnet.sessions.name(first, '9cd3aaaa');
+  expect(carnet.sessions.find('9cd3aaaa').id).toBe(first);
+});
+
+test('find refuses ambiguous, too short and unknown references', () => {
+  const { carnet, root } = makeCarnet();
+  carnet.sessions.ensure('9cd374b8-9225-4ad8-8407-f38398966ed3', root);
+  carnet.sessions.ensure('9cd3aaaa-1111-4222-8333-444455556666', root);
+  const codeOf = (reference: string) => {
+    try {
+      carnet.sessions.find(reference);
+      return 'found';
+    } catch (error) {
+      return error instanceof CarnetError ? `${error.code}: ${error.message}` : 'other';
+    }
+  };
+  expect(codeOf('9cd3')).toBe(
+    'SESSION_AMBIGUOUS: Session id "9cd3" matches several sessions: 9cd3aaaa, 9cd374b8',
+  );
+  expect(codeOf('9cd')).toContain('SESSION_NOT_FOUND');
+  expect(codeOf('9cd')).toContain('at least 4 characters');
+  expect(codeOf('ffff')).toBe('SESSION_NOT_FOUND: Unknown session "ffff"');
+  expect(codeOf('shop-typo')).toBe('SESSION_NOT_FOUND: Unknown session "shop-typo"');
+});

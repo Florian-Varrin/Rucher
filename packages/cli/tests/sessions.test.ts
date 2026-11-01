@@ -73,3 +73,14 @@ test('sessions merge moves everything into the target and reports it', () => {
   expect(carnet.agents.get(SESSION, 'lost')?.status).toBe('running');
   expect(() => sessionsMerge(carnet, 'missing', 'shop-auth', makeIo())).toThrowError(CliError);
 });
+
+test('sessions merge and resume accept the short ids shown by rucher sessions', () => {
+  const { carnet } = makeCarnet();
+  const split = '8c2fce7d-d378-4abf-a791-cbe8a499d65c';
+  carnet.sessions.ensure(split);
+  carnet.agents.start(split, { name: 'lost', task: 'task' });
+  sessionsMerge(carnet, '8c2fce7d', SESSION.slice(0, 8), makeIo());
+  expect(carnet.agents.get(SESSION, 'lost')?.status).toBe('running');
+  expect(resumeTarget(carnet, SESSION.slice(0, 8), makeIo()).args).toEqual(['--resume', SESSION]);
+  expect(() => resumeTarget(carnet, '036', makeIo())).toThrowError(/at least 4 characters/);
+});

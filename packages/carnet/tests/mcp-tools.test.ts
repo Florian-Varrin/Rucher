@@ -106,10 +106,18 @@ test('carnet errors come back as tool errors, validation errors too', async () =
   expect(invalid.text).toContain('Input validation error');
 });
 
-test('an explicit session targets another session', async () => {
-  const other = await call('agent_start', { name: 'x', task: 't', session: 'other-session' });
+test('an explicit session targets another session by full id or id prefix', async () => {
+  const otherId = '9cd374b8-9225-4ad8-8407-f38398966ed3';
+  const other = await call('agent_start', { name: 'x', task: 't', session: otherId });
   expect(other.isError).toBe(false);
-  expect(carnet.agents.list('other-session').map((agent) => agent.name)).toEqual(['x']);
+  const byPrefix = await call('agent_update', { name: 'x', status: 'review', session: '9cd374b8' });
+  expect(byPrefix.isError).toBe(false);
+  expect(carnet.agents.list(otherId).map((agent) => [agent.name, agent.status])).toEqual([
+    ['x', 'review'],
+  ]);
+  const typo = await call('agent_list', { session: 'nope-session' });
+  expect(typo.isError).toBe(true);
+  expect(typo.text).toContain('SESSION_NOT_FOUND');
 });
 
 test('a lazy carnet that has no group answers NO_GROUP instead of failing to start', async () => {

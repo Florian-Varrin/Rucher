@@ -1,9 +1,7 @@
 import * as z from 'zod/v4';
 import type { Carnet } from '../carnet.ts';
-import { CarnetError } from '../errors.ts';
 import { EVENT_TYPES } from '../events.ts';
 import { formatEventLine, resumeContext, sessionLabel } from '../resume.ts';
-import type { Session } from '../sessions.ts';
 import { EMOJI, OPEN_AGENT_STATUSES, USER_ACTION_STATUSES } from '../status/model.ts';
 import { renderAgentLine, renderTableLine } from '../status/render.ts';
 
@@ -28,7 +26,7 @@ function defineTool<Schema extends z.ZodObject>(
 const session = z
   .string()
   .optional()
-  .describe('Claude session id to target. Omit for the current session.');
+  .describe('Session to target (name, id or id prefix). Omit for the current session.');
 
 const agentName = z.string().min(1).describe('Short agent name, no paths');
 
@@ -213,12 +211,6 @@ const logEvent = defineTool({
 
 const sessionName = z.string().trim().min(1).describe('Short session name, used by rucher resume');
 
-function findSession(carnet: Carnet, reference: string): Session {
-  const found = carnet.sessions.byName(reference) ?? carnet.sessions.get(reference);
-  if (!found) throw new CarnetError('SESSION_NOT_FOUND', `Unknown session "${reference}"`);
-  return found;
-}
-
 const sessionNew = defineTool({
   name: 'session_new',
   description:
@@ -262,13 +254,13 @@ const sessionList = defineTool({
 const sessionDrop = defineTool({
   name: 'session_drop',
   description:
-    'Main agent only. Drop a session by name or id: its open agents are closed and it leaves the lists. History stays in the journal.',
+    'Main agent only. Drop a session by name, id or id prefix: its open agents are closed and it leaves the lists. History stays in the journal.',
   schema: z.object({
-    name: z.string().trim().min(1).describe('Session name or id'),
+    name: z.string().trim().min(1).describe('Session name, id or id prefix'),
     session,
   }),
   run: (carnet, _sessionId, args) => {
-    const dropped = carnet.sessions.drop(findSession(carnet, args.name).id);
+    const dropped = carnet.sessions.drop(carnet.sessions.find(args.name).id);
     return { text: `Session ${sessionLabel(dropped)} dropped`, data: { session: dropped } };
   },
 });
@@ -278,11 +270,11 @@ const sessionResumeInfo = defineTool({
   description:
     'What a session was doing: its status view and last events, plus the command to resume it. Defaults to the current session.',
   schema: z.object({
-    name: z.string().trim().min(1).optional().describe('Session name or id'),
+    name: z.string().trim().min(1).optional().describe('Session name, id or id prefix'),
     session,
   }),
   run: (carnet, sessionId, args) => {
-    const target = args.name ? findSession(carnet, args.name) : carnet.sessions.require(sessionId);
+    const target = args.name ? carnet.sessions.find(args.name) : carnet.sessions.require(sessionId);
     const resume = target.name ? `rucher resume ${target.name}` : `claude --resume ${target.id}`;
     return {
       text: `${resumeContext(carnet, target)}\n\nResume with: ${resume}`,

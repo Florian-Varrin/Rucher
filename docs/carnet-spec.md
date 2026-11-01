@@ -85,6 +85,7 @@ The MCP server process never receives the Claude session id; only hooks do. A `S
 - Rows split by an older server (tools written under a provisional id) are joined with `rucher sessions merge <from> <into>`.
 - One MCP server process serves the main agent and all its sub-agents, so tools never assume a single caller.
 - Every tool accepts an optional `session` argument as an override; by default the server uses its resolved session.
+- Wherever a session is referenced (the `session` override, `session_drop`, `session_resume_info`, every CLI argument and `--session`), Carnet accepts its name, its full id or a unique id prefix of at least 4 characters, tried in that order. An ambiguous prefix fails with `SESSION_AMBIGUOUS` listing the matching short ids; anything else unknown fails with `SESSION_NOT_FOUND`. Only a full Claude session id that no hook recorded gets a new row through the `session` override.
 - A Carnet session name is the Claude Code session title. `session_new` records the name and purpose; the hook syncs the title on the next start. Resuming goes through Claude Code itself: `rucher resume <name>` looks the session up by Carnet name and runs `claude --resume <id>` from the session's original cwd (Claude Code stores conversations per project directory), since a Carnet name and a Claude title can drift apart. When `source` is `resume`, the hook prints `additionalContext`: the status view plus the last 20 events, capped at about 2000 characters by dropping the oldest events first.
 - Unnamed sessions are recorded with status `temporary`, hidden from `rucher sessions` by default, and purged automatically after a few idle days when they hold no agents and no events. `session_new` promotes a temporary session to `active`.
 
@@ -125,7 +126,7 @@ When the server is shipped through a plugin, Claude Code names the tools `mcp__p
 | `session_new`         | name, purpose?                       | names or renames the current session and promotes it to `active`; `SESSION_NAME_TAKEN` only when another session has the name; the result asks the human to `/rename` the Claude session the same way |
 | `session_list`        | include_temporary?, include_dropped? | sessions by last activity, the current one marked                                                                                                                                                     |
 | `session_resume_info` | name?                                | status view, last events and the resume command (current session by default)                                                                                                                          |
-| `session_drop`        | name                                 | by name or id: status `dropped`, agents closed                                                                                                                                                        |
+| `session_drop`        | name                                 | by name, id or id prefix: status `dropped`, agents closed                                                                                                                                             |
 
 **Journal**
 

@@ -32,7 +32,7 @@ const sessionArgument = {
   session: {
     type: 'string',
     alias: 's',
-    description: 'Session name or id (default: most recently active)',
+    description: 'Session name, id or id prefix (default: most recently active)',
   },
 } as const;
 
@@ -146,10 +146,14 @@ const sessionsMergeCommand = defineCommand({
       'Move the agents, table line and journal of one session into another, then drop it',
   },
   args: {
-    from: { type: 'positional', description: 'Session to empty (name or id)', required: true },
+    from: {
+      type: 'positional',
+      description: 'Session to empty (name, id or id prefix)',
+      required: true,
+    },
     into: {
       type: 'positional',
-      description: 'Session that keeps everything (name or id)',
+      description: 'Session that keeps everything (name, id or id prefix)',
       required: true,
     },
   },
@@ -174,7 +178,7 @@ const sessionsCommand = defineCommand({
 const resumeCommand = defineCommand({
   meta: { name: 'resume', description: 'Resume a named session in Claude Code' },
   args: {
-    name: { type: 'positional', description: 'Session name or id', required: true },
+    name: { type: 'positional', description: 'Session name, id or id prefix', required: true },
   },
   run({ args }) {
     const io = processIo();

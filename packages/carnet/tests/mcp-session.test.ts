@@ -33,9 +33,21 @@ test('an explicit session wins and is not cached', () => {
     cwd: root,
     ppid: 1,
   });
-  expect(resolver.resolve('other')).toBe('other');
+  const unrecorded = '7d1e0f42-5b6a-4c3d-9e8f-0a1b2c3d4e5f';
+  expect(resolver.resolve(unrecorded)).toBe(unrecorded);
   expect(resolver.resolve()).toBe(SESSION);
   expect(carnet.sessions.list({ includeTemporary: true })).toHaveLength(2);
+});
+
+test('an explicit session accepts a name or an id prefix, never creates a row for a typo', () => {
+  const { carnet, root } = makeCarnet();
+  carnet.sessions.ensure(SESSION, root);
+  carnet.sessions.name(SESSION, 'shop-auth');
+  const resolver = createSessionResolver({ carnet, env: {}, cwd: root, ppid: 1 });
+  expect(resolver.resolve('shop-auth')).toBe(SESSION);
+  expect(resolver.resolve(SESSION.slice(0, 8))).toBe(SESSION);
+  expect(() => resolver.resolve('shop-typo')).toThrowError(/Unknown session/);
+  expect(carnet.sessions.list({ includeTemporary: true })).toHaveLength(1);
 });
 
 test('throws NO_SESSION when nothing identifies the session', () => {

@@ -19,7 +19,7 @@ You never create a session by hand. The plugin's `SessionStart` hook records one
 | `paused`    | reserved, nothing sets it yet                                                             |
 | `dropped`   | closed on request; its open agents are closed, its journal is kept; hidden unless `--all` |
 
-The **default session** of a group is the most recently active one that is not dropped. Every `rucher` command without `--session` uses it.
+The **default session** of a group is the most recently active one that is not dropped. Every `rucher` command without `--session` uses it. Wherever a session is expected, you can give its name, its full id, or the start of its id as shown by `rucher sessions --all` (at least 4 characters, and unique).
 
 ## Start a session
 
@@ -52,7 +52,7 @@ Unnamed sessions stay `temporary`. Name the ones you want to come back to: ask C
 | Command                                  | Shows                                                                                                                         |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `rucher status`                          | the default session: On the table, Waiting on you, Running, legend                                                            |
-| `rucher status --session shop-auth`      | a given session, by name or id (`-s` for short)                                                                               |
+| `rucher status --session shop-auth`      | a given session, by name, id or id prefix (`-s` for short)                                                                    |
 | `rucher status --all`                    | every session with open agents or a table line: one clock, one block per session (name and repo-relative cwd), one legend     |
 | `rucher status --watch [--interval 2]`   | repaints when the output changes; combine with `--all` or `--session`                                                         |
 | `rucher sessions [--all]`                | named sessions: name, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temporary and dropped ones |
@@ -81,7 +81,7 @@ Each fork the main agent dispatches is an agent of the session: `agent_start` re
 
 ## Drop it
 
-Ask Claude to drop a session (`session_drop`, by name or id). Its open agents are closed, it leaves the lists and the default choice, and its journal stays. The current session can be dropped too.
+Ask Claude to drop a session (`session_drop`, by name, id or id prefix). Its open agents are closed, it leaves the lists and the default choice, and its journal stays. The current session can be dropped too.
 
 ## Repair a split session
 

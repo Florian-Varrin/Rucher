@@ -1,4 +1,4 @@
-import type { Carnet, Session } from '@rucher/carnet';
+import { type Carnet, CarnetError, type Session } from '@rucher/carnet';
 
 export class CliError extends Error {
   constructor(
@@ -10,19 +10,26 @@ export class CliError extends Error {
   }
 }
 
-export function resolveSession(carnet: Carnet, reference?: string): Session {
-  if (reference) {
-    const session = carnet.sessions.get(reference) ?? carnet.sessions.byName(reference);
-    if (session) return session;
+export function findSession(carnet: Carnet, reference: string): Session {
+  try {
+    return carnet.sessions.find(reference);
+  } catch (error) {
+    if (!(error instanceof CarnetError) || error.code !== 'SESSION_NOT_FOUND') throw error;
     const known = carnet.sessions
       .list()
-      .map((known) => known.name)
+      .map((session) => session.name)
       .filter(Boolean);
     throw new CliError(
-      `Unknown session "${reference}"`,
-      known.length ? `known sessions: ${known.join(', ')}` : 'no named session in this group yet',
+      error.message,
+      known.length
+        ? `known sessions: ${known.join(', ')}`
+        : 'pass a session name, id or id prefix, see rucher sessions --all',
     );
   }
+}
+
+export function resolveSession(carnet: Carnet, reference?: string): Session {
+  if (reference) return findSession(carnet, reference);
   const session = carnet.sessions.default();
   if (!session) throw new CliError('No session in this group yet', 'start claude inside the group');
   return session;

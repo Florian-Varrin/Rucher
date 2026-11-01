@@ -28,6 +28,7 @@ import {
   type ListSessionsOptions,
   nameSession,
   requireSession,
+  findSession,
   type Session,
   sessionByClaudePid,
   sessionByName,
@@ -58,6 +59,7 @@ export class Carnet {
 
   readonly sessions = {
     get: (id: string) => getSession(this.ctx, id),
+    find: (reference: string) => findSession(this.ctx, reference),
     require: (id: string) => requireSession(this.ctx, id),
     ensure: (id: string, cwd?: string) => ensureSession(this.ctx, id, cwd, this.group),
     upsertFromHook: (payload: HookSessionPayload, env?: HookEnv) =>
