@@ -2,14 +2,34 @@
   "name": "@rucher/cli",
   "version": "0.0.0",
   "description": "rucher: status, journal and sessions of your Claude Code sub-agents, from the terminal",
+  "keywords": [
+    "agents",
+    "claude-code",
+    "cli",
+    "multi-agent",
+    "status"
+  ],
+  "homepage": "https://github.com/fvarrin/rucher/tree/master/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/fvarrin/rucher/issues"
+  },
   "license": "MIT",
+  "author": "Florian Varrin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fvarrin/rucher.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "rucher": "./dist/cli.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "type": "module",
+  "sideEffects": false,
   "publishConfig": {
     "access": "public"
   },

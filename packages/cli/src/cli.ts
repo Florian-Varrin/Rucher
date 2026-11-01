@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-import { CarnetError, openCarnet } from "@rucher/carnet";
-import { defineCommand, runMain } from "citty";
-import { groupAdd, groupRemove, groupShow, groupSync } from "./commands/group.ts";
-import { groupsForget, groupsList, groupsPrune } from "./commands/groups.ts";
-import { sessionStart, subagentStart, subagentStop } from "./commands/hook.ts";
-import { init } from "./commands/init.ts";
-import { logOnce } from "./commands/log.ts";
-import { resumeTarget, runTarget } from "./commands/resume.ts";
-import { serve } from "./commands/serve.ts";
-import { sessionsMerge, sessionsOnce } from "./commands/sessions.ts";
-import { statusOnce, statusWatch } from "./commands/status.ts";
-import { type Io, processIo, readStdin } from "./io.ts";
-import { CliError } from "./session.ts";
+import { CarnetError, openCarnet } from '@rucher/carnet';
+import { defineCommand, runMain } from 'citty';
+import { groupAdd, groupRemove, groupShow, groupSync } from './commands/group.ts';
+import { groupsForget, groupsList, groupsPrune } from './commands/groups.ts';
+import { sessionStart, subagentStart, subagentStop } from './commands/hook.ts';
+import { init } from './commands/init.ts';
+import { logOnce } from './commands/log.ts';
+import { resumeTarget, runTarget } from './commands/resume.ts';
+import { serve } from './commands/serve.ts';
+import { sessionsMerge, sessionsOnce } from './commands/sessions.ts';
+import { statusOnce, statusWatch } from './commands/status.ts';
+import { type Io, processIo, readStdin } from './io.ts';
+import { CliError } from './session.ts';
 
 function fail(io: Io, error: unknown): never {
   if (error instanceof CliError) {
-    io.stderr(`error: ${error.message}${error.hint ? `\n  ${error.hint}` : ""}\n`);
+    io.stderr(`error: ${error.message}${error.hint ? `\n  ${error.hint}` : ''}\n`);
   } else if (error instanceof CarnetError) {
     io.stderr(`error: ${error.message}\n`);
   } else {
@@ -24,57 +24,57 @@ function fail(io: Io, error: unknown): never {
   process.exit(1);
 }
 
-const colorArg = {
-  color: { type: "boolean", default: true, description: "Colored output (--no-color to disable)" },
+const colorArgument = {
+  color: { type: 'boolean', default: true, description: 'Colored output (--no-color to disable)' },
 } as const;
 
-const sessionArg = {
+const sessionArgument = {
   session: {
-    type: "string",
-    alias: "s",
-    description: "Session name or id (default: most recently active)",
+    type: 'string',
+    alias: 's',
+    description: 'Session name or id (default: most recently active)',
   },
 } as const;
 
 const initCommand = defineCommand({
-  meta: { name: "init", description: "Make the current directory a Rucher group (meta directory)" },
+  meta: { name: 'init', description: 'Make the current directory a Rucher group (meta directory)' },
   args: {
-    dir: {
-      type: "positional",
-      description: "Meta directory (default: current directory)",
+    directory: {
+      type: 'positional',
+      description: 'Meta directory (default: current directory)',
       required: false,
     },
-    name: { type: "string", description: "Group name (default: directory name)" },
+    name: { type: 'string', description: 'Group name (default: directory name)' },
     repos: {
-      type: "string",
-      description: "Comma-separated repo paths (more later with `rucher group add`)",
+      type: 'string',
+      description: 'Comma-separated repo paths (more later with `rucher group add`)',
     },
-    ...colorArg,
+    ...colorArgument,
   },
   run({ args }) {
     const io = processIo({ color: args.color });
     const repos = args.repos
       ? args.repos
-          .split(",")
-          .map((r) => r.trim())
+          .split(',')
+          .map((repo) => repo.trim())
           .filter(Boolean)
       : undefined;
-    process.exitCode = init({ dir: args.dir, name: args.name, repos }, io);
+    process.exitCode = init({ directory: args.directory, name: args.name, repos }, io);
   },
 });
 
 const statusCommand = defineCommand({
-  meta: { name: "status", description: "Show agent statuses of a session" },
+  meta: { name: 'status', description: 'Show agent statuses of a session' },
   args: {
-    ...sessionArg,
-    all: { type: "boolean", default: false, description: "Every session with activity" },
-    watch: { type: "boolean", alias: "w", default: false, description: "Refresh continuously" },
+    ...sessionArgument,
+    all: { type: 'boolean', default: false, description: 'Every session with activity' },
+    watch: { type: 'boolean', alias: 'w', default: false, description: 'Refresh continuously' },
     interval: {
-      type: "string",
-      default: "1",
-      description: "Refresh interval in seconds with --watch",
+      type: 'string',
+      default: '1',
+      description: 'Refresh interval in seconds with --watch',
     },
-    ...colorArg,
+    ...colorArgument,
   },
   async run({ args }) {
     const io = processIo({ color: args.color });
@@ -86,10 +86,14 @@ const statusCommand = defineCommand({
         return;
       }
       const controller = new AbortController();
-      process.on("SIGINT", () => controller.abort());
-      process.on("SIGTERM", () => controller.abort());
-      const intervalMs = Math.max(Number(args.interval) || 1, 0.2) * 1000;
-      await statusWatch(carnet, io, { ...options, intervalMs, signal: controller.signal });
+      process.on('SIGINT', () => controller.abort());
+      process.on('SIGTERM', () => controller.abort());
+      const intervalMilliseconds = Math.max(Number(args.interval) || 1, 0.2) * 1000;
+      await statusWatch(carnet, io, {
+        ...options,
+        intervalMilliseconds,
+        signal: controller.signal,
+      });
     } catch (error) {
       fail(io, error);
     }
@@ -97,12 +101,12 @@ const statusCommand = defineCommand({
 });
 
 const logCommand = defineCommand({
-  meta: { name: "log", description: "Show the last journal events of a session" },
+  meta: { name: 'log', description: 'Show the last journal events of a session' },
   args: {
-    ...sessionArg,
-    count: { type: "string", alias: "n", default: "20", description: "Number of events" },
-    md: { type: "boolean", default: false, description: "Markdown output, for archiving" },
-    ...colorArg,
+    ...sessionArgument,
+    count: { type: 'string', alias: 'n', default: '20', description: 'Number of events' },
+    md: { type: 'boolean', default: false, description: 'Markdown output, for archiving' },
+    ...colorArgument,
   },
   run({ args }) {
     const io = processIo({ color: args.color });
@@ -120,10 +124,10 @@ const logCommand = defineCommand({
 });
 
 const sessionsListCommand = defineCommand({
-  meta: { name: "list", description: "List the named sessions of the group" },
+  meta: { name: 'list', description: 'List the named sessions of the group' },
   args: {
-    all: { type: "boolean", default: false, description: "Include temporary and dropped sessions" },
-    ...colorArg,
+    all: { type: 'boolean', default: false, description: 'Include temporary and dropped sessions' },
+    ...colorArgument,
   },
   run({ args }) {
     const io = processIo({ color: args.color });
@@ -137,15 +141,15 @@ const sessionsListCommand = defineCommand({
 
 const sessionsMergeCommand = defineCommand({
   meta: {
-    name: "merge",
+    name: 'merge',
     description:
-      "Move the agents, table line and journal of one session into another, then drop it",
+      'Move the agents, table line and journal of one session into another, then drop it',
   },
   args: {
-    from: { type: "positional", description: "Session to empty (name or id)", required: true },
+    from: { type: 'positional', description: 'Session to empty (name or id)', required: true },
     into: {
-      type: "positional",
-      description: "Session that keeps everything (name or id)",
+      type: 'positional',
+      description: 'Session that keeps everything (name or id)',
       required: true,
     },
   },
@@ -162,15 +166,15 @@ const sessionsMergeCommand = defineCommand({
 });
 
 const sessionsCommand = defineCommand({
-  meta: { name: "sessions", description: "List or merge the sessions of the group" },
-  default: "list",
+  meta: { name: 'sessions', description: 'List or merge the sessions of the group' },
+  default: 'list',
   subCommands: { list: sessionsListCommand, merge: sessionsMergeCommand },
 });
 
 const resumeCommand = defineCommand({
-  meta: { name: "resume", description: "Resume a named session in Claude Code" },
+  meta: { name: 'resume', description: 'Resume a named session in Claude Code' },
   args: {
-    name: { type: "positional", description: "Session name or id", required: true },
+    name: { type: 'positional', description: 'Session name or id', required: true },
   },
   run({ args }) {
     const io = processIo();
@@ -187,13 +191,13 @@ const resumeCommand = defineCommand({
 
 const groupCommand = defineCommand({
   meta: {
-    name: "group",
-    description: "Show the current group, add or remove repos, sync its settings",
+    name: 'group',
+    description: 'Show the current group, add or remove repos, sync its settings',
   },
   subCommands: {
     show: defineCommand({
-      meta: { name: "show", description: "Name, meta directory and repos of the current group" },
-      args: { ...colorArg },
+      meta: { name: 'show', description: 'Name, meta directory and repos of the current group' },
+      args: { ...colorArgument },
       run({ args }) {
         const io = processIo({ color: args.color });
         try {
@@ -204,10 +208,10 @@ const groupCommand = defineCommand({
       },
     }),
     add: defineCommand({
-      meta: { name: "add", description: "Add a repo path to the current group" },
+      meta: { name: 'add', description: 'Add a repo path to the current group' },
       args: {
-        path: { type: "positional", description: "Repo path", required: true },
-        ...colorArg,
+        path: { type: 'positional', description: 'Repo path', required: true },
+        ...colorArgument,
       },
       run({ args }) {
         const io = processIo({ color: args.color });
@@ -219,10 +223,10 @@ const groupCommand = defineCommand({
       },
     }),
     remove: defineCommand({
-      meta: { name: "remove", description: "Remove a repo path from the current group" },
+      meta: { name: 'remove', description: 'Remove a repo path from the current group' },
       args: {
-        path: { type: "positional", description: "Repo path", required: true },
-        ...colorArg,
+        path: { type: 'positional', description: 'Repo path', required: true },
+        ...colorArgument,
       },
       run({ args }) {
         const io = processIo({ color: args.color });
@@ -235,10 +239,10 @@ const groupCommand = defineCommand({
     }),
     sync: defineCommand({
       meta: {
-        name: "sync",
-        description: "Rewrite additionalDirectories and the CLAUDE.md repo list from group.json",
+        name: 'sync',
+        description: 'Rewrite additionalDirectories and the CLAUDE.md repo list from group.json',
       },
-      args: { ...colorArg },
+      args: { ...colorArgument },
       run({ args }) {
         const io = processIo({ color: args.color });
         try {
@@ -252,28 +256,28 @@ const groupCommand = defineCommand({
 });
 
 const groupsCommand = defineCommand({
-  meta: { name: "groups", description: "Registered groups of this machine" },
+  meta: { name: 'groups', description: 'Registered groups of this machine' },
   subCommands: {
     list: defineCommand({
-      meta: { name: "list", description: "Registered groups, missing ones flagged" },
-      args: { ...colorArg },
+      meta: { name: 'list', description: 'Registered groups, missing ones flagged' },
+      args: { ...colorArgument },
       run({ args }) {
         process.exitCode = groupsList(processIo({ color: args.color }));
       },
     }),
     forget: defineCommand({
-      meta: { name: "forget", description: "Unregister a group by name or meta directory path" },
+      meta: { name: 'forget', description: 'Unregister a group by name or meta directory path' },
       args: {
-        ref: { type: "positional", description: "Group name or path", required: true },
-        ...colorArg,
+        reference: { type: 'positional', description: 'Group name or path', required: true },
+        ...colorArgument,
       },
       run({ args }) {
-        process.exitCode = groupsForget(args.ref, processIo({ color: args.color }));
+        process.exitCode = groupsForget(args.reference, processIo({ color: args.color }));
       },
     }),
     prune: defineCommand({
-      meta: { name: "prune", description: "Unregister groups whose meta directory is gone" },
-      args: { ...colorArg },
+      meta: { name: 'prune', description: 'Unregister groups whose meta directory is gone' },
+      args: { ...colorArgument },
       run({ args }) {
         process.exitCode = groupsPrune(processIo({ color: args.color }));
       },
@@ -282,27 +286,27 @@ const groupsCommand = defineCommand({
 });
 
 const hookCommand = defineCommand({
-  meta: { name: "hook", description: "Claude Code hook entry points (JSON payload on stdin)" },
+  meta: { name: 'hook', description: 'Claude Code hook entry points (JSON payload on stdin)' },
   subCommands: {
-    "session-start": defineCommand({
-      meta: { name: "session-start", description: "SessionStart hook: records the session" },
+    'session-start': defineCommand({
+      meta: { name: 'session-start', description: 'SessionStart hook: records the session' },
       async run() {
         process.exitCode = sessionStart(await readStdin(), processIo());
       },
     }),
-    "subagent-start": defineCommand({
+    'subagent-start': defineCommand({
       meta: {
-        name: "subagent-start",
-        description: "SubagentStart hook: pairs the fork with its agent",
+        name: 'subagent-start',
+        description: 'SubagentStart hook: pairs the fork with its agent',
       },
       async run() {
         process.exitCode = subagentStart(await readStdin(), processIo());
       },
     }),
-    "subagent-stop": defineCommand({
+    'subagent-stop': defineCommand({
       meta: {
-        name: "subagent-stop",
-        description: "SubagentStop hook: flags a fork that never called agent_done",
+        name: 'subagent-stop',
+        description: 'SubagentStop hook: flags a fork that never called agent_done',
       },
       async run() {
         process.exitCode = subagentStop(await readStdin(), processIo());
@@ -312,7 +316,7 @@ const hookCommand = defineCommand({
 });
 
 const serveCommand = defineCommand({
-  meta: { name: "serve", description: "Run the Carnet MCP server over stdio" },
+  meta: { name: 'serve', description: 'Run the Carnet MCP server over stdio' },
   run() {
     serve(processIo());
   },
@@ -320,9 +324,9 @@ const serveCommand = defineCommand({
 
 const main = defineCommand({
   meta: {
-    name: "rucher",
-    version: "0.0.0",
-    description: "Status, journal and sessions of your Claude Code sub-agents",
+    name: 'rucher',
+    version: '0.0.0',
+    description: 'Status, journal and sessions of your Claude Code sub-agents',
   },
   subCommands: {
     init: initCommand,

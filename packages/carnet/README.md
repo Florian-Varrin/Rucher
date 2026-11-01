@@ -5,7 +5,7 @@ Shared state for Rucher: groups, sessions, agents, the "On the table" line and t
 Used by the `rucher` CLI and the Carnet MCP server. See `docs/carnet-spec.md` at the repository root.
 
 ```ts
-import { openCarnet } from "@rucher/carnet";
+import { openCarnet } from '@rucher/carnet';
 
 const carnet = openCarnet({ cwd: process.cwd() });
 const session = carnet.sessions.default();

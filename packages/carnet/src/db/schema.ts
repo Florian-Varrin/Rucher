@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from 'node:sqlite';
 
 export const migrations: readonly string[] = [
   `
@@ -64,19 +64,21 @@ CREATE INDEX sessions_claude_pid ON sessions(claude_pid, hooked_at);
 ];
 
 export function schemaVersion(db: DatabaseSync): number {
-  const row = db.prepare("PRAGMA user_version").get() as { user_version: number };
+  const row = db.prepare('PRAGMA user_version').get() as { user_version: number };
   return row.user_version;
 }
 
 export function migrate(db: DatabaseSync): void {
-  for (let version = schemaVersion(db); version < migrations.length; version++) {
-    db.exec("BEGIN");
+  const current = schemaVersion(db);
+  for (const [version, migration] of migrations.entries()) {
+    if (version < current) continue;
+    db.exec('BEGIN');
     try {
-      db.exec(migrations[version]);
+      db.exec(migration);
       db.exec(`PRAGMA user_version = ${version + 1}`);
-      db.exec("COMMIT");
+      db.exec('COMMIT');
     } catch (error) {
-      db.exec("ROLLBACK");
+      db.exec('ROLLBACK');
       throw error;
     }
   }

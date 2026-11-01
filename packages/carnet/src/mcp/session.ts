@@ -1,11 +1,11 @@
-import type { Carnet } from "../carnet.ts";
-import { CarnetError } from "../errors.ts";
+import type { Carnet } from '../carnet.ts';
+import { CarnetError } from '../errors.ts';
 
 export interface SessionResolverOptions {
   carnet: Carnet;
-  env?: NodeJS.ProcessEnv;
-  ppid?: number;
-  cwd?: string;
+  env?: NodeJS.ProcessEnv | undefined;
+  ppid?: number | undefined;
+  cwd?: string | undefined;
 }
 
 export interface SessionResolver {
@@ -26,8 +26,8 @@ export function createSessionResolver({
     const fromEnvironment = env.CLAUDE_CODE_SESSION_ID;
     if (fromEnvironment) return carnet.sessions.ensure(fromEnvironment, cwd).id;
     throw new CarnetError(
-      "NO_SESSION",
-      "Cannot tell which Claude session this is: pass `session`, or install the rucher SessionStart hook",
+      'NO_SESSION',
+      'Cannot tell which Claude session this is: pass `session`, or install the rucher SessionStart hook',
     );
   }
 

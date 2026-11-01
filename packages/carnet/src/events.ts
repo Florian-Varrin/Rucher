@@ -1,14 +1,14 @@
-import { type Ctx, nowIso } from "./context.ts";
-import { CarnetError } from "./errors.ts";
+import { type Ctx, nowIso } from './context.ts';
+import { CarnetError } from './errors.ts';
 
 export const EVENT_TYPES = [
-  "started",
-  "finished",
-  "answered",
-  "applied",
-  "tested",
-  "committed",
-  "dropped",
+  'started',
+  'finished',
+  'answered',
+  'applied',
+  'tested',
+  'committed',
+  'dropped',
 ] as const;
 
 export type EventType = (typeof EVENT_TYPES)[number];
@@ -26,15 +26,15 @@ export interface CarnetEvent {
 
 export interface LogEventInput {
   type: EventType;
-  agent?: string;
-  commit?: string;
-  link?: string;
-  note?: string;
+  agent?: string | undefined;
+  commit?: string | undefined;
+  link?: string | undefined;
+  note?: string | undefined;
 }
 
 export interface ReadEventsOptions {
   session: string;
-  limit?: number;
+  limit?: number | undefined;
 }
 
 interface EventRow {
@@ -49,7 +49,7 @@ interface EventRow {
 }
 
 export function isEventType(value: unknown): value is EventType {
-  return typeof value === "string" && (EVENT_TYPES as readonly string[]).includes(value);
+  return typeof value === 'string' && (EVENT_TYPES as readonly string[]).includes(value);
 }
 
 function toEvent(row: EventRow): CarnetEvent {
@@ -67,11 +67,11 @@ function toEvent(row: EventRow): CarnetEvent {
 
 export function logEvent(ctx: Ctx, session: string, input: LogEventInput): CarnetEvent {
   if (!isEventType(input.type)) {
-    throw new CarnetError("INVALID_EVENT_TYPE", `Unknown event type "${String(input.type)}"`);
+    throw new CarnetError('INVALID_EVENT_TYPE', `Unknown event type "${String(input.type)}"`);
   }
   const result = ctx.db
     .prepare(
-      "INSERT INTO events (session, at, type, agent, commit_sha, link, note) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      'INSERT INTO events (session, at, type, agent, commit_sha, link, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
     )
     .run(
       session,
@@ -83,7 +83,7 @@ export function logEvent(ctx: Ctx, session: string, input: LogEventInput): Carne
       input.note ?? null,
     );
   const row = ctx.db
-    .prepare("SELECT * FROM events WHERE id = ?")
+    .prepare('SELECT * FROM events WHERE id = ?')
     .get(result.lastInsertRowid) as unknown as EventRow;
   return toEvent(row);
 }

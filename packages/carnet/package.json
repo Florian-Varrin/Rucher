@@ -2,17 +2,48 @@
   "name": "@rucher/carnet",
   "version": "0.0.0",
   "description": "Shared state for Rucher: sessions, agents, status and journal in SQLite",
+  "keywords": [
+    "agents",
+    "claude-code",
+    "mcp",
+    "multi-agent",
+    "sqlite"
+  ],
+  "homepage": "https://github.com/fvarrin/rucher/tree/master/packages/carnet#readme",
+  "bugs": {
+    "url": "https://github.com/fvarrin/rucher/issues"
+  },
   "license": "MIT",
+  "author": "Florian Varrin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fvarrin/rucher.git",
+    "directory": "packages/carnet"
+  },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
   "type": "module",
+  "sideEffects": false,
   "exports": {
-    ".": "./dist/index.mjs",
-    "./mcp": "./dist/mcp.mjs",
+    ".": {
+      "development": "./src/index.ts",
+      "default": "./dist/index.mjs"
+    },
+    "./mcp": {
+      "development": "./src/mcp/index.ts",
+      "default": "./dist/mcp.mjs"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./mcp": "./dist/mcp.mjs",
+      "./package.json": "./package.json"
+    },
     "access": "public"
   },
   "scripts": {

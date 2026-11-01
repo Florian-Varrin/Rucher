@@ -1,11 +1,11 @@
-import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, join, relative, resolve } from "node:path";
-import { CarnetError } from "../errors.ts";
-import { readRegistry } from "./registry.ts";
+import { existsSync, readFileSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
+import { CarnetError } from '../errors.ts';
+import { readRegistry } from './registry.ts';
 
-export const GROUP_DIR = ".rucher";
-export const GROUP_FILE = "group.json";
-export const DB_FILE = "carnet.db";
+export const GROUP_DIRECTORY = '.rucher';
+export const GROUP_FILE = 'group.json';
+export const DB_FILE = 'carnet.db';
 
 export interface Group {
   root: string;
@@ -19,48 +19,53 @@ export interface GroupFile {
   repos: string[];
 }
 
-export function isInside(dir: string, path: string): boolean {
-  const rel = relative(dir, path);
-  return rel === "" || (!rel.startsWith("..") && !resolve(rel).startsWith(rel));
+export function isInside(directory: string, path: string): boolean {
+  const relativePath = relative(directory, path);
+  return (
+    relativePath === '' ||
+    (!relativePath.startsWith('..') && !resolve(relativePath).startsWith(relativePath))
+  );
 }
 
 export function repoNameFor(group: Group, path: string | undefined): string | null {
   if (!path) return null;
-  const repo = group.repos.find((r) => isInside(r, resolve(path)));
+  const repo = group.repos.find((repo) => isInside(repo, resolve(path)));
   return repo ? basename(repo) : null;
 }
 
 export function repoPathFor(group: Group, path: string | undefined | null): string | null {
   if (!path) return null;
-  const abs = resolve(path);
-  const repo = group.repos.find((r) => isInside(r, abs));
+  const absolutePath = resolve(path);
+  const repo = group.repos.find((candidate) => isInside(candidate, absolutePath));
   if (!repo) return null;
-  const rel = relative(repo, abs);
-  return rel ? join(basename(repo), rel) : basename(repo);
+  const relativePath = relative(repo, absolutePath);
+  return relativePath ? join(basename(repo), relativePath) : basename(repo);
 }
 
 export function findGroupRoot(from: string): string | null {
-  let dir = resolve(from);
+  let directory = resolve(from);
   for (;;) {
     // The registry home is also named .rucher, only group.json marks a group.
-    if (isGroupRoot(dir)) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
+    if (isGroupRoot(directory)) return directory;
+    const parent = dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
   }
 }
 
-export function isGroupRoot(dir: string): boolean {
-  return existsSync(join(dir, GROUP_DIR, GROUP_FILE));
+export function isGroupRoot(directory: string): boolean {
+  return existsSync(join(directory, GROUP_DIRECTORY, GROUP_FILE));
 }
 
 export function loadGroup(root: string): Group {
-  const file = JSON.parse(readFileSync(join(root, GROUP_DIR, GROUP_FILE), "utf8")) as GroupFile;
+  const file = JSON.parse(
+    readFileSync(join(root, GROUP_DIRECTORY, GROUP_FILE), 'utf8'),
+  ) as GroupFile;
   return {
     root,
     name: file.name,
-    repos: (file.repos ?? []).map((r) => resolve(root, r)),
-    dbPath: join(root, GROUP_DIR, DB_FILE),
+    repos: (file.repos ?? []).map((repo) => resolve(root, repo)),
+    dbPath: join(root, GROUP_DIRECTORY, DB_FILE),
   };
 }
 
@@ -70,10 +75,10 @@ export interface LocateOptions {
 }
 
 function groupByRepo(path: string, env?: NodeJS.ProcessEnv): Group | null {
-  for (const ref of readRegistry(env)) {
-    if (!isGroupRoot(ref.path)) continue;
-    const group = loadGroup(ref.path);
-    if (group.repos.some((r) => isInside(r, path))) return group;
+  for (const reference of readRegistry(env)) {
+    if (!isGroupRoot(reference.path)) continue;
+    const group = loadGroup(reference.path);
+    if (group.repos.some((repo) => isInside(repo, path))) return group;
   }
   return null;
 }
@@ -83,16 +88,16 @@ export function locateGroup({ cwd = process.cwd(), env = process.env }: LocateOp
     resolve(cwd),
     ...(env.CLAUDE_PROJECT_DIR ? [resolve(env.CLAUDE_PROJECT_DIR)] : []),
   ];
-  for (const dir of candidates) {
-    const root = findGroupRoot(dir);
+  for (const directory of candidates) {
+    const root = findGroupRoot(directory);
     if (root) return loadGroup(root);
   }
-  for (const dir of candidates) {
-    const group = groupByRepo(dir, env);
+  for (const directory of candidates) {
+    const group = groupByRepo(directory, env);
     if (group) return group;
   }
   throw new CarnetError(
-    "NO_GROUP",
+    'NO_GROUP',
     `No Rucher group for ${cwd}: run "rucher init" in a meta directory, or "rucher group add <this repo>" there`,
   );
 }

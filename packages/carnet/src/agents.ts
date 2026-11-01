@@ -1,8 +1,8 @@
-import { type Ctx, nowIso } from "./context.ts";
-import { CarnetError } from "./errors.ts";
-import { logEvent } from "./events.ts";
-import { type AgentStatus, isAgentStatus } from "./status/model.ts";
-import { sanitizeNote } from "./status/note.ts";
+import { type Ctx, nowIso } from './context.ts';
+import { CarnetError } from './errors.ts';
+import { logEvent } from './events.ts';
+import { type AgentStatus, isAgentStatus } from './status/model.ts';
+import { sanitizeNote } from './status/note.ts';
 
 export interface Agent {
   session: string;
@@ -22,14 +22,14 @@ export interface Agent {
 export interface StartAgentInput {
   name: string;
   task: string;
-  baseCommit?: string;
-  worktree?: string;
+  baseCommit?: string | undefined;
+  worktree?: string | undefined;
 }
 
 export interface UpdateAgentInput {
   status: AgentStatus;
-  note?: string;
-  reportPath?: string;
+  note?: string | undefined;
+  reportPath?: string | undefined;
 }
 
 export interface FinishAgentInput {
@@ -75,25 +75,25 @@ export function toAgent(row: AgentRow): Agent {
 
 export function getAgent(ctx: Ctx, session: string, name: string): Agent | undefined {
   const row = ctx.db
-    .prepare("SELECT * FROM agents WHERE session = ? AND name = ?")
+    .prepare('SELECT * FROM agents WHERE session = ? AND name = ?')
     .get(session, name) as AgentRow | undefined;
   return row && toAgent(row);
 }
 
 function requireAgent(ctx: Ctx, session: string, name: string): Agent {
   const agent = getAgent(ctx, session, name);
-  if (!agent) throw new CarnetError("AGENT_NOT_FOUND", `No agent "${name}" in this session`);
+  if (!agent) throw new CarnetError('AGENT_NOT_FOUND', `No agent "${name}" in this session`);
   return agent;
 }
 
 export function startAgent(ctx: Ctx, session: string, input: StartAgentInput): Agent {
   const name = sanitizeNote(input.name);
   const existing = getAgent(ctx, session, name);
-  if (existing && existing.status !== "closed") {
-    throw new CarnetError("AGENT_EXISTS", `Agent "${name}" is already open in this session`);
+  if (existing && existing.status !== 'closed') {
+    throw new CarnetError('AGENT_EXISTS', `Agent "${name}" is already open in this session`);
   }
   if (existing) {
-    ctx.db.prepare("DELETE FROM agents WHERE session = ? AND name = ?").run(session, name);
+    ctx.db.prepare('DELETE FROM agents WHERE session = ? AND name = ?').run(session, name);
   }
   const at = nowIso(ctx);
   ctx.db
@@ -102,7 +102,7 @@ export function startAgent(ctx: Ctx, session: string, input: StartAgentInput): A
        VALUES (?, ?, ?, 'running', ?, ?, ?, ?)`,
     )
     .run(session, name, input.task, input.baseCommit ?? null, input.worktree ?? null, at, at);
-  logEvent(ctx, session, { type: "started", agent: name, note: input.task });
+  logEvent(ctx, session, { type: 'started', agent: name, note: input.task });
   return requireAgent(ctx, session, name);
 }
 
@@ -113,9 +113,9 @@ export function updateAgent(
   input: UpdateAgentInput,
 ): Agent {
   requireAgent(ctx, session, name);
-  if (!isAgentStatus(input.status) || input.status === "closed") {
+  if (!isAgentStatus(input.status) || input.status === 'closed') {
     throw new CarnetError(
-      "INVALID_STATUS",
+      'INVALID_STATUS',
       `Invalid agent status "${input.status}"; use agent_drop to close`,
     );
   }
@@ -135,13 +135,13 @@ export function finishAgent(
   input: FinishAgentInput,
 ): Agent {
   requireAgent(ctx, session, name);
-  const status: AgentStatus = input.hasQuestions ? "answer" : "review";
+  const status: AgentStatus = input.hasQuestions ? 'answer' : 'review';
   ctx.db
     .prepare(
-      "UPDATE agents SET status = ?, note = NULL, report_path = ?, updated_at = ? WHERE session = ? AND name = ?",
+      'UPDATE agents SET status = ?, note = NULL, report_path = ?, updated_at = ? WHERE session = ? AND name = ?',
     )
     .run(status, input.reportPath, nowIso(ctx), session, name);
-  logEvent(ctx, session, { type: "finished", agent: name, link: input.reportPath });
+  logEvent(ctx, session, { type: 'finished', agent: name, link: input.reportPath });
   return requireAgent(ctx, session, name);
 }
 
@@ -152,12 +152,12 @@ export function dropAgent(ctx: Ctx, session: string, name: string, reason?: stri
       "UPDATE agents SET status = 'closed', queue_order = NULL, updated_at = ? WHERE session = ? AND name = ?",
     )
     .run(nowIso(ctx), session, name);
-  logEvent(ctx, session, { type: "dropped", agent: name, note: reason });
+  logEvent(ctx, session, { type: 'dropped', agent: name, note: reason });
   return requireAgent(ctx, session, name);
 }
 
 export function listAgents(ctx: Ctx, session: string, options: ListAgentsOptions = {}): Agent[] {
-  const where = options.includeClosed ? "" : "AND status != 'closed'";
+  const where = options.includeClosed ? '' : "AND status != 'closed'";
   const rows = ctx.db
     .prepare(`SELECT * FROM agents WHERE session = ? ${where} ORDER BY started_at ASC, name ASC`)
     .all(session) as unknown as unknown as AgentRow[];
@@ -166,9 +166,9 @@ export function listAgents(ctx: Ctx, session: string, options: ListAgentsOptions
 
 export function reorderQueue(ctx: Ctx, session: string, names: string[]): Agent[] {
   const at = nowIso(ctx);
-  ctx.db.prepare("UPDATE agents SET queue_order = NULL WHERE session = ?").run(session);
+  ctx.db.prepare('UPDATE agents SET queue_order = NULL WHERE session = ?').run(session);
   const update = ctx.db.prepare(
-    "UPDATE agents SET queue_order = ?, updated_at = ? WHERE session = ? AND name = ?",
+    'UPDATE agents SET queue_order = ?, updated_at = ? WHERE session = ? AND name = ?',
   );
   names.forEach((name, index) => {
     update.run(index + 1, at, session, sanitizeNote(name));

@@ -1,8 +1,8 @@
-import { type Ctx, nowIso } from "./context.ts";
-import { CarnetError } from "./errors.ts";
-import { type Group, repoNameFor } from "./group/locate.ts";
+import { type Ctx, nowIso } from './context.ts';
+import { CarnetError } from './errors.ts';
+import { type Group, repoNameFor } from './group/locate.ts';
 
-export type SessionStatus = "temporary" | "active" | "paused" | "dropped";
+export type SessionStatus = 'temporary' | 'active' | 'paused' | 'dropped';
 
 export interface Session {
   id: string;
@@ -32,22 +32,22 @@ interface SessionRow {
 
 export interface HookSessionPayload {
   session_id: string;
-  cwd?: string;
-  source?: string;
-  session_title?: string;
+  cwd?: string | undefined;
+  source?: string | undefined;
+  session_title?: string | undefined;
 }
 
 export interface HookEnv {
-  CLAUDE_PID?: string;
+  CLAUDE_PID?: string | undefined;
 }
 
 export interface ListSessionsOptions {
-  includeTemporary?: boolean;
-  includeDropped?: boolean;
+  includeTemporary?: boolean | undefined;
+  includeDropped?: boolean | undefined;
 }
 
 const COLUMNS =
-  "id, name, purpose, status, cwd, repo, claude_pid, hooked_at, created_at, last_active_at";
+  'id, name, purpose, status, cwd, repo, claude_pid, hooked_at, created_at, last_active_at';
 
 function toSession(row: SessionRow): Session {
   return {
@@ -64,9 +64,9 @@ function toSession(row: SessionRow): Session {
   };
 }
 
-function parsePid(value: string | undefined): number | null {
-  const pid = Number(value);
-  return Number.isInteger(pid) && pid > 0 ? pid : null;
+function parseProcessId(value: string | undefined): number | null {
+  const processId = Number(value);
+  return Number.isInteger(processId) && processId > 0 ? processId : null;
 }
 
 export function getSession(ctx: Ctx, id: string): Session | undefined {
@@ -78,7 +78,7 @@ export function getSession(ctx: Ctx, id: string): Session | undefined {
 
 export function requireSession(ctx: Ctx, id: string): Session {
   const session = getSession(ctx, id);
-  if (!session) throw new CarnetError("SESSION_NOT_FOUND", `Unknown session ${id}`);
+  if (!session) throw new CarnetError('SESSION_NOT_FOUND', `Unknown session ${id}`);
   return session;
 }
 
@@ -101,7 +101,7 @@ export function upsertFromHook(
   env: HookEnv = {},
 ): Session {
   const at = nowIso(ctx);
-  const pid = parsePid(env.CLAUDE_PID);
+  const claudePid = parseProcessId(env.CLAUDE_PID);
   const repo = repoNameFor(group, payload.cwd);
   const title = payload.session_title?.trim() || null;
   const existing = getSession(ctx, payload.session_id);
@@ -114,10 +114,10 @@ export function upsertFromHook(
       .run(
         payload.session_id,
         title,
-        title ? "active" : "temporary",
+        title ? 'active' : 'temporary',
         payload.cwd ?? null,
         repo,
-        pid,
+        claudePid,
         at,
         at,
         at,
@@ -137,7 +137,7 @@ export function upsertFromHook(
         at,
         payload.cwd ?? existing.cwd,
         repo ?? existing.repo,
-        pid ?? existing.claudePid,
+        claudePid ?? existing.claudePid,
         adoptTitle ? 1 : 0,
         title,
         adoptTitle ? 1 : 0,
@@ -148,7 +148,7 @@ export function upsertFromHook(
 }
 
 export function touchSession(ctx: Ctx, id: string): void {
-  ctx.db.prepare("UPDATE sessions SET last_active_at = ? WHERE id = ?").run(nowIso(ctx), id);
+  ctx.db.prepare('UPDATE sessions SET last_active_at = ? WHERE id = ?').run(nowIso(ctx), id);
 }
 
 export function nameSession(ctx: Ctx, id: string, name: string, purpose?: string): Session {
@@ -163,8 +163,8 @@ export function nameSession(ctx: Ctx, id: string, name: string, purpose?: string
       )
       .run(name, purpose ?? null, nowIso(ctx), id);
   } catch (error) {
-    if (error instanceof Error && error.message.includes("UNIQUE")) {
-      throw new CarnetError("SESSION_NAME_TAKEN", `A session named "${name}" already exists`);
+    if (error instanceof Error && error.message.includes('UNIQUE')) {
+      throw new CarnetError('SESSION_NAME_TAKEN', `A session named "${name}" already exists`);
     }
     throw error;
   }
@@ -173,10 +173,10 @@ export function nameSession(ctx: Ctx, id: string, name: string, purpose?: string
 
 export function listSessions(ctx: Ctx, options: ListSessionsOptions = {}): Session[] {
   const excluded: SessionStatus[] = [];
-  if (!options.includeTemporary) excluded.push("temporary");
-  if (!options.includeDropped) excluded.push("dropped");
-  const placeholders = excluded.map(() => "?").join(", ");
-  const where = excluded.length ? `WHERE status NOT IN (${placeholders})` : "";
+  if (!options.includeTemporary) excluded.push('temporary');
+  if (!options.includeDropped) excluded.push('dropped');
+  const placeholders = excluded.map(() => '?').join(', ');
+  const where = excluded.length ? `WHERE status NOT IN (${placeholders})` : '';
   const rows = ctx.db
     .prepare(`SELECT ${COLUMNS} FROM sessions ${where} ORDER BY last_active_at DESC`)
     .all(...excluded) as unknown as unknown as SessionRow[];
@@ -213,13 +213,13 @@ export function sessionByName(ctx: Ctx, name: string): Session | undefined {
   return row && toSession(row);
 }
 
-export function sessionByClaudePid(ctx: Ctx, pid: number): Session | undefined {
+export function sessionByClaudePid(ctx: Ctx, processId: number): Session | undefined {
   const row = ctx.db
     .prepare(
       `SELECT ${COLUMNS} FROM sessions
        WHERE claude_pid = ? AND hooked_at IS NOT NULL
        ORDER BY hooked_at DESC LIMIT 1`,
     )
-    .get(pid) as SessionRow | undefined;
+    .get(processId) as SessionRow | undefined;
   return row && toSession(row);
 }

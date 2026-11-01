@@ -4,8 +4,8 @@ import {
   openCarnet,
   parseHookPayload,
   parseSubagentPayload,
-} from "@rucher/carnet";
-import type { Io } from "../io.ts";
+} from '@rucher/carnet';
+import type { Io } from '../io.ts';
 
 export function sessionStart(stdinText: string, io: Io): number {
   try {
@@ -16,20 +16,20 @@ export function sessionStart(stdinText: string, io: Io): number {
         CLAUDE_PID: io.env.CLAUDE_PID,
       });
       if (additionalContext) {
-        const hookSpecificOutput = { hookEventName: "SessionStart", additionalContext };
+        const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext };
         io.stdout(`${JSON.stringify({ hookSpecificOutput })}\n`);
       }
     } finally {
       carnet.close();
     }
   } catch (error) {
-    if (error instanceof CarnetError && error.code === "NO_GROUP") return 0;
+    if (error instanceof CarnetError && error.code === 'NO_GROUP') return 0;
     io.stderr(`rucher hook: ${error instanceof Error ? error.message : String(error)}\n`);
   }
   return 0;
 }
 
-type SubagentAction = "pairSubagent" | "stopSubagent";
+type SubagentAction = 'pairSubagent' | 'stopSubagent';
 
 function subagentHook(action: SubagentAction, stdinText: string, io: Io): number {
   try {
@@ -41,16 +41,16 @@ function subagentHook(action: SubagentAction, stdinText: string, io: Io): number
       carnet.close();
     }
   } catch (error) {
-    if (error instanceof CarnetError && error.code === "NO_GROUP") return 0;
+    if (error instanceof CarnetError && error.code === 'NO_GROUP') return 0;
     io.stderr(`rucher hook: ${error instanceof Error ? error.message : String(error)}\n`);
   }
   return 0;
 }
 
 export function subagentStart(stdinText: string, io: Io): number {
-  return subagentHook("pairSubagent", stdinText, io);
+  return subagentHook('pairSubagent', stdinText, io);
 }
 
 export function subagentStop(stdinText: string, io: Io): number {
-  return subagentHook("stopSubagent", stdinText, io);
+  return subagentHook('stopSubagent', stdinText, io);
 }

@@ -1,8 +1,8 @@
-import { type Agent, listAgents } from "../agents.ts";
-import type { Ctx } from "../context.ts";
-import type { Session } from "../sessions.ts";
-import { getTable, type TableItem } from "../table.ts";
-import { type AgentStatus, EMOJI, isUserActionStatus } from "./model.ts";
+import { type Agent, listAgents } from '../agents.ts';
+import type { Ctx } from '../context.ts';
+import type { Session } from '../sessions.ts';
+import { getTable, type TableItem } from '../table.ts';
+import { type AgentStatus, EMOJI, isUserActionStatus } from './model.ts';
 
 export interface StatusLine {
   name: string;
@@ -25,37 +25,39 @@ function bucketOf(status: AgentStatus): number {
   return BUCKET[status] ?? 2;
 }
 
-function compareWaiting(a: Agent, b: Agent): number {
-  if (a.queueOrder !== null || b.queueOrder !== null) {
-    if (a.queueOrder === null) return 1;
-    if (b.queueOrder === null) return -1;
-    return a.queueOrder - b.queueOrder;
+function compareWaiting(left: Agent, right: Agent): number {
+  if (left.queueOrder !== null || right.queueOrder !== null) {
+    if (left.queueOrder === null) return 1;
+    if (right.queueOrder === null) return -1;
+    return left.queueOrder - right.queueOrder;
   }
-  return bucketOf(a.status) - bucketOf(b.status) || a.startedAt.localeCompare(b.startedAt);
+  return (
+    bucketOf(left.status) - bucketOf(right.status) || left.startedAt.localeCompare(right.startedAt)
+  );
 }
 
 function toLine(agent: Agent): StatusLine {
   return {
     name: agent.name,
     status: agent.status,
-    emoji: agent.status === "closed" ? "" : EMOJI[agent.status],
+    emoji: agent.status === 'closed' ? '' : EMOJI[agent.status],
     note: agent.note,
   };
 }
 
 export function formatClock(date: Date): string {
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
 }
 
 export function buildStatusView(ctx: Ctx, session: Session): StatusView {
   const agents = listAgents(ctx, session.id);
   const waiting = agents
-    .filter((a) => isUserActionStatus(a.status))
+    .filter((agent) => isUserActionStatus(agent.status))
     .sort(compareWaiting)
     .map(toLine);
-  const running = agents.filter((a) => a.status === "running").map(toLine);
+  const running = agents.filter((agent) => agent.status === 'running').map(toLine);
   return {
     time: formatClock(ctx.now()),
     sessionName: session.name,

@@ -1,7 +1,7 @@
-import { type Ctx, nowIso } from "./context.ts";
-import { CarnetError } from "./errors.ts";
-import { type UserActionStatus, isUserActionStatus } from "./status/model.ts";
-import { sanitizeNote } from "./status/note.ts";
+import { type Ctx, nowIso } from './context.ts';
+import { CarnetError } from './errors.ts';
+import { type UserActionStatus, isUserActionStatus } from './status/model.ts';
+import { sanitizeNote } from './status/note.ts';
 
 export interface TableItem {
   session: string;
@@ -14,7 +14,7 @@ export interface TableItem {
 export interface SetTableInput {
   text: string;
   mainWorking: boolean;
-  status?: UserActionStatus;
+  status?: UserActionStatus | undefined;
 }
 
 interface TableRow {
@@ -36,7 +36,7 @@ function toItem(row: TableRow): TableItem {
 }
 
 export function getTable(ctx: Ctx, session: string): TableItem | undefined {
-  const row = ctx.db.prepare("SELECT * FROM table_items WHERE session = ?").get(session) as
+  const row = ctx.db.prepare('SELECT * FROM table_items WHERE session = ?').get(session) as
     | TableRow
     | undefined;
   return row && toItem(row);
@@ -45,12 +45,12 @@ export function getTable(ctx: Ctx, session: string): TableItem | undefined {
 export function setTable(ctx: Ctx, session: string, input: SetTableInput): TableItem {
   if (input.mainWorking && input.status) {
     throw new CarnetError(
-      "TABLE_STATUS_WITH_MAIN_WORKING",
-      "A user-action status cannot be set while main is working",
+      'TABLE_STATUS_WITH_MAIN_WORKING',
+      'A user-action status cannot be set while main is working',
     );
   }
   if (input.status !== undefined && !isUserActionStatus(input.status)) {
-    throw new CarnetError("INVALID_STATUS", `Invalid table status "${String(input.status)}"`);
+    throw new CarnetError('INVALID_STATUS', `Invalid table status "${String(input.status)}"`);
   }
   ctx.db
     .prepare(
@@ -69,5 +69,5 @@ export function setTable(ctx: Ctx, session: string, input: SetTableInput): Table
 }
 
 export function clearTable(ctx: Ctx, session: string): void {
-  ctx.db.prepare("DELETE FROM table_items WHERE session = ?").run(session);
+  ctx.db.prepare('DELETE FROM table_items WHERE session = ?').run(session);
 }

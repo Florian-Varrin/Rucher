@@ -1,4 +1,4 @@
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from 'node:sqlite';
 import {
   dropAgent,
   finishAgent,
@@ -11,12 +11,12 @@ import {
   type StartAgentInput,
   updateAgent,
   type UpdateAgentInput,
-} from "./agents.ts";
-import type { Ctx } from "./context.ts";
-import { openDatabase } from "./db/open.ts";
-import { logEvent, type LogEventInput, readEvents } from "./events.ts";
-import { type Group, type LocateOptions, locateGroup } from "./group/locate.ts";
-import { mergeSessions } from "./merge.ts";
+} from './agents.ts';
+import type { Ctx } from './context.ts';
+import { openDatabase } from './db/open.ts';
+import { logEvent, type LogEventInput, readEvents } from './events.ts';
+import { type Group, type LocateOptions, locateGroup } from './group/locate.ts';
+import { mergeSessions } from './merge.ts';
 import {
   defaultSession,
   dropSession,
@@ -33,11 +33,11 @@ import {
   sessionByName,
   touchSession,
   upsertFromHook,
-} from "./sessions.ts";
-import { renderSections, renderStatus } from "./status/render.ts";
-import { buildStatusView } from "./status/view.ts";
-import { pairSubagent, stopSubagent } from "./subagents.ts";
-import { clearTable, getTable, setTable, type SetTableInput } from "./table.ts";
+} from './sessions.ts';
+import { renderSections, renderStatus } from './status/render.ts';
+import { buildStatusView } from './status/view.ts';
+import { pairSubagent, stopSubagent } from './subagents.ts';
+import { clearTable, getTable, setTable, type SetTableInput } from './table.ts';
 
 export interface CarnetOptions {
   now?: () => Date;
@@ -69,7 +69,7 @@ export class Carnet {
     drop: (id: string) => dropSession(this.ctx, id),
     default: () => defaultSession(this.ctx),
     byName: (name: string) => sessionByName(this.ctx, name),
-    byClaudePid: (pid: number) => sessionByClaudePid(this.ctx, pid),
+    byClaudePid: (processId: number) => sessionByClaudePid(this.ctx, processId),
   };
 
   readonly agents = {

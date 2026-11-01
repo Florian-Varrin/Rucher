@@ -1,13 +1,13 @@
-import { basename } from "node:path";
-import type { Group } from "@rucher/carnet";
+import { basename } from 'node:path';
+import type { Group } from '@rucher/carnet';
 
-export const REPOS_START = "<!-- rucher:repos start -->";
-export const REPOS_END = "<!-- rucher:repos end -->";
+export const REPOS_START = '<!-- rucher:repos start -->';
+export const REPOS_END = '<!-- rucher:repos end -->';
 
 export function reposBlock(group: Group): string {
   const repos = group.repos.length
-    ? group.repos.map((r) => `- \`${basename(r)}\`: ${r}`).join("\n")
-    : "- (none yet: `rucher group add <path>`)";
+    ? group.repos.map((r) => `- \`${basename(r)}\`: ${r}`).join('\n')
+    : '- (none yet: `rucher group add <path>`)';
   return `${REPOS_START}\n## Repos\n\n${repos}\n${REPOS_END}`;
 }
 

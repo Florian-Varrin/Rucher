@@ -1,4 +1,4 @@
-import type { Carnet, Session } from "@rucher/carnet";
+import type { Carnet, Session } from '@rucher/carnet';
 
 export class CliError extends Error {
   constructor(
@@ -6,24 +6,24 @@ export class CliError extends Error {
     readonly hint?: string,
   ) {
     super(message);
-    this.name = "CliError";
+    this.name = 'CliError';
   }
 }
 
-export function resolveSession(carnet: Carnet, ref?: string): Session {
-  if (ref) {
-    const session = carnet.sessions.get(ref) ?? carnet.sessions.byName(ref);
+export function resolveSession(carnet: Carnet, reference?: string): Session {
+  if (reference) {
+    const session = carnet.sessions.get(reference) ?? carnet.sessions.byName(reference);
     if (session) return session;
     const known = carnet.sessions
       .list()
-      .map((s) => s.name)
+      .map((known) => known.name)
       .filter(Boolean);
     throw new CliError(
-      `Unknown session "${ref}"`,
-      known.length ? `known sessions: ${known.join(", ")}` : "no named session in this group yet",
+      `Unknown session "${reference}"`,
+      known.length ? `known sessions: ${known.join(', ')}` : 'no named session in this group yet',
     );
   }
   const session = carnet.sessions.default();
-  if (!session) throw new CliError("No session in this group yet", "start claude inside the group");
+  if (!session) throw new CliError('No session in this group yet', 'start claude inside the group');
   return session;
 }

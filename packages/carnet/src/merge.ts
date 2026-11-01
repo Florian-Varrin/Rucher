@@ -1,6 +1,6 @@
-import { type Ctx, nowIso } from "./context.ts";
-import { CarnetError } from "./errors.ts";
-import { requireSession, type Session } from "./sessions.ts";
+import { type Ctx, nowIso } from './context.ts';
+import { CarnetError } from './errors.ts';
+import { requireSession, type Session } from './sessions.ts';
 
 export interface MergeResult {
   session: Session;
@@ -12,7 +12,7 @@ export interface MergeResult {
 
 function namesOf(ctx: Ctx, session: string): string[] {
   const rows = ctx.db
-    .prepare("SELECT name FROM agents WHERE session = ?")
+    .prepare('SELECT name FROM agents WHERE session = ?')
     .all(session) as unknown as {
     name: string;
   }[];
@@ -21,7 +21,7 @@ function namesOf(ctx: Ctx, session: string): string[] {
 
 export function mergeSessions(ctx: Ctx, fromId: string, intoId: string): MergeResult {
   if (fromId === intoId) {
-    throw new CarnetError("SESSION_MERGE_INVALID", "Cannot merge a session into itself");
+    throw new CarnetError('SESSION_MERGE_INVALID', 'Cannot merge a session into itself');
   }
   const from = requireSession(ctx, fromId);
   const into = requireSession(ctx, intoId);
@@ -30,10 +30,10 @@ export function mergeSessions(ctx: Ctx, fromId: string, intoId: string): MergeRe
   const fromNames = namesOf(ctx, fromId);
   const movedAgents = fromNames.filter((name) => !taken.has(name));
   const closedAgents = fromNames.filter((name) => taken.has(name));
-  ctx.db.exec("BEGIN");
+  ctx.db.exec('BEGIN');
   try {
     const moveAgent = ctx.db.prepare(
-      "UPDATE agents SET session = ?, updated_at = ? WHERE session = ? AND name = ?",
+      'UPDATE agents SET session = ?, updated_at = ? WHERE session = ? AND name = ?',
     );
     for (const name of movedAgents) moveAgent.run(intoId, at, fromId, name);
     ctx.db
@@ -42,17 +42,17 @@ export function mergeSessions(ctx: Ctx, fromId: string, intoId: string): MergeRe
       )
       .run(at, fromId);
     const movedEvents = Number(
-      ctx.db.prepare("UPDATE events SET session = ? WHERE session = ?").run(intoId, fromId).changes,
+      ctx.db.prepare('UPDATE events SET session = ? WHERE session = ?').run(intoId, fromId).changes,
     );
     const intoHasTable =
-      ctx.db.prepare("SELECT 1 FROM table_items WHERE session = ?").get(intoId) !== undefined;
+      ctx.db.prepare('SELECT 1 FROM table_items WHERE session = ?').get(intoId) !== undefined;
     const movedTable =
       !intoHasTable &&
       Number(
-        ctx.db.prepare("UPDATE table_items SET session = ? WHERE session = ?").run(intoId, fromId)
+        ctx.db.prepare('UPDATE table_items SET session = ? WHERE session = ?').run(intoId, fromId)
           .changes,
       ) > 0;
-    ctx.db.prepare("DELETE FROM table_items WHERE session = ?").run(fromId);
+    ctx.db.prepare('DELETE FROM table_items WHERE session = ?').run(fromId);
     const keepName = into.name === null && from.name !== null;
     ctx.db
       .prepare(
@@ -67,7 +67,7 @@ export function mergeSessions(ctx: Ctx, fromId: string, intoId: string): MergeRe
          WHERE id = ?`,
       )
       .run(keepName ? from.name : null, from.purpose, at, keepName ? 1 : 0, intoId);
-    ctx.db.exec("COMMIT");
+    ctx.db.exec('COMMIT');
     return {
       session: requireSession(ctx, intoId),
       movedAgents,
@@ -76,7 +76,7 @@ export function mergeSessions(ctx: Ctx, fromId: string, intoId: string): MergeRe
       movedTable,
     };
   } catch (error) {
-    ctx.db.exec("ROLLBACK");
+    ctx.db.exec('ROLLBACK');
     throw error;
   }
 }

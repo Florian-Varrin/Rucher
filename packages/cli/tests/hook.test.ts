@@ -1,107 +1,107 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { initGroup, openCarnet } from "@rucher/carnet";
-import { expect, test } from "vite-plus/test";
-import { sessionStart, subagentStart, subagentStop } from "../src/commands/hook.ts";
-import { makeIo, SESSION, tempDir } from "./helpers.ts";
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { initGroup, openCarnet } from '@rucher/carnet';
+import { expect, test } from 'vite-plus/test';
+import { sessionStart, subagentStart, subagentStop } from '../src/commands/hook.ts';
+import { makeIo, SESSION, tempDirectory } from './helpers.ts';
 
 function group() {
-  const root = tempDir("meta-");
-  const api = tempDir("repo-api-");
-  mkdirSync(join(api, "src"), { recursive: true });
-  const env = { RUCHER_HOME: tempDir("home-"), CLAUDE_PID: "4242" };
+  const root = tempDirectory('meta-');
+  const api = tempDirectory('repo-api-');
+  mkdirSync(join(api, 'src'), { recursive: true });
+  const env = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_PID: '4242' };
   initGroup(root, { env, repos: [api] });
   return { root, api, env };
 }
 
-test("records the session of a group with pid and repo", () => {
+test('records the session of a group with pid and repo', () => {
   const { root, api, env } = group();
   const io = makeIo({ env });
   const payload = JSON.stringify({
     session_id: SESSION,
-    cwd: join(api, "src"),
-    source: "startup",
+    cwd: join(api, 'src'),
+    source: 'startup',
   });
   expect(sessionStart(payload, io)).toBe(0);
-  expect(io.out).toEqual([]);
-  expect(io.err).toEqual([]);
+  expect(io.output).toEqual([]);
+  expect(io.errors).toEqual([]);
   const carnet = openCarnet({ cwd: root, env });
   expect(carnet.sessions.get(SESSION)).toMatchObject({
-    status: "temporary",
-    repo: api.split("/").at(-1),
+    status: 'temporary',
+    repo: api.split('/').at(-1),
     claudePid: 4242,
   });
   carnet.close();
 });
 
-test("outside any group it stays silent and succeeds", () => {
-  const io = makeIo({ env: { RUCHER_HOME: tempDir("home-") } });
-  const payload = JSON.stringify({ session_id: SESSION, cwd: tempDir("nogroup-") });
+test('outside any group it stays silent and succeeds', () => {
+  const io = makeIo({ env: { RUCHER_HOME: tempDirectory('home-') } });
+  const payload = JSON.stringify({ session_id: SESSION, cwd: tempDirectory('nogroup-') });
   expect(sessionStart(payload, io)).toBe(0);
-  expect(io.out).toEqual([]);
-  expect(io.err).toEqual([]);
+  expect(io.output).toEqual([]);
+  expect(io.errors).toEqual([]);
 });
 
-test("malformed input never fails the hook", () => {
+test('malformed input never fails the hook', () => {
   const io = makeIo();
-  expect(sessionStart("not json", io)).toBe(0);
-  expect(io.err.join("")).toMatch(/^rucher hook: /);
+  expect(sessionStart('not json', io)).toBe(0);
+  expect(io.errors.join('')).toMatch(/^rucher hook: /);
   const io2 = makeIo();
-  expect(sessionStart("{}", io2)).toBe(0);
-  expect(io2.err.join("")).toContain("session_id");
+  expect(sessionStart('{}', io2)).toBe(0);
+  expect(io2.errors.join('')).toContain('session_id');
 });
 
-test("on resume it prints the session state as additional context", () => {
+test('on resume it prints the session state as additional context', () => {
   const { api, env } = group();
-  const startup = JSON.stringify({ session_id: SESSION, cwd: api, source: "startup" });
+  const startup = JSON.stringify({ session_id: SESSION, cwd: api, source: 'startup' });
   sessionStart(startup, makeIo({ env }));
   const io = makeIo({ env });
   expect(
-    sessionStart(JSON.stringify({ session_id: SESSION, cwd: api, source: "resume" }), io),
+    sessionStart(JSON.stringify({ session_id: SESSION, cwd: api, source: 'resume' }), io),
   ).toBe(0);
-  const output = JSON.parse(io.out.join("")) as {
+  const output = JSON.parse(io.output.join('')) as {
     hookSpecificOutput: { hookEventName: string; additionalContext: string };
   };
-  expect(output.hookSpecificOutput.hookEventName).toBe("SessionStart");
-  expect(output.hookSpecificOutput.additionalContext).toContain("state when resumed");
+  expect(output.hookSpecificOutput.hookEventName).toBe('SessionStart');
+  expect(output.hookSpecificOutput.additionalContext).toContain('state when resumed');
 });
 
-test("subagent hooks flag a fork that stopped without agent_done", () => {
+test('subagent hooks flag a fork that stopped without agent_done', () => {
   const { root, env } = group();
   const carnet = openCarnet({ cwd: root, env });
-  carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: "startup" });
-  carnet.agents.start(SESSION, { name: "lost", task: "t" });
+  carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
+  carnet.agents.start(SESSION, { name: 'lost', task: 't' });
   carnet.close();
   const io = makeIo({ env });
   const payload = (event: string) =>
     JSON.stringify({
       session_id: SESSION,
       cwd: root,
-      agent_id: "a1",
-      agent_type: "fork",
+      agent_id: 'a1',
+      agent_type: 'fork',
       hook_event_name: event,
     });
-  expect(subagentStart(payload("SubagentStart"), io)).toBe(0);
-  expect(subagentStop(payload("SubagentStop"), io)).toBe(0);
-  expect(io.err).toEqual([]);
+  expect(subagentStart(payload('SubagentStart'), io)).toBe(0);
+  expect(subagentStop(payload('SubagentStop'), io)).toBe(0);
+  expect(io.errors).toEqual([]);
   const after = openCarnet({ cwd: root, env });
-  expect(after.agents.get(SESSION, "lost")).toMatchObject({
-    status: "review",
-    claudeAgentId: "a1",
+  expect(after.agents.get(SESSION, 'lost')).toMatchObject({
+    status: 'review',
+    claudeAgentId: 'a1',
   });
   after.close();
 });
 
-test("subagent hooks never fail, even without agent_id or group", () => {
-  const io = makeIo({ env: { RUCHER_HOME: tempDir("home-") } });
+test('subagent hooks never fail, even without agent_id or group', () => {
+  const io = makeIo({ env: { RUCHER_HOME: tempDirectory('home-') } });
   expect(
     subagentStop(
-      JSON.stringify({ session_id: SESSION, agent_id: "a", cwd: tempDir("nogroup-") }),
+      JSON.stringify({ session_id: SESSION, agent_id: 'a', cwd: tempDirectory('nogroup-') }),
       io,
     ),
   ).toBe(0);
-  expect(io.err).toEqual([]);
+  expect(io.errors).toEqual([]);
   const io2 = makeIo();
   expect(subagentStart(JSON.stringify({ session_id: SESSION }), io2)).toBe(0);
-  expect(io2.err.join("")).toContain("agent_id");
+  expect(io2.errors.join('')).toContain('agent_id');
 });

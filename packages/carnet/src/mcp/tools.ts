@@ -1,44 +1,46 @@
-import * as z from "zod/v4";
-import type { Carnet } from "../carnet.ts";
-import { CarnetError } from "../errors.ts";
-import { EVENT_TYPES } from "../events.ts";
-import { formatEventLine, resumeContext, sessionLabel } from "../resume.ts";
-import type { Session } from "../sessions.ts";
-import { EMOJI, OPEN_AGENT_STATUSES, USER_ACTION_STATUSES } from "../status/model.ts";
-import { renderAgentLine, renderTableLine } from "../status/render.ts";
+import * as z from 'zod/v4';
+import type { Carnet } from '../carnet.ts';
+import { CarnetError } from '../errors.ts';
+import { EVENT_TYPES } from '../events.ts';
+import { formatEventLine, resumeContext, sessionLabel } from '../resume.ts';
+import type { Session } from '../sessions.ts';
+import { EMOJI, OPEN_AGENT_STATUSES, USER_ACTION_STATUSES } from '../status/model.ts';
+import { renderAgentLine, renderTableLine } from '../status/render.ts';
 
 export interface ToolOutput {
   text: string;
   data?: Record<string, unknown>;
 }
 
-export interface ToolDef<Schema extends z.ZodObject = z.ZodObject> {
+export interface ToolDefinition<Schema extends z.ZodObject = z.ZodObject> {
   name: string;
   description: string;
   schema: Schema;
   run: (carnet: Carnet, sessionId: string, args: z.infer<Schema>) => ToolOutput;
 }
 
-function defineTool<Schema extends z.ZodObject>(def: ToolDef<Schema>): ToolDef<Schema> {
-  return def;
+function defineTool<Schema extends z.ZodObject>(
+  definition: ToolDefinition<Schema>,
+): ToolDefinition<Schema> {
+  return definition;
 }
 
 const session = z
   .string()
   .optional()
-  .describe("Claude session id to target. Omit for the current session.");
+  .describe('Claude session id to target. Omit for the current session.');
 
-const agentName = z.string().min(1).describe("Short agent name, no paths");
+const agentName = z.string().min(1).describe('Short agent name, no paths');
 
 const agentStart = defineTool({
-  name: "agent_start",
+  name: 'agent_start',
   description:
-    "Main agent only. Register a fork right before dispatching it. The agent appears as ⏳ running and a `started` event is logged.",
+    'Main agent only. Register a fork right before dispatching it. The agent appears as ⏳ running and a `started` event is logged.',
   schema: z.object({
     name: agentName,
-    task: z.string().min(1).describe("One-line task given to the fork"),
-    base_commit: z.string().optional().describe("Commit the fork starts from"),
-    worktree: z.string().optional().describe("Worktree path when the fork has one"),
+    task: z.string().min(1).describe('One-line task given to the fork'),
+    base_commit: z.string().optional().describe('Commit the fork starts from'),
+    worktree: z.string().optional().describe('Worktree path when the fork has one'),
     session,
   }),
   run: (carnet, sessionId, args) => {
@@ -53,14 +55,14 @@ const agentStart = defineTool({
 });
 
 const agentUpdate = defineTool({
-  name: "agent_update",
+  name: 'agent_update',
   description:
     "Change an agent's status and displayed note. Forks use it with status `running` to show progress; the main agent uses user-action statuses (discussing, answer, review, apply, test, commit, branch) as the next step moves, and sets report_path after copying a report to its final place. Use agent_drop to close.",
   schema: z.object({
     name: agentName,
-    status: z.enum(OPEN_AGENT_STATUSES).describe("Next action: running means the fork is working"),
-    note: z.string().optional().describe("Under 60 characters, no paths, no backticks"),
-    report_path: z.string().optional().describe("New absolute path of the report, when it moved"),
+    status: z.enum(OPEN_AGENT_STATUSES).describe('Next action: running means the fork is working'),
+    note: z.string().optional().describe('Under 60 characters, no paths, no backticks'),
+    report_path: z.string().optional().describe('New absolute path of the report, when it moved'),
     session,
   }),
   run: (carnet, sessionId, args) => {
@@ -72,7 +74,7 @@ const agentUpdate = defineTool({
     const text = renderAgentLine({
       name: agent.name,
       status: agent.status,
-      emoji: agent.status === "closed" ? "" : EMOJI[agent.status],
+      emoji: agent.status === 'closed' ? '' : EMOJI[agent.status],
       note: agent.note,
     });
     return { text, data: { agent } };
@@ -80,13 +82,13 @@ const agentUpdate = defineTool({
 });
 
 const agentDone = defineTool({
-  name: "agent_done",
+  name: 'agent_done',
   description:
-    "Forks call this as their LAST action. Records the report path and moves the agent to ❓ answer (has_questions=true) or 👀 review. Logs a `finished` event.",
+    'Forks call this as their LAST action. Records the report path and moves the agent to ❓ answer (has_questions=true) or 👀 review. Logs a `finished` event.',
   schema: z.object({
     name: agentName,
-    report_path: z.string().min(1).describe("Absolute path of the markdown report"),
-    has_questions: z.boolean().describe("true when the report asks the human something"),
+    report_path: z.string().min(1).describe('Absolute path of the markdown report'),
+    has_questions: z.boolean().describe('true when the report asks the human something'),
     session,
   }),
   run: (carnet, sessionId, args) => {
@@ -102,12 +104,12 @@ const agentDone = defineTool({
 });
 
 const agentDrop = defineTool({
-  name: "agent_drop",
+  name: 'agent_drop',
   description:
-    "Main agent only. Close an agent once its work is committed or abandoned. It leaves the status view; history stays in the journal.",
+    'Main agent only. Close an agent once its work is committed or abandoned. It leaves the status view; history stays in the journal.',
   schema: z.object({
     name: agentName,
-    reason: z.string().optional().describe("Why it is closed, for the journal"),
+    reason: z.string().optional().describe('Why it is closed, for the journal'),
     session,
   }),
   run: (carnet, sessionId, args) => {
@@ -117,51 +119,51 @@ const agentDrop = defineTool({
 });
 
 const agentList = defineTool({
-  name: "agent_list",
-  description: "List the open agents of the session with status, note, task and report path.",
+  name: 'agent_list',
+  description: 'List the open agents of the session with status, note, task and report path.',
   schema: z.object({ session }),
   run: (carnet, sessionId) => {
     const agents = carnet.agents.list(sessionId);
-    const lines = agents.map((a) => {
-      const emoji = a.status === "closed" ? "" : EMOJI[a.status];
-      const note = a.note ? ` — ${a.note}` : "";
-      const report = a.reportPath ? ` (report: ${a.reportPath})` : "";
-      return `${emoji} ${a.name} [${a.status}]${note}${report}`;
+    const lines = agents.map((agent) => {
+      const emoji = agent.status === 'closed' ? '' : EMOJI[agent.status];
+      const note = agent.note ? ` — ${agent.note}` : '';
+      const report = agent.reportPath ? ` (report: ${agent.reportPath})` : '';
+      return `${emoji} ${agent.name} [${agent.status}]${note}${report}`;
     });
-    return { text: lines.length ? lines.join("\n") : "no open agents", data: { agents } };
+    return { text: lines.length ? lines.join('\n') : 'no open agents', data: { agents } };
   },
 });
 
 const queueReorder = defineTool({
-  name: "queue_reorder",
+  name: 'queue_reorder',
   description:
     "Main agent only. Set the order of the 'Waiting on you' list. Named agents come first in the given order, the others follow the default order (answer, review, rest).",
   schema: z.object({
-    names: z.array(agentName).min(1).describe("Agent names in handling order"),
+    names: z.array(agentName).min(1).describe('Agent names in handling order'),
     session,
   }),
   run: (carnet, sessionId, args) => {
     carnet.agents.reorderQueue(sessionId, args.names);
     const view = carnet.status.view(carnet.sessions.require(sessionId));
-    const order = view.waiting.map((l) => l.name).join(", ");
+    const order = view.waiting.map((line) => line.name).join(', ');
     return {
-      text: order ? `Waiting order: ${order}` : "nothing waiting",
+      text: order ? `Waiting order: ${order}` : 'nothing waiting',
       data: { waiting: view.waiting },
     };
   },
 });
 
 const tableSet = defineTool({
-  name: "table_set",
+  name: 'table_set',
   description:
     "Main agent only. Set the 'On the table' line: what the main agent is handling now. main_working=true while you apply, test or fix yourself (shown ⚙️, not ready for the human). Otherwise give the status of the next human action.",
   schema: z.object({
-    text: z.string().min(1).describe("Under 60 characters, no paths, no backticks"),
-    main_working: z.boolean().describe("true while the main agent itself is working on it"),
+    text: z.string().min(1).describe('Under 60 characters, no paths, no backticks'),
+    main_working: z.boolean().describe('true while the main agent itself is working on it'),
     status: z
       .enum(USER_ACTION_STATUSES)
       .optional()
-      .describe("Next human action when main_working is false; defaults to discussing"),
+      .describe('Next human action when main_working is false; defaults to discussing'),
     session,
   }),
   run: (carnet, sessionId, args) => {
@@ -175,24 +177,24 @@ const tableSet = defineTool({
 });
 
 const tableClear = defineTool({
-  name: "table_clear",
+  name: 'table_clear',
   description: "Main agent only. Empty the 'On the table' line.",
   schema: z.object({ session }),
   run: (carnet, sessionId) => {
     carnet.table.clear(sessionId);
-    return { text: "On the table cleared" };
+    return { text: 'On the table cleared' };
   },
 });
 
 const logEvent = defineTool({
-  name: "log_event",
+  name: 'log_event',
   description:
     "Append a journal event: started, finished, answered, applied, tested, committed, dropped. agent_start, agent_done and agent_drop already log theirs; use this for the human's steps (answered, applied, tested, committed).",
   schema: z.object({
     type: z.enum(EVENT_TYPES),
-    agent: z.string().optional().describe("Agent concerned"),
-    commit: z.string().optional().describe("Commit sha"),
-    link: z.string().optional().describe("Report path or URL"),
+    agent: z.string().optional().describe('Agent concerned'),
+    commit: z.string().optional().describe('Commit sha'),
+    link: z.string().optional().describe('Report path or URL'),
     note: z.string().optional(),
     session,
   }),
@@ -204,26 +206,26 @@ const logEvent = defineTool({
       link: args.link,
       note: args.note,
     });
-    const parts = ["logged", event.type, event.agent, event.commit].filter(Boolean);
-    return { text: parts.join(" "), data: { event } };
+    const parts = ['logged', event.type, event.agent, event.commit].filter(Boolean);
+    return { text: parts.join(' '), data: { event } };
   },
 });
 
-const sessionName = z.string().trim().min(1).describe("Short session name, used by rucher resume");
+const sessionName = z.string().trim().min(1).describe('Short session name, used by rucher resume');
 
-function findSession(carnet: Carnet, ref: string): Session {
-  const found = carnet.sessions.byName(ref) ?? carnet.sessions.get(ref);
-  if (!found) throw new CarnetError("SESSION_NOT_FOUND", `Unknown session "${ref}"`);
+function findSession(carnet: Carnet, reference: string): Session {
+  const found = carnet.sessions.byName(reference) ?? carnet.sessions.get(reference);
+  if (!found) throw new CarnetError('SESSION_NOT_FOUND', `Unknown session "${reference}"`);
   return found;
 }
 
 const sessionNew = defineTool({
-  name: "session_new",
+  name: 'session_new',
   description:
-    "Name the current session (or rename it) so it can be resumed later with `rucher resume <name>`. Promotes a temporary session to active.",
+    'Name the current session (or rename it) so it can be resumed later with `rucher resume <name>`. Promotes a temporary session to active.',
   schema: z.object({
     name: sessionName,
-    purpose: z.string().optional().describe("One line: what this session is for"),
+    purpose: z.string().optional().describe('One line: what this session is for'),
     session,
   }),
   run: (carnet, sessionId, args) => {
@@ -236,7 +238,7 @@ const sessionNew = defineTool({
 });
 
 const sessionList = defineTool({
-  name: "session_list",
+  name: 'session_list',
   description:
     "List the group's sessions, most recently active first. Temporary and dropped ones are hidden unless asked.",
   schema: z.object({
@@ -249,20 +251,20 @@ const sessionList = defineTool({
       includeTemporary: args.include_temporary,
       includeDropped: args.include_dropped,
     });
-    const lines = sessions.map((s) => {
-      const current = s.id === sessionId ? " (current)" : "";
-      return `${sessionLabel(s)} [${s.status}]${current}`;
+    const lines = sessions.map((listed) => {
+      const current = listed.id === sessionId ? ' (current)' : '';
+      return `${sessionLabel(listed)} [${listed.status}]${current}`;
     });
-    return { text: lines.length ? lines.join("\n") : "no sessions", data: { sessions } };
+    return { text: lines.length ? lines.join('\n') : 'no sessions', data: { sessions } };
   },
 });
 
 const sessionDrop = defineTool({
-  name: "session_drop",
+  name: 'session_drop',
   description:
-    "Main agent only. Drop a session by name or id: its open agents are closed and it leaves the lists. History stays in the journal.",
+    'Main agent only. Drop a session by name or id: its open agents are closed and it leaves the lists. History stays in the journal.',
   schema: z.object({
-    name: z.string().trim().min(1).describe("Session name or id"),
+    name: z.string().trim().min(1).describe('Session name or id'),
     session,
   }),
   run: (carnet, _sessionId, args) => {
@@ -272,11 +274,11 @@ const sessionDrop = defineTool({
 });
 
 const sessionResumeInfo = defineTool({
-  name: "session_resume_info",
+  name: 'session_resume_info',
   description:
-    "What a session was doing: its status view and last events, plus the command to resume it. Defaults to the current session.",
+    'What a session was doing: its status view and last events, plus the command to resume it. Defaults to the current session.',
   schema: z.object({
-    name: z.string().trim().min(1).optional().describe("Session name or id"),
+    name: z.string().trim().min(1).optional().describe('Session name or id'),
     session,
   }),
   run: (carnet, sessionId, args) => {
@@ -290,22 +292,22 @@ const sessionResumeInfo = defineTool({
 });
 
 const logRead = defineTool({
-  name: "log_read",
-  description: "Read the last journal events of the session, oldest first.",
+  name: 'log_read',
+  description: 'Read the last journal events of the session, oldest first.',
   schema: z.object({
-    limit: z.number().int().min(1).max(200).optional().describe("Number of events, default 20"),
+    limit: z.number().int().min(1).max(200).optional().describe('Number of events, default 20'),
     session,
   }),
   run: (carnet, sessionId, args) => {
     const events = carnet.events.read(sessionId, args.limit ?? 20);
     return {
-      text: events.length ? events.map(formatEventLine).join("\n") : "no events yet",
+      text: events.length ? events.map(formatEventLine).join('\n') : 'no events yet',
       data: { events },
     };
   },
 });
 
-export const TOOLS: readonly ToolDef[] = [
+export const TOOLS: readonly ToolDefinition[] = [
   agentStart,
   agentUpdate,
   agentDone,
@@ -320,4 +322,4 @@ export const TOOLS: readonly ToolDef[] = [
   sessionList,
   sessionDrop,
   sessionResumeInfo,
-] as readonly ToolDef[];
+] as readonly ToolDefinition[];

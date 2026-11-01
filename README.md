@@ -87,11 +87,13 @@ Details, update and uninstall in [plugin/README.md](plugin/README.md). For devel
 
 ```bash
 pnpm install
-pnpm run build        # carnet must be built before the cli type-checks or tests
-pnpm exec vp check    # format, lint, type check
-pnpm run test
-pnpm run ready        # build, check, test
+pnpm run check       # format, lint, type check
+pnpm run test        # the built-binary test needs pnpm run build first
+pnpm run build       # the rucher binary in packages/cli/dist
+pnpm run ready       # build, check, test
 ```
+
+Inside the workspace, `@rucher/carnet` resolves to its sources through the `development` export condition, so type checks and tests need no prior build. Published packages use `dist`.
 
 The toolchain is [Vite+](https://viteplus.dev). The `vite-plus` dev dependency is the source of truth; a global `vp` is optional.
 

@@ -1,63 +1,63 @@
-import { type Carnet, type CarnetEvent, formatClock, type Session } from "@rucher/carnet";
-import { paint } from "../color.ts";
-import type { Io } from "../io.ts";
-import { resolveSession } from "../session.ts";
+import { type Carnet, type CarnetEvent, formatClock, type Session } from '@rucher/carnet';
+import { paint } from '../color.ts';
+import type { Io } from '../io.ts';
+import { resolveSession } from '../session.ts';
 
 export interface LogOptions {
-  session?: string;
+  session?: string | undefined;
   count: number;
-  md?: boolean;
+  md?: boolean | undefined;
 }
 
 export function formatEvents(events: CarnetEvent[], io: Io): string {
-  const p = paint(io);
-  if (events.length === 0) return p.dim("no events yet");
+  const colors = paint(io);
+  if (events.length === 0) return colors.dim('no events yet');
   return events
-    .map((e) => {
+    .map((event) => {
       const parts = [
-        p.dim(formatClock(new Date(e.at))),
-        p.bold(e.type.padEnd(9)),
-        e.agent ?? "",
-        e.link ?? e.note ?? "",
-        e.commit ? p.cyan(e.commit.slice(0, 7)) : "",
+        colors.dim(formatClock(new Date(event.at))),
+        colors.bold(event.type.padEnd(9)),
+        event.agent ?? '',
+        event.link ?? event.note ?? '',
+        event.commit ? colors.cyan(event.commit.slice(0, 7)) : '',
       ];
-      return parts.filter(Boolean).join("  ");
+      return parts.filter(Boolean).join('  ');
     })
-    .join("\n");
+    .join('\n');
 }
 
 function formatDay(date: Date): string {
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${mm}-${dd}`;
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function markdownEvent(e: CarnetEvent): string {
-  const parts = [`${formatClock(new Date(e.at))} **${e.type}**`];
-  if (e.agent) parts.push(`\`${e.agent}\``);
+function markdownEvent(event: CarnetEvent): string {
+  const parts = [`${formatClock(new Date(event.at))} **${event.type}**`];
+  if (event.agent) parts.push(`\`${event.agent}\``);
   const detail = [
-    e.note,
-    e.link ? `[report](${e.link})` : null,
-    e.commit ? `\`${e.commit.slice(0, 7)}\`` : null,
+    event.note,
+    event.link ? `[report](${event.link})` : null,
+    event.commit ? `\`${event.commit.slice(0, 7)}\`` : null,
   ]
     .filter(Boolean)
-    .join(" · ");
-  return `- ${parts.join(" ")}${detail ? `: ${detail}` : ""}`;
+    .join(' · ');
+  return `- ${parts.join(' ')}${detail ? `: ${detail}` : ''}`;
 }
 
 export function formatEventsMarkdown(events: CarnetEvent[], title: string): string {
   const lines = [`# Journal: ${title}`];
   if (events.length === 0) return `${lines[0]}\n\nNo events yet.`;
-  let day = "";
-  for (const e of events) {
-    const current = formatDay(new Date(e.at));
+  let day = '';
+  for (const event of events) {
+    const current = formatDay(new Date(event.at));
     if (current !== day) {
       day = current;
-      lines.push("", `## ${day}`, "");
+      lines.push('', `## ${day}`, '');
     }
-    lines.push(markdownEvent(e));
+    lines.push(markdownEvent(event));
   }
-  return lines.join("\n");
+  return lines.join('\n');
 }
 
 function sessionTitle(carnet: Carnet, session: Session): string {

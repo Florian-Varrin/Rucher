@@ -1,33 +1,35 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
-export interface GroupRef {
+export interface GroupReference {
   name: string;
   path: string;
 }
 
 interface RegistryFile {
-  groups: GroupRef[];
+  groups: GroupReference[];
 }
 
 export function rucherHome(env: NodeJS.ProcessEnv = process.env): string {
-  return env.RUCHER_HOME ?? join(homedir(), ".rucher");
+  return env.RUCHER_HOME ?? join(homedir(), '.rucher');
 }
 
 function registryPath(env?: NodeJS.ProcessEnv): string {
-  return join(rucherHome(env), "groups.json");
+  return join(rucherHome(env), 'groups.json');
 }
 
-export function readRegistry(env?: NodeJS.ProcessEnv): GroupRef[] {
+export function readRegistry(env?: NodeJS.ProcessEnv): GroupReference[] {
   const file = registryPath(env);
   if (!existsSync(file)) return [];
-  const parsed = JSON.parse(readFileSync(file, "utf8")) as Partial<RegistryFile>;
+  const parsed = JSON.parse(readFileSync(file, 'utf8')) as Partial<RegistryFile>;
   return parsed.groups ?? [];
 }
 
-function writeRegistry(groups: GroupRef[], env?: NodeJS.ProcessEnv): GroupRef[] {
-  groups.sort((a, b) => a.name.localeCompare(b.name) || a.path.localeCompare(b.path));
+function writeRegistry(groups: GroupReference[], env?: NodeJS.ProcessEnv): GroupReference[] {
+  groups.sort(
+    (left, right) => left.name.localeCompare(right.name) || left.path.localeCompare(right.path),
+  );
   mkdirSync(rucherHome(env), { recursive: true });
   writeFileSync(
     registryPath(env),
@@ -36,13 +38,19 @@ function writeRegistry(groups: GroupRef[], env?: NodeJS.ProcessEnv): GroupRef[] 
   return groups;
 }
 
-export function registerGroup(ref: GroupRef, env?: NodeJS.ProcessEnv): GroupRef[] {
-  return writeRegistry([...readRegistry(env).filter((g) => g.path !== ref.path), ref], env);
+export function registerGroup(
+  reference: GroupReference,
+  env?: NodeJS.ProcessEnv,
+): GroupReference[] {
+  return writeRegistry(
+    [...readRegistry(env).filter((group) => group.path !== reference.path), reference],
+    env,
+  );
 }
 
-export function unregisterGroups(paths: string[], env?: NodeJS.ProcessEnv): GroupRef[] {
+export function unregisterGroups(paths: string[], env?: NodeJS.ProcessEnv): GroupReference[] {
   return writeRegistry(
-    readRegistry(env).filter((g) => !paths.includes(g.path)),
+    readRegistry(env).filter((group) => !paths.includes(group.path)),
     env,
   );
 }

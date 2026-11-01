@@ -1,5 +1,5 @@
-import { styleText } from "node:util";
-import type { Io } from "./io.ts";
+import { styleText } from 'node:util';
+import type { Io } from './io.ts';
 
 type Style = Parameters<typeof styleText>[0];
 
@@ -11,14 +11,14 @@ export interface Paint {
   cyan: (text: string) => string;
 }
 
-export function paint(io: Pick<Io, "color">): Paint {
+export function paint(io: Pick<Io, 'color'>): Paint {
   const style = (name: Style) => (text: string) =>
     io.color ? styleText(name, text, { validateStream: false }) : text;
   return {
-    bold: style("bold"),
-    dim: style("dim"),
-    yellow: style("yellow"),
-    red: style("red"),
-    cyan: style("cyan"),
+    bold: style('bold'),
+    dim: style('dim'),
+    yellow: style('yellow'),
+    red: style('red'),
+    cyan: style('cyan'),
   };
 }

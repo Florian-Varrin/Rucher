@@ -1,33 +1,33 @@
-import { type Carnet, LEGEND, repoPathFor, type Session } from "@rucher/carnet";
-import { paint } from "../color.ts";
-import type { Io } from "../io.ts";
-import { resolveSession } from "../session.ts";
+import { type Carnet, LEGEND, repoPathFor, type Session } from '@rucher/carnet';
+import { paint } from '../color.ts';
+import type { Io } from '../io.ts';
+import { resolveSession } from '../session.ts';
 
 export interface StatusOptions {
-  session?: string;
-  all?: boolean;
+  session?: string | undefined;
+  all?: boolean | undefined;
 }
 
-const SECTION_HEADERS = new Set(["On the table", "Waiting on you", "Running"]);
+const SECTION_HEADERS = new Set(['On the table', 'Waiting on you', 'Running']);
 
 function truncate(line: string, columns: number): string {
   const chars = Array.from(line);
-  return chars.length > columns ? `${chars.slice(0, Math.max(columns - 1, 1)).join("")}…` : line;
+  return chars.length > columns ? `${chars.slice(0, Math.max(columns - 1, 1)).join('')}…` : line;
 }
 
 function colorizeLine(line: string, io: Io): string {
-  const p = paint(io);
-  if (line === LEGEND) return p.dim(line);
+  const colors = paint(io);
+  if (line === LEGEND) return colors.dim(line);
   const cut = truncate(line, io.columns);
-  if (SECTION_HEADERS.has(line)) return p.bold(cut);
-  if (line.startsWith("  ⚙️")) return p.yellow(cut);
-  if (line === "  nothing") return p.dim(cut);
+  if (SECTION_HEADERS.has(line)) return colors.bold(cut);
+  if (line.startsWith('  ⚙️')) return colors.yellow(cut);
+  if (line === '  nothing') return colors.dim(cut);
   return cut;
 }
 
 export function colorizeStatus(text: string, io: Io): string {
-  const [time, ...rest] = text.split("\n");
-  return [paint(io).dim(time), ...rest.map((line) => colorizeLine(line, io))].join("\n");
+  const [time = '', ...rest] = text.split('\n');
+  return [paint(io).dim(time), ...rest.map((line) => colorizeLine(line, io))].join('\n');
 }
 
 export function sessionWhere(carnet: Carnet, session: Session): string | null {
@@ -35,10 +35,10 @@ export function sessionWhere(carnet: Carnet, session: Session): string | null {
 }
 
 function sessionHeader(carnet: Carnet, session: Session, io: Io): string {
-  const p = paint(io);
+  const colors = paint(io);
   const name = session.name ?? session.id.slice(0, 8);
   const where = sessionWhere(carnet, session);
-  return p.cyan(truncate(`${name}${where ? ` · ${where}` : ""}`, io.columns));
+  return colors.cyan(truncate(`${name}${where ? ` · ${where}` : ''}`, io.columns));
 }
 
 function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
@@ -51,16 +51,18 @@ export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions)
   }
   const active = carnet.sessions
     .list({ includeTemporary: true })
-    .filter((s) => hasSomethingToShow(carnet, s));
-  const sessions = active.length ? active : [resolveSession(carnet)];
-  const blocks = sessions.map((s) => {
-    const sections = carnet.status.sections(s).split("\n");
-    return [sessionHeader(carnet, s, io), ...sections.map((line) => colorizeLine(line, io))].join(
-      "\n",
-    );
+    .filter((session) => hasSomethingToShow(carnet, session));
+  const [first = resolveSession(carnet), ...others] = active;
+  const sessions = [first, ...others];
+  const blocks = sessions.map((session) => {
+    const sections = carnet.status.sections(session).split('\n');
+    return [
+      sessionHeader(carnet, session, io),
+      ...sections.map((line) => colorizeLine(line, io)),
+    ].join('\n');
   });
-  const time = paint(io).dim(carnet.status.view(sessions[0]).time);
-  return [time, "", blocks.join("\n\n"), "", paint(io).dim(LEGEND)].join("\n");
+  const time = paint(io).dim(carnet.status.view(first).time);
+  return [time, '', blocks.join('\n\n'), '', paint(io).dim(LEGEND)].join('\n');
 }
 
 export function statusOnce(carnet: Carnet, io: Io, options: StatusOptions): void {
@@ -68,17 +70,17 @@ export function statusOnce(carnet: Carnet, io: Io, options: StatusOptions): void
 }
 
 export interface WatchOptions extends StatusOptions {
-  intervalMs: number;
+  intervalMilliseconds: number;
   signal?: AbortSignal;
 }
 
-const CLEAR = "\x1b[H\x1b[2J";
-const HIDE_CURSOR = "\x1b[?25l";
-const SHOW_CURSOR = "\x1b[?25h";
+const CLEAR = '\x1b[H\x1b[2J';
+const HIDE_CURSOR = '\x1b[?25l';
+const SHOW_CURSOR = '\x1b[?25h';
 
 export function statusWatch(carnet: Carnet, io: Io, options: WatchOptions): Promise<void> {
   return new Promise((resolve) => {
-    let last = "";
+    let last = '';
     const repaint = () => {
       let text: string;
       try {
@@ -90,13 +92,13 @@ export function statusWatch(carnet: Carnet, io: Io, options: WatchOptions): Prom
       last = text;
       io.stdout(`${CLEAR}${text}\n`);
     };
-    const timer = setInterval(repaint, options.intervalMs);
+    const timer = setInterval(repaint, options.intervalMilliseconds);
     const stop = () => {
       clearInterval(timer);
       io.stdout(SHOW_CURSOR);
       resolve();
     };
-    options.signal?.addEventListener("abort", stop, { once: true });
+    options.signal?.addEventListener('abort', stop, { once: true });
     io.stdout(HIDE_CURSOR);
     repaint();
   });
