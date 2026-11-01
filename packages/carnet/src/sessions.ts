@@ -1,6 +1,6 @@
-import { relative, sep } from "node:path";
 import { type Ctx, nowIso } from "./context.ts";
 import { CarnetError } from "./errors.ts";
+import { type Group, repoNameFor } from "./group/locate.ts";
 
 export type SessionStatus = "temporary" | "active" | "paused" | "dropped";
 
@@ -60,13 +60,6 @@ function toSession(row: SessionRow): Session {
   };
 }
 
-export function repoOf(groupRoot: string, cwd: string | undefined): string | null {
-  if (!cwd) return null;
-  const rel = relative(groupRoot, cwd);
-  if (!rel || rel.startsWith("..")) return null;
-  return rel.split(sep)[0];
-}
-
 function parsePid(value: string | undefined): number | null {
   const pid = Number(value);
   return Number.isInteger(pid) && pid > 0 ? pid : null;
@@ -85,7 +78,7 @@ export function requireSession(ctx: Ctx, id: string): Session {
   return session;
 }
 
-export function ensureSession(ctx: Ctx, id: string, cwd?: string, groupRoot?: string): Session {
+export function ensureSession(ctx: Ctx, id: string, cwd?: string, group?: Group): Session {
   const existing = getSession(ctx, id);
   if (existing) return existing;
   const at = nowIso(ctx);
@@ -93,19 +86,19 @@ export function ensureSession(ctx: Ctx, id: string, cwd?: string, groupRoot?: st
     .prepare(
       "INSERT INTO sessions (id, status, cwd, repo, created_at, last_active_at) VALUES (?, 'temporary', ?, ?, ?, ?)",
     )
-    .run(id, cwd ?? null, groupRoot ? repoOf(groupRoot, cwd) : null, at, at);
+    .run(id, cwd ?? null, group ? repoNameFor(group, cwd) : null, at, at);
   return requireSession(ctx, id);
 }
 
 export function upsertFromHook(
   ctx: Ctx,
-  groupRoot: string,
+  group: Group,
   payload: HookSessionPayload,
   env: HookEnv = {},
 ): Session {
   const at = nowIso(ctx);
   const pid = parsePid(env.CLAUDE_PID);
-  const repo = repoOf(groupRoot, payload.cwd);
+  const repo = repoNameFor(group, payload.cwd);
   const title = payload.session_title?.trim() || null;
   const existing = getSession(ctx, payload.session_id);
   if (!existing) {

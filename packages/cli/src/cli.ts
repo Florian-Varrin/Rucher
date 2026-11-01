@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { CarnetError, openCarnet } from "@rucher/carnet";
 import { defineCommand, runMain } from "citty";
+import { groupAdd, groupShow } from "./commands/group.ts";
 import { sessionStart } from "./commands/hook.ts";
 import { init } from "./commands/init.ts";
 import { logOnce } from "./commands/log.ts";
@@ -41,7 +42,10 @@ const initCommand = defineCommand({
       required: false,
     },
     name: { type: "string", description: "Group name (default: directory name)" },
-    repos: { type: "string", description: "Comma-separated repo folders (default: detected)" },
+    repos: {
+      type: "string",
+      description: "Comma-separated repo paths (more later with `rucher group add`)",
+    },
     ...colorArg,
   },
   run({ args }) {
@@ -107,6 +111,39 @@ const logCommand = defineCommand({
   },
 });
 
+const groupCommand = defineCommand({
+  meta: { name: "group", description: "Show the current group or add a repo to it" },
+  subCommands: {
+    show: defineCommand({
+      meta: { name: "show", description: "Name, meta directory and repos of the current group" },
+      args: { ...colorArg },
+      run({ args }) {
+        const io = processIo({ color: args.color });
+        try {
+          process.exitCode = groupShow(io);
+        } catch (error) {
+          fail(io, error);
+        }
+      },
+    }),
+    add: defineCommand({
+      meta: { name: "add", description: "Add a repo path to the current group" },
+      args: {
+        path: { type: "positional", description: "Repo path", required: true },
+        ...colorArg,
+      },
+      run({ args }) {
+        const io = processIo({ color: args.color });
+        try {
+          process.exitCode = groupAdd(args.path, io);
+        } catch (error) {
+          fail(io, error);
+        }
+      },
+    }),
+  },
+});
+
 const hookCommand = defineCommand({
   meta: { name: "hook", description: "Claude Code hook entry points (JSON payload on stdin)" },
   subCommands: {
@@ -136,6 +173,7 @@ const main = defineCommand({
     init: initCommand,
     status: statusCommand,
     log: logCommand,
+    group: groupCommand,
     hook: hookCommand,
     serve: serveCommand,
   },

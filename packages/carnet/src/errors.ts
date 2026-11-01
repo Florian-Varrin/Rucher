@@ -1,6 +1,7 @@
 export type CarnetErrorCode =
   | "NO_GROUP"
   | "GROUP_EXISTS"
+  | "REPO_NOT_FOUND"
   | "NO_SESSION"
   | "SESSION_NOT_FOUND"
   | "SESSION_NAME_TAKEN"

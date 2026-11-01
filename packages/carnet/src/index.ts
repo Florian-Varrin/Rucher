@@ -16,17 +16,20 @@ export {
   isEventType,
   type LogEventInput,
 } from "./events.ts";
-export { initGroup, type InitOptions } from "./group/init.ts";
+export { addGroupRepo, initGroup, type InitOptions } from "./group/init.ts";
 export {
   DB_FILE,
-  detectRepos,
   findGroupRoot,
   type Group,
   GROUP_DIR,
   GROUP_FILE,
+  type GroupFile,
+  isGroupRoot,
+  isInside,
   loadGroup,
   locateGroup,
   type LocateOptions,
+  repoNameFor,
 } from "./group/locate.ts";
 export { type GroupRef, readRegistry, registerGroup, rucherHome } from "./group/registry.ts";
 export { handleSessionStart, parseHookPayload } from "./hook/session-start.ts";

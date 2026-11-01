@@ -11,6 +11,17 @@ export interface InitOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+function writeGroupFile(root: string, file: GroupFile): void {
+  writeFileSync(join(root, GROUP_DIR, GROUP_FILE), `${JSON.stringify(file, null, 2)}\n`);
+}
+
+function resolveRepo(root: string, repo: string): string {
+  const path = resolve(root, repo);
+  if (!existsSync(path))
+    throw new CarnetError("REPO_NOT_FOUND", `Repo path does not exist: ${path}`);
+  return path;
+}
+
 export function initGroup(dir: string, options: InitOptions = {}): Group {
   const root = resolve(dir);
   const groupDir = join(root, GROUP_DIR);
@@ -18,10 +29,19 @@ export function initGroup(dir: string, options: InitOptions = {}): Group {
     throw new CarnetError("GROUP_EXISTS", `${root} is already a Rucher group`);
   }
   const name = options.name ?? basename(root);
-  const file: GroupFile = options.repos ? { name, repos: options.repos } : { name };
+  const repos = (options.repos ?? []).map((r) => resolveRepo(root, r));
   mkdirSync(groupDir, { recursive: true });
-  writeFileSync(join(groupDir, GROUP_FILE), `${JSON.stringify(file, null, 2)}\n`);
+  writeGroupFile(root, { name, repos });
   openDatabase(join(groupDir, DB_FILE)).close();
   registerGroup({ name, path: root }, options.env);
   return loadGroup(root);
+}
+
+export function addGroupRepo(root: string, repo: string): Group {
+  const group = loadGroup(resolve(root));
+  const path = resolveRepo(group.root, repo);
+  if (!group.repos.includes(path)) {
+    writeGroupFile(group.root, { name: group.name, repos: [...group.repos, path] });
+  }
+  return loadGroup(group.root);
 }

@@ -52,18 +52,22 @@ If pnpm has no global bin directory (`ERR_PNPM_NO_GLOBAL_BIN_DIR`), a symlink do
 ln -s "$PWD/packages/cli/dist/cli.mjs" ~/.local/bin/rucher
 ```
 
-Then, in a meta directory holding your related repos:
+Then create a meta directory for each group of related repos. It holds context only (`CLAUDE.md`, `.claude/settings.json`, the Carnet database); the repos stay where they are and are referenced by path:
 
 ```bash
-rucher init                 # creates .rucher/, a CLAUDE.md and .claude/settings.json template
-rucher status --watch       # the status pane
-rucher log                  # the journal
+mkdir -p ~/Projects/RucherGroups/mycity && cd ~/Projects/RucherGroups/mycity
+rucher init --name mycity --repos ~/code/mycity-api,~/code/mycity-web
+rucher group add ~/code/mycity-infra   # later additions
+rucher status --watch                  # the status pane
+rucher log                             # the journal
 ```
+
+Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared context and `additionalDirectories` gives access to the repos. Sessions started inside one of the repos attach to the same group.
 
 Wire Claude Code with the plugin (MCP server plus `SessionStart` hook), the repo being its own marketplace:
 
 ```bash
-claude plugin marketplace add ~/Projects/Groups/rucher
+claude plugin marketplace add ~/Projects/RucherGroups/rucher
 claude plugin install rucher@rucher
 ```
 

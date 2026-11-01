@@ -9,12 +9,12 @@ Wires [Carnet](../docs/carnet-spec.md) into Claude Code:
 
 - Node.js 24 or later.
 - The `rucher` binary on your `PATH` (`pnpm run build` at the repo root, then `pnpm link --global` in `packages/cli`, or a symlink of `packages/cli/dist/cli.mjs` into `~/.local/bin/rucher`). The plugin calls `rucher` by name, nothing is bundled.
-- A group: run `rucher init` in a meta directory. Outside a group the server still starts, and tools answer `NO_GROUP`.
+- A group: run `rucher init --repos <paths>` in a meta directory. Outside a group (meta directory or one of its repos) the server still starts, and tools answer `NO_GROUP`.
 
 ## Install
 
 ```bash
-claude plugin marketplace add ~/Projects/Groups/rucher   # the repo is its own marketplace
+claude plugin marketplace add ~/Projects/RucherGroups/rucher   # the repo is its own marketplace
 claude plugin install rucher@rucher
 claude plugin list
 ```

@@ -25,12 +25,12 @@ Today the main agent rewrites `agents-status.md` and `log.md` itself, following 
 
 ## Groups
 
-A group is a meta directory holding related repos (for example `~/Work/MyCity/` with `api/`, `web/`, `infra/`). Claude sessions are started from the meta directory or from any repo inside it.
+A group is a meta directory for a set of related repos (for example `~/Projects/RucherGroups/mycity`). It holds context only: the group `CLAUDE.md`, `.claude/settings.json` whose `additionalDirectories` lists the repos, and the Carnet database. The repos stay at their own paths. Claude sessions start from the meta directory, so the shared context loads and every repo is reachable.
 
-- Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repos). A single repo can be its own group: run `rucher init` at the repo root and git-ignore `.rucher/`.
-- Created by `rucher init`, which writes `group.json` and registers the group in `~/.rucher/groups.json` so the CLI can list groups from anywhere. Repos (child directories holding a `.git`) are detected every time the group is loaded, unless `--repos` pinned a list in `group.json`.
-- Resolution: walk up from the current directory (or from the MCP roots) until a `.rucher/` folder is found. Starting `claude` inside `MyCity/api/` attaches the session to MyCity and records the repo on the session.
-- Group instructions and repo access stay native to Claude Code: the meta directory's `CLAUDE.md` loads as an ancestor file, and `permissions.additionalDirectories` in its `.claude/settings.json` grants access to the repos. `rucher init` scaffolds both as templates. Carnet stores no instruction text.
+- Marker: a `.rucher/` folder at the meta directory root, holding `carnet.db` and `group.json` (name, repo paths).
+- Created by `rucher init [--name X] [--repos a,b]`, which writes `group.json`, scaffolds `CLAUDE.md` and `.claude/settings.json` when absent, and registers the group in `~/.rucher/groups.json`. `rucher group add <path>` adds a repo later and merges it into `additionalDirectories`.
+- Resolution: walk up from the current directory (then from `CLAUDE_PROJECT_DIR`) until a `.rucher/` folder is found; otherwise match the directory against the repo paths of the registered groups. So a session started inside a repo attaches to its group, and its `repo` column is the repo folder name.
+- Carnet stores no instruction text: the group `CLAUDE.md` is native Claude Code context.
 
 ## Data model
 
@@ -152,17 +152,18 @@ Rules enforced by the server:
 
 No generated markdown files: the `rucher` CLI reads the SQLite database and renders the views.
 
-| Command                                      | Does                                                                                                                                                          |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rucher init [dir] [--name X] [--repos a,b]` | creates `.rucher/` in the meta directory, detects the repos, registers the group, writes `CLAUDE.md` and `.claude/settings.json` templates when absent        |
-| `rucher status [--session X] [--all]`        | agent status of the default session (most recently active) or of a named one; `--all` shows every session with open agents or a table line, most recent first |
-| `rucher status --watch [--interval s]`       | same, repainted when the output changes, for the dedicated pane                                                                                               |
-| `rucher log [--session X] [-n 20]`           | latest journal events                                                                                                                                         |
-| `rucher log --md [--session X]`              | journal as markdown, one line per event with commit and report link, for archiving in a repo                                                                  |
-| `rucher sessions`                            | active and paused sessions, last activity                                                                                                                     |
-| `rucher resume <name>`                       | runs `claude --resume <name>` for that session                                                                                                                |
-| `rucher hook session-start`                  | hook entry point, reads the hook JSON on stdin, records the session; outside a group or on any error it exits 0 and never blocks Claude                       |
-| `rucher serve`                               | the stdio MCP server; the group is resolved lazily so the server always starts, tools answer `NO_GROUP` outside a group                                       |
+| Command                                         | Does                                                                                                                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rucher init [dir] [--name X] [--repos a,b]`    | creates `.rucher/` in the meta directory with the repo paths, registers the group, writes `CLAUDE.md` and `.claude/settings.json` templates when absent       |
+| `rucher group show` / `rucher group add <path>` | shows the current group; adds a repo path, merges it into `.claude/settings.json` and refreshes the `rucher:repos` block of the group `CLAUDE.md`             |
+| `rucher status [--session X] [--all]`           | agent status of the default session (most recently active) or of a named one; `--all` shows every session with open agents or a table line, most recent first |
+| `rucher status --watch [--interval s]`          | same, repainted when the output changes, for the dedicated pane                                                                                               |
+| `rucher log [--session X] [-n 20]`              | latest journal events                                                                                                                                         |
+| `rucher log --md [--session X]`                 | journal as markdown, one line per event with commit and report link, for archiving in a repo                                                                  |
+| `rucher sessions`                               | active and paused sessions, last activity                                                                                                                     |
+| `rucher resume <name>`                          | runs `claude --resume <name>` for that session                                                                                                                |
+| `rucher hook session-start`                     | hook entry point, reads the hook JSON on stdin, records the session; outside a group or on any error it exits 0 and never blocks Claude                       |
+| `rucher serve`                                  | the stdio MCP server; the group is resolved lazily so the server always starts, tools answer `NO_GROUP` outside a group                                       |
 
 Default session: the most recently active one of the current group.
 
@@ -259,4 +260,4 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 - [ ] Confirm `CLAUDE_CODE_SESSION_ID` is also set for interactive sessions and user-scope servers (expected; dogfooding).
 - [ ] A single HTTP server (daemon) instead of one stdio process per session?
 - [ ] Purge delay for temporary sessions.
-- [ ] How to attach a session to the right group when `claude` is started outside any meta directory.
+- [x] A session started inside a repo attaches to its group through the registry and the repo paths.

@@ -1,47 +1,82 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vite-plus/test";
+import { groupAdd, groupShow } from "../src/commands/group.ts";
 import { init } from "../src/commands/init.ts";
 import { makeIo, tempDir } from "./helpers.ts";
 
-function meta() {
-  const root = tempDir("meta-");
-  mkdirSync(join(root, "api", ".git"), { recursive: true });
-  mkdirSync(join(root, "web", ".git"), { recursive: true });
-  return { root, io: makeIo({ cwd: root, env: { RUCHER_HOME: tempDir("home-") } }) };
+function setup() {
+  const meta = tempDir("meta-");
+  const api = tempDir("repo-api-");
+  const web = tempDir("repo-web-");
+  const env = { RUCHER_HOME: tempDir("home-") };
+  return { meta, api, web, env, io: makeIo({ cwd: meta, env }) };
 }
 
-test("creates the group and both templates", () => {
-  const { root, io } = meta();
-  expect(init({ name: "mycity" }, io)).toBe(0);
+function settingsOf(meta: string) {
+  return JSON.parse(readFileSync(join(meta, ".claude", "settings.json"), "utf8"));
+}
+
+test("init with repos writes the group, the CLAUDE.md template and the settings", () => {
+  const { meta, api, web, io } = setup();
+  expect(init({ name: "mycity", repos: [api, web] }, io)).toBe(0);
   expect(io.out.join("")).toContain("mycity initialised");
-  expect(existsSync(join(root, ".rucher", "carnet.db"))).toBe(true);
-  const claudeMd = readFileSync(join(root, "CLAUDE.md"), "utf8");
+  expect(io.out.join("")).toContain("written .claude/settings.json");
+  expect(existsSync(join(meta, ".rucher", "carnet.db"))).toBe(true);
+  const claudeMd = readFileSync(join(meta, "CLAUDE.md"), "utf8");
   expect(claudeMd).toContain("# mycity");
-  expect(claudeMd).toContain("- `api/`");
-  const settings = JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8"));
-  expect(settings).toEqual({ permissions: { additionalDirectories: ["./api", "./web"] } });
+  expect(claudeMd).toContain(`: ${api}`);
+  expect(settingsOf(meta)).toEqual({ permissions: { additionalDirectories: [api, web] } });
 });
 
-test("an empty folder gets an explicit hint about repos", () => {
-  const root = tempDir("meta-");
-  const io = makeIo({ cwd: root, env: { RUCHER_HOME: tempDir("home-") } });
+test("init without repos writes no settings and points at group add", () => {
+  const { meta, io } = setup();
   expect(init({}, io)).toBe(0);
-  expect(io.out.join("")).toContain("none yet, detected automatically");
-  expect(io.out.join("")).toContain("no .claude/settings.json");
-  expect(existsSync(join(root, ".claude", "settings.json"))).toBe(false);
-  expect(existsSync(join(root, "CLAUDE.md"))).toBe(true);
+  expect(io.out.join("")).toContain("rucher group add <path>");
+  expect(existsSync(join(meta, ".claude", "settings.json"))).toBe(false);
+  expect(readFileSync(join(meta, "CLAUDE.md"), "utf8")).toContain("none yet");
 });
 
-test("keeps existing files, honours --repos and a target dir, refuses a second init", () => {
-  const { root, io } = meta();
-  writeFileSync(join(root, "CLAUDE.md"), "mine\n");
-  expect(init({ dir: ".", repos: ["api"] }, io)).toBe(0);
-  expect(readFileSync(join(root, "CLAUDE.md"), "utf8")).toBe("mine\n");
-  expect(io.out.join("")).toContain("kept existing CLAUDE.md");
-  const settings = JSON.parse(readFileSync(join(root, ".claude", "settings.json"), "utf8"));
-  expect(settings.permissions.additionalDirectories).toEqual(["./api"]);
-  const again = makeIo({ cwd: root, env: io.env });
-  expect(init({}, again)).toBe(1);
-  expect(again.err.join("")).toContain("already a Rucher group");
+test("group add refreshes the repos block of a generated CLAUDE.md", () => {
+  const { meta, api, web, io, env } = setup();
+  expect(init({ repos: [api] }, io)).toBe(0);
+  const path = join(meta, "CLAUDE.md");
+  writeFileSync(path, `${readFileSync(path, "utf8")}\n## Mine\n\nkeep this\n`);
+  const addIo = makeIo({ cwd: meta, env });
+  expect(groupAdd(web, addIo)).toBe(0);
+  expect(addIo.out.join("")).toContain("updated CLAUDE.md");
+  const content = readFileSync(path, "utf8");
+  expect(content).toContain(`: ${api}`);
+  expect(content).toContain(`: ${web}`);
+  expect(content).toContain("## Mine\n\nkeep this");
+  expect(content.match(/<!-- rucher:repos start -->/g)).toHaveLength(1);
+  expect(groupAdd(web, makeIo({ cwd: meta, env })).valueOf()).toBe(0);
+});
+
+test("group add extends group.json and merges into existing settings", () => {
+  const { meta, api, web, io, env } = setup();
+  writeFileSync(join(meta, "CLAUDE.md"), "mine\n");
+  expect(init({ repos: [api] }, io)).toBe(0);
+  expect(readFileSync(join(meta, "CLAUDE.md"), "utf8")).toBe("mine\n");
+  const settings = settingsOf(meta);
+  settings.permissions.allow = ["Bash(ls)"];
+  writeFileSync(join(meta, ".claude", "settings.json"), JSON.stringify(settings));
+
+  const addIo = makeIo({ cwd: meta, env });
+  expect(groupAdd(web, addIo)).toBe(0);
+  expect(addIo.out.join("")).toContain("updated .claude/settings.json");
+  expect(addIo.out.join("")).toContain("no rucher:repos markers");
+  expect(readFileSync(join(meta, "CLAUDE.md"), "utf8")).toBe("mine\n");
+  expect(settingsOf(meta)).toEqual({
+    permissions: { additionalDirectories: [api, web], allow: ["Bash(ls)"] },
+  });
+
+  const fromRepo = makeIo({ cwd: web, env });
+  expect(groupShow(fromRepo)).toBe(0);
+  expect(fromRepo.out.join("")).toContain(web);
+
+  const bad = makeIo({ cwd: meta, env });
+  expect(groupAdd(join(meta, "missing"), bad)).toBe(1);
+  expect(bad.err.join("")).toContain("does not exist");
+  expect(init({}, makeIo({ cwd: meta, env }))).toBe(1);
 });

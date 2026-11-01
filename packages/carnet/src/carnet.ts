@@ -57,9 +57,9 @@ export class Carnet {
   readonly sessions = {
     get: (id: string) => getSession(this.ctx, id),
     require: (id: string) => requireSession(this.ctx, id),
-    ensure: (id: string, cwd?: string) => ensureSession(this.ctx, id, cwd, this.group.root),
+    ensure: (id: string, cwd?: string) => ensureSession(this.ctx, id, cwd, this.group),
     upsertFromHook: (payload: HookSessionPayload, env?: HookEnv) =>
-      upsertFromHook(this.ctx, this.group.root, payload, env),
+      upsertFromHook(this.ctx, this.group, payload, env),
     touch: (id: string) => touchSession(this.ctx, id),
     name: (id: string, name: string, purpose?: string) => nameSession(this.ctx, id, name, purpose),
     list: (options?: ListSessionsOptions) => listSessions(this.ctx, options),

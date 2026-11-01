@@ -34,6 +34,3 @@ dist-ssr
 
 # Local Claude context, never committed
 dev/claude/
-
-# Local Rucher group database (this repo is its own group)
-.rucher/

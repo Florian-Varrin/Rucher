@@ -7,18 +7,19 @@ import { makeIo, SESSION, tempDir } from "./helpers.ts";
 
 function group() {
   const root = tempDir("meta-");
-  mkdirSync(join(root, "api", ".git"), { recursive: true });
+  const api = tempDir("repo-api-");
+  mkdirSync(join(api, "src"), { recursive: true });
   const env = { RUCHER_HOME: tempDir("home-"), CLAUDE_PID: "4242" };
-  initGroup(root, { env });
-  return { root, env };
+  initGroup(root, { env, repos: [api] });
+  return { root, api, env };
 }
 
 test("records the session of a group with pid and repo", () => {
-  const { root, env } = group();
+  const { root, api, env } = group();
   const io = makeIo({ env });
   const payload = JSON.stringify({
     session_id: SESSION,
-    cwd: join(root, "api"),
+    cwd: join(api, "src"),
     source: "startup",
   });
   expect(sessionStart(payload, io)).toBe(0);
@@ -27,7 +28,7 @@ test("records the session of a group with pid and repo", () => {
   const carnet = openCarnet({ cwd: root, env });
   expect(carnet.sessions.get(SESSION)).toMatchObject({
     status: "temporary",
-    repo: "api",
+    repo: api.split("/").at(-1),
     claudePid: 4242,
   });
   carnet.close();
