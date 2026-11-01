@@ -5,7 +5,9 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "ready": "vp check && vp run -r test && vp run -r build",
+    "build": "vp run -r build",
+    "test": "vp run -r test",
+    "ready": "vp run -r build && vp check && vp run -r test",
     "prepare": "vp config"
   },
   "devDependencies": {

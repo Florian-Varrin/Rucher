@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { beforeAll, expect, test } from "vite-plus/test";
-import type { Carnet } from "../src/index.ts";
+import { type Carnet, CarnetError } from "../src/index.ts";
 import { createCarnetServer, INSTRUCTIONS, TOOLS } from "../src/mcp/index.ts";
 import { makeCarnet, SESSION } from "./helpers.ts";
 
@@ -105,4 +105,21 @@ test("an explicit session targets another session", async () => {
   const other = await call("agent_start", { name: "x", task: "t", session: "other-session" });
   expect(other.isError).toBe(false);
   expect(carnet.agents.list("other-session").map((a) => a.name)).toEqual(["x"]);
+});
+
+test("a lazy carnet that has no group answers NO_GROUP instead of failing to start", async () => {
+  const server = createCarnetServer({
+    carnet: () => {
+      throw new CarnetError("NO_GROUP", "no group here");
+    },
+    env: {},
+    ppid: 1,
+  });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  const lazyClient = new Client({ name: "lazy", version: "0.0.0" });
+  await lazyClient.connect(clientTransport);
+  const result = await lazyClient.callTool({ name: "agent_list", arguments: {} });
+  expect(result.isError).toBe(true);
+  expect(JSON.stringify(result.content)).toContain("NO_GROUP");
 });

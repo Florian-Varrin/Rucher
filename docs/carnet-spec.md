@@ -152,17 +152,17 @@ Rules enforced by the server:
 
 No generated markdown files: the `rucher` CLI reads the SQLite database and renders the views.
 
-| Command                            | Does                                                                                                                               |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `rucher init [--name X]`           | creates `.rucher/` in the current meta directory, registers the group, scaffolds `CLAUDE.md` and `.claude/settings.json` templates |
-| `rucher status [--session X]`      | agent status (format below)                                                                                                        |
-| `rucher status --watch`            | same, refreshed continuously, for the dedicated pane                                                                               |
-| `rucher log [--session X] [-n 20]` | latest journal events                                                                                                              |
-| `rucher log --md [--session X]`    | journal as markdown, one line per event with commit and report link, for archiving in a repo                                       |
-| `rucher sessions`                  | active and paused sessions, last activity                                                                                          |
-| `rucher resume <name>`             | runs `claude --resume <name>` for that session                                                                                     |
-| `rucher hook session-start`        | hook entry point, reads the hook JSON on stdin                                                                                     |
-| `rucher serve`                     | the stdio MCP server                                                                                                               |
+| Command                                      | Does                                                                                                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rucher init [dir] [--name X] [--repos a,b]` | creates `.rucher/` in the meta directory, detects the repos, registers the group, writes `CLAUDE.md` and `.claude/settings.json` templates when absent        |
+| `rucher status [--session X] [--all]`        | agent status of the default session (most recently active) or of a named one; `--all` shows every session with open agents or a table line, most recent first |
+| `rucher status --watch [--interval s]`       | same, repainted when the output changes, for the dedicated pane                                                                                               |
+| `rucher log [--session X] [-n 20]`           | latest journal events                                                                                                                                         |
+| `rucher log --md [--session X]`              | journal as markdown, one line per event with commit and report link, for archiving in a repo                                                                  |
+| `rucher sessions`                            | active and paused sessions, last activity                                                                                                                     |
+| `rucher resume <name>`                       | runs `claude --resume <name>` for that session                                                                                                                |
+| `rucher hook session-start`                  | hook entry point, reads the hook JSON on stdin, records the session; outside a group or on any error it exits 0 and never blocks Claude                       |
+| `rucher serve`                               | the stdio MCP server; the group is resolved lazily so the server always starts, tools answer `NO_GROUP` outside a group                                       |
 
 Default session: the most recently active one of the current group.
 
@@ -232,9 +232,9 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 
 - [x] SQLite schema and data layer
 - [x] Group resolution (`rucher init` logic in the library)
-- [ ] `SessionStart` hook writing session rows, server session resolution
+- [x] `SessionStart` hook writing session rows, server session resolution
 - [x] Agent and table tools, `queue_reorder`, `log_event` (MCP server in `@rucher/carnet/mcp`)
-- [ ] `rucher status` (with `--watch`), `rucher log`
+- [x] `rucher status` (with `--watch`, `--all`), `rucher log`, `rucher init`, `rucher hook session-start`, `rucher serve`
 - [ ] Plugin install; dogfooding on real groups
 
 **Milestone 2**

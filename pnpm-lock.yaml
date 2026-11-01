@@ -15,6 +15,9 @@ catalogs:
     '@types/node':
       specifier: ^24
       version: 24.19.2
+    citty:
+      specifier: ^0.2.2
+      version: 0.2.2
     typescript:
       specifier: ^7.0.2
       version: 7.0.2
@@ -48,6 +51,25 @@ importers:
       '@modelcontextprotocol/client':
         specifier: 'catalog:'
         version: 2.4.0
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.19.2
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.4.0(@types/node@24.19.2)(@vitest/ui@5.0.5(vitest@5.0.5))(typescript@7.0.2)
+
+  packages/cli:
+    dependencies:
+      '@rucher/carnet':
+        specifier: workspace:*
+        version: link:../carnet
+      citty:
+        specifier: 'catalog:'
+        version: 0.2.2
+    devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
@@ -881,6 +903,9 @@ packages:
   chai@6.3.0:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
+
+  citty@0.2.2:
+    resolution: {integrity: sha512-+6vJA3L98yv+IdfKGZHBNiGW5KHn22e/JwID0Strsz8h4S/csAu/OuICwxrg44k5MRiZHWIo8XXuJgQTriRP4w==}
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
@@ -1886,6 +1911,8 @@ snapshots:
   assertion-error@2.0.1: {}
 
   chai@6.3.0: {}
+
+  citty@0.2.2: {}
 
   convert-source-map@2.0.0: {}
 

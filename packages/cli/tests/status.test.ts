@@ -1,0 +1,92 @@
+import { expect, test } from "vite-plus/test";
+import { renderStatusView, statusWatch } from "../src/commands/status.ts";
+import { CliError } from "../src/session.ts";
+import { makeCarnet, makeIo, SESSION } from "./helpers.ts";
+
+function seeded() {
+  const made = makeCarnet();
+  const { carnet } = made;
+  carnet.agents.start(SESSION, { name: "banner", task: "t" });
+  carnet.agents.start(SESSION, { name: "dto", task: "t" });
+  carnet.agents.finish(SESSION, "dto", { reportPath: "r.md", hasQuestions: true });
+  carnet.table.set(SESSION, { text: "Step 1 — applying", mainWorking: true });
+  return made;
+}
+
+test("renders the default session as plain text without color", () => {
+  const { carnet } = seeded();
+  const text = renderStatusView(carnet, makeIo(), {});
+  const lines = text.split("\n");
+  expect(lines[0]).toMatch(/^\d\d:\d\d$/);
+  expect(lines.slice(1)).toEqual([
+    "",
+    "On the table",
+    "  ⚙️ Step 1 — applying (main working, not ready)",
+    "",
+    "Waiting on you",
+    "  1. ❓ dto",
+    "",
+    "Running",
+    "  ⏳ banner",
+    "",
+    "⚙️ main working · 💬 discussing · ❓ answer · 👀 review · 📥 apply · 🧪 test · ✅ commit · 🌿 branch · ⏳ running",
+  ]);
+});
+
+test("colors headers and the main working line when color is on", () => {
+  const { carnet } = seeded();
+  const text = renderStatusView(carnet, makeIo({ color: true }), {});
+  expect(text).toContain("\x1b[1mWaiting on you\x1b[22m");
+  expect(text).toContain("\x1b[33m  ⚙️ Step 1 — applying (main working, not ready)\x1b[39m");
+});
+
+test("truncates lines to the terminal width", () => {
+  const { carnet } = seeded();
+  const text = renderStatusView(carnet, makeIo({ columns: 20 }), {});
+  const lines = text.split("\n");
+  expect(lines.slice(1, -1).every((l) => Array.from(l).length <= 20)).toBe(true);
+  expect(text).toContain("  ⚙️ Step 1 — apply…");
+  expect(lines.at(-1)).toContain("⏳ running");
+});
+
+test("--session accepts a name and rejects unknown refs with the known names", () => {
+  const { carnet } = seeded();
+  carnet.sessions.name(SESSION, "banner-work");
+  expect(renderStatusView(carnet, makeIo(), { session: "banner-work" })).toContain("⏳ banner");
+  try {
+    renderStatusView(carnet, makeIo(), { session: "nope" });
+    expect.unreachable();
+  } catch (error) {
+    expect(error).toBeInstanceOf(CliError);
+    expect((error as CliError).hint).toBe("known sessions: banner-work");
+  }
+});
+
+test("--all lists sessions with activity under a header, most recent first", () => {
+  const { carnet, root } = seeded();
+  carnet.sessions.upsertFromHook({ session_id: "other", cwd: root, session_title: "other-work" });
+  carnet.agents.start("other", { name: "x", task: "t" });
+  carnet.sessions.upsertFromHook({ session_id: "idle", cwd: root });
+  const text = renderStatusView(carnet, makeIo(), { all: true });
+  const headers = text
+    .split("\n")
+    .filter((l) => l.startsWith("other-work") || l.startsWith("0360889d"));
+  expect(headers).toEqual(["other-work", "0360889d · api"]);
+  expect(text).not.toContain("idle");
+});
+
+test("watch repaints only on change and stops on abort", async () => {
+  const { carnet } = seeded();
+  const io = makeIo();
+  const controller = new AbortController();
+  const done = statusWatch(carnet, io, { intervalMs: 5, signal: controller.signal });
+  await new Promise((r) => setTimeout(r, 30));
+  const paints = io.out.filter((o) => o.startsWith("\x1b[H\x1b[2J")).length;
+  expect(paints).toBe(1);
+  carnet.agents.update(SESSION, "banner", { status: "running", note: "moved" });
+  await new Promise((r) => setTimeout(r, 30));
+  expect(io.out.filter((o) => o.startsWith("\x1b[H\x1b[2J")).length).toBe(2);
+  controller.abort();
+  await done;
+  expect(io.out.at(-1)).toBe("\x1b[?25h");
+});

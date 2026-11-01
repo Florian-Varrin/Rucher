@@ -1,0 +1,51 @@
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { initGroup, openCarnet } from "@rucher/carnet";
+import { expect, test } from "vite-plus/test";
+import { sessionStart } from "../src/commands/hook.ts";
+import { makeIo, SESSION, tempDir } from "./helpers.ts";
+
+function group() {
+  const root = tempDir("meta-");
+  mkdirSync(join(root, "api", ".git"), { recursive: true });
+  const env = { RUCHER_HOME: tempDir("home-"), CLAUDE_PID: "4242" };
+  initGroup(root, { env });
+  return { root, env };
+}
+
+test("records the session of a group with pid and repo", () => {
+  const { root, env } = group();
+  const io = makeIo({ env });
+  const payload = JSON.stringify({
+    session_id: SESSION,
+    cwd: join(root, "api"),
+    source: "startup",
+  });
+  expect(sessionStart(payload, io)).toBe(0);
+  expect(io.out).toEqual([]);
+  expect(io.err).toEqual([]);
+  const carnet = openCarnet({ cwd: root, env });
+  expect(carnet.sessions.get(SESSION)).toMatchObject({
+    status: "temporary",
+    repo: "api",
+    claudePid: 4242,
+  });
+  carnet.close();
+});
+
+test("outside any group it stays silent and succeeds", () => {
+  const io = makeIo({ env: { RUCHER_HOME: tempDir("home-") } });
+  const payload = JSON.stringify({ session_id: SESSION, cwd: tempDir("nogroup-") });
+  expect(sessionStart(payload, io)).toBe(0);
+  expect(io.out).toEqual([]);
+  expect(io.err).toEqual([]);
+});
+
+test("malformed input never fails the hook", () => {
+  const io = makeIo();
+  expect(sessionStart("not json", io)).toBe(0);
+  expect(io.err.join("")).toMatch(/^rucher hook: /);
+  const io2 = makeIo();
+  expect(sessionStart("{}", io2)).toBe(0);
+  expect(io2.err.join("")).toContain("session_id");
+});

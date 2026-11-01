@@ -38,13 +38,32 @@ docs/             manifesto and specs
 - pnpm
 - Claude Code installed and logged in
 
+## Install (from source, for now)
+
+```bash
+pnpm install
+pnpm run build                          # builds @rucher/carnet and @rucher/cli
+cd packages/cli && pnpm link --global   # puts `rucher` on your PATH
+```
+
+Then, in a meta directory holding your related repos:
+
+```bash
+rucher init                 # creates .rucher/, a CLAUDE.md and .claude/settings.json template
+rucher status --watch       # the status pane
+rucher log                  # the journal
+```
+
+Claude Code wiring (MCP server `rucher serve` and the `SessionStart` hook `rucher hook session-start`) ships as a plugin in `plugin/`, see its README once it lands.
+
 ## Development
 
 ```bash
-pnpm install          # or: vp install
+pnpm install
+pnpm run build        # carnet must be built before the cli type-checks or tests
 pnpm exec vp check    # format, lint, type check
-pnpm exec vp test     # unit tests
-pnpm exec vp run ready
+pnpm run test
+pnpm run ready        # build, check, test
 ```
 
 The toolchain is [Vite+](https://viteplus.dev). The `vite-plus` dev dependency is the source of truth; a global `vp` is optional.
