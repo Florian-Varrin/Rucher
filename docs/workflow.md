@@ -82,6 +82,7 @@ Dropped work: revert it in the main repo, keep its patch in the scratchpad, `age
 - `rucher status --watch` in a side pane: the "On the table" line, the numbered "Waiting on you" list, the running forks, the legend.
 - `rucher log` for the journal: started, finished, answered, applied, tested, committed, dropped, with report links and commit shas.
 - Nothing about status in the chat.
+- Sessions (naming, resuming, dropping): [sessions.md](sessions.md).
 
 ## Block for your global `CLAUDE.md`
 

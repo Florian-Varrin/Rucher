@@ -71,6 +71,8 @@ rucher resume shop-auth                # back into a named session
 
 Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared context and `additionalDirectories` gives access to the repos. Sessions started inside one of the repos attach to the same group.
 
+Naming, watching, resuming and dropping sessions: [docs/sessions.md](docs/sessions.md).
+
 Wire Claude Code with the plugin (MCP server plus `SessionStart` hook), the repo being its own marketplace:
 
 ```bash
