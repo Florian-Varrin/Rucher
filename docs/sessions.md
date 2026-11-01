@@ -49,15 +49,15 @@ You can also ask Claude to name the session (it calls `session_new` with a name 
 
 ## See what is going on
 
-| Command                                  | Shows                                                                                                                         |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `rucher status`                          | the default session (the most recently active one), headed by its name: On the table, Waiting on you, Running, legend         |
-| `rucher status --session shop-auth`      | a given session, by name, id or id prefix (`-s` for short)                                                                    |
-| `rucher status --all`                    | every session with open agents or a table line: one clock, one block per session (name and repo-relative cwd), one legend     |
-| `rucher status --watch [--interval 2]`   | repaints when the output changes; combine with `--all` or `--session`                                                         |
-| `rucher sessions [--all]`                | named sessions: name, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temporary and dropped ones |
-| `rucher log [-s shop-auth] [-n 20]`      | the last journal events                                                                                                       |
-| `rucher log --md > shop-auth-journal.md` | the journal as Markdown, grouped by day, for archiving                                                                        |
+| Command                                  | Shows                                                                                                                                               |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rucher status`                          | the default session (the most recently active one), its name next to the clock (`16:41 - shop-auth`): On the table, Waiting on you, Running, legend |
+| `rucher status --session shop-auth`      | a given session, by name, id or id prefix (`-s` for short)                                                                                          |
+| `rucher status --all`                    | every session with open agents or a table line: one clock, one block per session (name and repo-relative cwd), one legend                           |
+| `rucher status --watch [--interval 2]`   | repaints when the output changes; combine with `--all` or `--session`                                                                               |
+| `rucher sessions [--all]`                | named sessions: name, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temporary and dropped ones                       |
+| `rucher log [-s shop-auth] [-n 20]`      | the last journal events                                                                                                                             |
+| `rucher log --md > shop-auth-journal.md` | the journal as Markdown, grouped by day, for archiving                                                                                              |
 
 From inside Claude, the main agent has the same view through `session_list`, `session_resume_info` and `log_read`.
 

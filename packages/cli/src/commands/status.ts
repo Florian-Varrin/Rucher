@@ -41,11 +41,24 @@ export function sessionWhere(carnet: Carnet, session: Session): string | null {
   return repoPathFor(carnet.group, session.cwd) ?? session.repo;
 }
 
-function sessionHeader(carnet: Carnet, session: Session, io: Io): string {
-  const colors = paint(io);
+function sessionLabel(carnet: Carnet, session: Session, columns: number): string {
   const name = session.name ?? session.id.slice(0, 8);
   const where = sessionWhere(carnet, session);
-  return colors.cyan(truncate(`${name}${where ? ` · ${where}` : ''}`, io.columns));
+  if (!where) return name;
+  // The name identifies the pane: only the cwd gives way to a narrow terminal.
+  const room = columns - Array.from(name).length - 3;
+  return room > 1 ? `${name} · ${truncate(where, room)}` : name;
+}
+
+function sessionHeader(carnet: Carnet, session: Session, io: Io): string {
+  return paint(io).cyan(sessionLabel(carnet, session, io.columns));
+}
+
+function sessionLines(carnet: Carnet, session: Session, view: StatusView, io: Io): string[] {
+  if (session.status === 'dropped') return [paint(io).dim('  dropped, see rucher sessions --all')];
+  return renderSections(view)
+    .split('\n')
+    .map((line) => colorizeLine(line, io));
 }
 
 function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
@@ -53,12 +66,18 @@ function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
 }
 
 function sessionBlock(carnet: Carnet, session: Session, view: StatusView, io: Io): string {
-  const header = sessionHeader(carnet, session, io);
-  if (session.status === 'dropped') {
-    return [header, paint(io).dim('  dropped, see rucher sessions --all')].join('\n');
-  }
-  const sections = renderSections(view).split('\n');
-  return [header, ...sections.map((line) => colorizeLine(line, io))].join('\n');
+  return [sessionHeader(carnet, session, io), ...sessionLines(carnet, session, view, io)].join(
+    '\n',
+  );
+}
+
+function singleView(carnet: Carnet, session: Session, io: Io): string {
+  const colors = paint(io);
+  const view = carnet.status.view(session);
+  const separator = ' - ';
+  const label = sessionLabel(carnet, session, io.columns - view.time.length - separator.length);
+  const title = `${colors.dim(view.time)}${separator}${colors.cyan(label)}`;
+  return [title, '', ...sessionLines(carnet, session, view, io), '', colors.dim(LEGEND)].join('\n');
 }
 
 export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions): string {
@@ -67,7 +86,7 @@ export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions)
         .list({ includeTemporary: true })
         .filter((session) => hasSomethingToShow(carnet, session))
     : [];
-  if (sessions.length === 0) sessions.push(resolveSession(carnet, options.session));
+  if (sessions.length === 0) return singleView(carnet, resolveSession(carnet, options.session), io);
   let time = '';
   const blocks = sessions.map((session) => {
     const view = carnet.status.view(session);

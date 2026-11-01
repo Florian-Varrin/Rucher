@@ -20,10 +20,9 @@ test('renders the default session as plain text without color', () => {
   const { carnet } = seeded();
   const text = renderStatusView(carnet, makeIo(), {});
   const lines = text.split('\n');
-  expect(lines[0]).toMatch(/^\d\d:\d\d$/);
+  expect(lines[0]).toMatch(/^\d\d:\d\d - 0360889d · api$/);
   expect(lines.slice(1)).toEqual([
     '',
-    '0360889d · api',
     'On the table',
     '  ⚙️ Step 1 — applying (main working, not ready)',
     '',
@@ -127,10 +126,10 @@ test('--all headers show the cwd relative to its repo', () => {
 test('the single view names its session and follows the default on every render', () => {
   const { carnet, root } = seeded();
   carnet.sessions.name(SESSION, 'shop-auth');
-  expect(renderStatusView(carnet, makeIo(), {}).split('\n')[2]).toBe('shop-auth · api');
+  expect(renderStatusView(carnet, makeIo(), {}).split('\n')[0]).toMatch(/ - shop-auth · api$/);
   carnet.sessions.upsertFromHook({ session_id: 'later', cwd: root, session_title: 'shop-cart' });
   const text = renderStatusView(carnet, makeIo(), {});
-  expect(text.split('\n')[2]).toBe('shop-cart');
+  expect(text.split('\n')[0]).toMatch(/^\d\d:\d\d - shop-cart$/);
   expect(text).not.toContain('banner');
 });
 
@@ -139,7 +138,8 @@ test('a dropped --session says so instead of showing stale data', () => {
   carnet.sessions.name(SESSION, 'shop-auth');
   carnet.sessions.drop(SESSION);
   const lines = renderStatusView(carnet, makeIo(), { session: 'shop-auth' }).split('\n');
-  expect(lines.slice(2, 4)).toEqual(['shop-auth · api', '  dropped, see rucher sessions --all']);
+  expect(lines[0]).toMatch(/ - shop-auth · api$/);
+  expect(lines.slice(1, 3)).toEqual(['', '  dropped, see rucher sessions --all']);
 });
 
 test('--all --watch picks up a session that starts after the watch', async () => {
@@ -157,4 +157,21 @@ test('--all --watch picks up a session that starts after the watch', async () =>
   controller.abort();
   await done;
   expect(io.output.join('')).toContain('shop-cart');
+});
+
+test('a narrow terminal cuts the cwd, never the clock or the session name', () => {
+  const { carnet, root } = seeded();
+  mkdirSync(join(root, 'api', 'src', 'deep'), { recursive: true });
+  carnet.sessions.upsertFromHook({
+    session_id: SESSION,
+    cwd: join(root, 'api', 'src', 'deep'),
+    source: 'resume',
+    session_title: 'shop-auth',
+  });
+  expect(renderStatusView(carnet, makeIo({ columns: 24 }), {}).split('\n')[0]).toMatch(
+    /^\d\d:\d\d - shop-auth · api…$/,
+  );
+  expect(renderStatusView(carnet, makeIo({ columns: 10 }), {}).split('\n')[0]).toMatch(
+    /^\d\d:\d\d - shop-auth$/,
+  );
 });
