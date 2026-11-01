@@ -109,6 +109,22 @@ Inside the workspace, `@rucher/carnet` resolves to its sources through the `deve
 
 The toolchain is [Vite+](https://viteplus.dev). The `vite-plus` dev dependency is the source of truth; a global `vp` is optional.
 
+## Releasing
+
+Releases go through [Changesets](https://github.com/changesets/changesets) and GitHub Actions.
+
+- Pull requests run `.github/workflows/verify.yml`: build, check, test.
+- Every push to `master` is a release (`.github/workflows/production.yml`): it reads the pending changesets, verifies, bumps the versions, commits `CI : version bump [skip ci]` as `github-actions[bot]`, tags each bumped component (`carnet-v<version>`, `cli-v<version>`) and publishes them to npm. A push without a pending changeset fails.
+- `pnpm changeset` adds one. A summary starting with `internal:` releases without a changelog line.
+- `@rucher/carnet` and `@rucher/cli` are versioned independently; a carnet release also releases the cli. The Claude Code plugin has no code of its own and takes the cli version.
+- pnpm is pinned by `devEngines` in `package.json`; `PNPM_VERSION` in the workflows must match (checked by CI).
+
+Repository settings the release needs:
+
+- Secret `RELEASE_PAT`: a fine-grained token on this repository with `Contents: read and write`, used to push the bump commit and the tags.
+- Secret `NPM_TOKEN`: an npm automation token allowed to publish the `@rucher` scope.
+- Branch protection on `master`: let the `RELEASE_PAT` owner push, and require the `Verify` check on pull requests.
+
 ## Claude Code terms
 
 Rucher drives the official `claude` binary and Claude Code's own sessions, forks, hooks and MCP. It uses your Claude Code installation and your subscription, under Anthropic's terms. It handles no authentication, never reads or reuses your OAuth token, and has no hosted version.

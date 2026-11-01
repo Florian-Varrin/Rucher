@@ -1,0 +1,274 @@
+name: Production release
+
+# Every push to master is a stable release; the CI bump commit carries [skip ci].
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PNPM_VERSION: 12.16.1
+  NODE_VERSION: 24
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      carnet: ${{ steps.detect.outputs.carnet }}
+      cli: ${{ steps.detect.outputs.cli }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: pnpm version matches devEngines
+        run: |
+          set -euo pipefail
+          expected=$(jq -r .devEngines.packageManager.version package.json)
+          if [ "$PNPM_VERSION" != "$expected" ]; then
+            echo "::error::PNPM_VERSION $PNPM_VERSION differs from devEngines $expected"
+            exit 1
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Detect changes via changeset status
+        id: detect
+        run: bash .github/scripts/detect-changes.sh
+
+  verify:
+    name: Build, check and test
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Check
+        run: pnpm run check
+
+      - name: Test
+        run: pnpm run test
+
+  version:
+    name: Version (ephemeral)
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    outputs:
+      carnet_version: ${{ steps.version.outputs.carnet_version }}
+      cli_version: ${{ steps.version.outputs.cli_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Bump versions, sync the plugin, guard tags, produce the bump patch
+        id: version
+        env:
+          CARNET_BUMPED: ${{ needs.detect-changes.outputs.carnet }}
+          CLI_BUMPED: ${{ needs.detect-changes.outputs.cli }}
+        run: bash .github/scripts/version.sh
+
+      - name: Upload bump patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: version-bump
+          path: version-bump.patch
+          retention-days: 7
+
+  commit-tag:
+    name: Commit + tag
+    runs-on: ubuntu-latest
+    needs: [detect-changes, version, verify]
+    outputs:
+      sha: ${{ steps.push.outputs.sha }}
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Sanity — master tip unchanged since the push
+        env:
+          BASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          current=$(git rev-parse HEAD)
+          if [ "$current" != "$BASE_SHA" ]; then
+            echo "::error::master moved during the run (expected $BASE_SHA, got $current). Aborting to avoid clobbering."
+            exit 1
+          fi
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Download bump patch
+        uses: actions/download-artifact@v4
+        with:
+          name: version-bump
+
+      - name: Apply + commit
+        run: |
+          set -euo pipefail
+          git apply --whitespace=nowarn version-bump.patch
+          rm -f version-bump.patch
+          git add -A
+          git commit -m "CI : version bump [skip ci]"
+
+      - name: Push commit + tags
+        id: push
+        env:
+          CARNET_BUMPED: ${{ needs.detect-changes.outputs.carnet }}
+          CLI_BUMPED: ${{ needs.detect-changes.outputs.cli }}
+          CARNET_VERSION: ${{ needs.version.outputs.carnet_version }}
+          CLI_VERSION: ${{ needs.version.outputs.cli_version }}
+        run: |
+          set -euo pipefail
+          git push origin HEAD:master
+
+          if [ "$CARNET_BUMPED" = "true" ]; then
+            git tag "carnet-v$CARNET_VERSION"
+          fi
+          if [ "$CLI_BUMPED" = "true" ]; then
+            git tag "cli-v$CLI_VERSION"
+          fi
+          git push origin --tags
+
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  publish-carnet:
+    name: Publish carnet to npm
+    needs: [detect-changes, commit-tag]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.carnet == 'true' &&
+      needs.commit-tag.result == 'success'
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: Checkout at commit-tag SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.commit-tag.outputs.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node with npm registry auth
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build carnet
+        run: pnpm --filter @rucher/carnet build
+
+      - name: Publish
+        working-directory: packages/carnet
+        run: pnpm publish --tag latest --no-git-checks --access public
+
+  # After carnet: the cli depends on the carnet version published there.
+  publish-cli:
+    name: Publish CLI to npm
+    needs: [detect-changes, commit-tag, publish-carnet]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.cli == 'true' &&
+      needs.commit-tag.result == 'success' &&
+      (needs.publish-carnet.result == 'success' || needs.publish-carnet.result == 'skipped')
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+    steps:
+      - name: Checkout at commit-tag SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.commit-tag.outputs.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node with npm registry auth
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build CLI
+        run: pnpm --filter @rucher/cli... build
+
+      - name: Publish
+        working-directory: packages/cli
+        run: pnpm publish --tag latest --no-git-checks --access public

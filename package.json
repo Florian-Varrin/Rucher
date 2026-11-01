@@ -9,9 +9,12 @@
     "test": "vp run -r test",
     "check": "vp check",
     "ready": "vp run -r build && vp check && vp run -r test",
-    "prepare": "vp config"
+    "prepare": "vp config",
+    "changeset": "changeset"
   },
   "devDependencies": {
+    "@changesets/changelog-git": "catalog:",
+    "@changesets/cli": "catalog:",
     "vite-plus": "catalog:"
   },
   "devEngines": {

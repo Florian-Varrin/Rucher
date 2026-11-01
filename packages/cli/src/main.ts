@@ -1,5 +1,6 @@
 import { CarnetError, openCarnet } from '@rucher/carnet';
 import { defineCommand } from 'citty';
+import packageJson from '../package.json' with { type: 'json' };
 import { groupAdd, groupRemove, groupShow, groupSync } from './commands/group.ts';
 import { groupsForget, groupsList, groupsPrune } from './commands/groups.ts';
 import { sessionStart, subagentStart, subagentStop, userPromptSubmit } from './commands/hook.ts';
@@ -337,7 +338,7 @@ const serveCommand = defineCommand({
 export const main = defineCommand({
   meta: {
     name: 'rucher',
-    version: '0.0.0',
+    version: packageJson.version,
     description: 'Status, journal and sessions of your Claude Code sub-agents',
   },
   subCommands: {
