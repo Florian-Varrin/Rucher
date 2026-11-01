@@ -12,6 +12,7 @@ Main agent:
 - When a fork finishes: say one line "<name> finished, report ready", copy its report to dev/claude/forks/<name>.md and call agent_update with the new report_path. Present the report only when asked.
 - agent_drop when a fork's work is committed or abandoned. queue_reorder to change the handling order.
 - agent_list to recall where things stand.
+- Sessions: session_new when the human names this session (then ask them to /rename it the same way); session_list, session_resume_info and log_read to recall other sessions or the journal; session_drop only when the human asks.
 
 Forks:
 - agent_update (status running, short note) at meaningful progress.

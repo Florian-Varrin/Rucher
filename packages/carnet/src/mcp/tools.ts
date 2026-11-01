@@ -1,6 +1,9 @@
 import * as z from "zod/v4";
 import type { Carnet } from "../carnet.ts";
+import { CarnetError } from "../errors.ts";
 import { EVENT_TYPES } from "../events.ts";
+import { formatEventLine, resumeContext, sessionLabel } from "../resume.ts";
+import type { Session } from "../sessions.ts";
 import { EMOJI, OPEN_AGENT_STATUSES, USER_ACTION_STATUSES } from "../status/model.ts";
 import { renderAgentLine, renderTableLine } from "../status/render.ts";
 
@@ -206,6 +209,102 @@ const logEvent = defineTool({
   },
 });
 
+const sessionName = z.string().trim().min(1).describe("Short session name, used by rucher resume");
+
+function findSession(carnet: Carnet, ref: string): Session {
+  const found = carnet.sessions.byName(ref) ?? carnet.sessions.get(ref);
+  if (!found) throw new CarnetError("SESSION_NOT_FOUND", `Unknown session "${ref}"`);
+  return found;
+}
+
+const sessionNew = defineTool({
+  name: "session_new",
+  description:
+    "Name the current session (or rename it) so it can be resumed later with `rucher resume <name>`. Promotes a temporary session to active.",
+  schema: z.object({
+    name: sessionName,
+    purpose: z.string().optional().describe("One line: what this session is for"),
+    session,
+  }),
+  run: (carnet, sessionId, args) => {
+    const named = carnet.sessions.name(sessionId, args.name, args.purpose);
+    return {
+      text: `Session named ${named.name}. Ask the human to run /rename ${named.name} in Claude Code so the titles match.`,
+      data: { session: named },
+    };
+  },
+});
+
+const sessionList = defineTool({
+  name: "session_list",
+  description:
+    "List the group's sessions, most recently active first. Temporary and dropped ones are hidden unless asked.",
+  schema: z.object({
+    include_temporary: z.boolean().optional(),
+    include_dropped: z.boolean().optional(),
+    session,
+  }),
+  run: (carnet, sessionId, args) => {
+    const sessions = carnet.sessions.list({
+      includeTemporary: args.include_temporary,
+      includeDropped: args.include_dropped,
+    });
+    const lines = sessions.map((s) => {
+      const current = s.id === sessionId ? " (current)" : "";
+      return `${sessionLabel(s)} [${s.status}]${current}`;
+    });
+    return { text: lines.length ? lines.join("\n") : "no sessions", data: { sessions } };
+  },
+});
+
+const sessionDrop = defineTool({
+  name: "session_drop",
+  description:
+    "Main agent only. Drop a session by name or id: its open agents are closed and it leaves the lists. History stays in the journal.",
+  schema: z.object({
+    name: z.string().trim().min(1).describe("Session name or id"),
+    session,
+  }),
+  run: (carnet, _sessionId, args) => {
+    const dropped = carnet.sessions.drop(findSession(carnet, args.name).id);
+    return { text: `Session ${sessionLabel(dropped)} dropped`, data: { session: dropped } };
+  },
+});
+
+const sessionResumeInfo = defineTool({
+  name: "session_resume_info",
+  description:
+    "What a session was doing: its status view and last events, plus the command to resume it. Defaults to the current session.",
+  schema: z.object({
+    name: z.string().trim().min(1).optional().describe("Session name or id"),
+    session,
+  }),
+  run: (carnet, sessionId, args) => {
+    const target = args.name ? findSession(carnet, args.name) : carnet.sessions.require(sessionId);
+    const resume = target.name ? `rucher resume ${target.name}` : `claude --resume ${target.id}`;
+    return {
+      text: `${resumeContext(carnet, target)}\n\nResume with: ${resume}`,
+      data: { session: target, resume },
+    };
+  },
+});
+
+const logRead = defineTool({
+  name: "log_read",
+  description: "Read the last journal events of the session, oldest first.",
+  schema: z.object({
+    limit: z.number().int().min(1).max(200).optional().describe("Number of events, default 20"),
+    session,
+  }),
+  run: (carnet, sessionId, args) => {
+    const events = carnet.events.read(sessionId, args.limit ?? 20);
+    return {
+      text: events.length ? events.map(formatEventLine).join("\n") : "no events yet",
+      data: { events },
+    };
+  },
+});
+
 export const TOOLS: readonly ToolDef[] = [
   agentStart,
   agentUpdate,
@@ -216,4 +315,9 @@ export const TOOLS: readonly ToolDef[] = [
   tableSet,
   tableClear,
   logEvent,
+  logRead,
+  sessionNew,
+  sessionList,
+  sessionDrop,
+  sessionResumeInfo,
 ] as readonly ToolDef[];

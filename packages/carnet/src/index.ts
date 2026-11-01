@@ -39,7 +39,19 @@ export {
   rucherHome,
   unregisterGroups,
 } from "./group/registry.ts";
-export { handleSessionStart, parseHookPayload } from "./hook/session-start.ts";
+export {
+  handleSessionStart,
+  parseHookPayload,
+  type SessionStartResult,
+} from "./hook/session-start.ts";
+export {
+  formatEventLine,
+  RESUME_EVENTS,
+  RESUME_MAX_CHARS,
+  resumeContext,
+  type ResumeContextOptions,
+  sessionLabel,
+} from "./resume.ts";
 export type {
   HookEnv,
   HookSessionPayload,

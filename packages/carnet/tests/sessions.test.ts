@@ -113,6 +113,6 @@ test("parseHookPayload validates and handleSessionStart upserts", () => {
     source: "startup",
     session_title: undefined,
   });
-  expect(handleSessionStart(carnet, payload, { CLAUDE_PID: "7" }).claudePid).toBe(7);
+  expect(handleSessionStart(carnet, payload, { CLAUDE_PID: "7" }).session.claudePid).toBe(7);
   expect(() => parseHookPayload("{}")).toThrowError(TypeError);
 });

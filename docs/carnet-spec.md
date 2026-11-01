@@ -81,7 +81,7 @@ The MCP server process never receives the Claude session id; only hooks do. A `S
 - The MCP server resolves its own session from the `CLAUDE_CODE_SESSION_ID` environment variable, which Claude Code sets on MCP server processes (observed on 2.1.316, undocumented). Fallback: its parent process id matches the `CLAUDE_PID` recorded by the hook. Last resort: the `session` tool argument.
 - One MCP server process serves the main agent and all its sub-agents, so tools never assume a single caller.
 - Every tool accepts an optional `session` argument as an override; by default the server uses its resolved session.
-- A Carnet session name is the Claude Code session title. `session_new` records the name and purpose; the hook syncs the title on the next start. Resuming by name goes through Claude Code itself: `rucher resume <name>` runs `claude --resume <name>`, and the hook injects the journal summary when `source` is `resume`.
+- A Carnet session name is the Claude Code session title. `session_new` records the name and purpose; the hook syncs the title on the next start. Resuming goes through Claude Code itself: `rucher resume <name>` looks the session up by Carnet name and runs `claude --resume <id>` from the session's original cwd (Claude Code stores conversations per project directory), since a Carnet name and a Claude title can drift apart. When `source` is `resume`, the hook prints `additionalContext`: the status view plus the last 20 events, capped at about 2000 characters by dropping the oldest events first.
 - Unnamed sessions are recorded with status `temporary`, hidden from `rucher sessions` by default, and purged automatically after a few idle days when they hold no agents and no events. `session_new` promotes a temporary session to `active`.
 
 ## MCP tools
@@ -110,19 +110,19 @@ When the server is shipped through a plugin, Claude Code names the tools `mcp__p
 
 **Sessions**
 
-| Tool                  | Parameters    | Effect                                                |
-| --------------------- | ------------- | ----------------------------------------------------- |
-| `session_new`         | name, purpose | names the current session and promotes it to `active` |
-| `session_list`        | —             | active and paused sessions, last activity             |
-| `session_resume_info` | name          | Claude id and journal summary to resume               |
-| `session_drop`        | name          | status `dropped`, agents closed                       |
+| Tool                  | Parameters                           | Effect                                                                                                                                                                                                |
+| --------------------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `session_new`         | name, purpose?                       | names or renames the current session and promotes it to `active`; `SESSION_NAME_TAKEN` only when another session has the name; the result asks the human to `/rename` the Claude session the same way |
+| `session_list`        | include_temporary?, include_dropped? | sessions by last activity, the current one marked                                                                                                                                                     |
+| `session_resume_info` | name?                                | status view, last events and the resume command (current session by default)                                                                                                                          |
+| `session_drop`        | name                                 | by name or id: status `dropped`, agents closed                                                                                                                                                        |
 
 **Journal**
 
-| Tool        | Parameters                          | Effect                             |
-| ----------- | ----------------------------------- | ---------------------------------- |
-| `log_event` | type, agent?, commit?, link?, note? | appends a line to the journal      |
-| `log_read`  | limit?                              | latest entries, to rebuild context |
+| Tool        | Parameters                          | Effect                                           |
+| ----------- | ----------------------------------- | ------------------------------------------------ |
+| `log_event` | type, agent?, commit?, link?, note? | appends a line to the journal                    |
+| `log_read`  | limit? (1–200, default 20)          | latest entries, oldest first, to rebuild context |
 
 Tools only write to the database; display is the CLI's job.
 
@@ -162,9 +162,9 @@ No generated markdown files: the `rucher` CLI reads the SQLite database and rend
 | `rucher status --watch [--interval s]`                 | same, repainted when the output changes, for the dedicated pane                                                                                                                                                                       |
 | `rucher log [--session X] [-n 20]`                     | latest journal events                                                                                                                                                                                                                 |
 | `rucher log --md [--session X]`                        | journal as markdown, one line per event with commit and report link, for archiving in a repo                                                                                                                                          |
-| `rucher sessions`                                      | active and paused sessions, last activity                                                                                                                                                                                             |
-| `rucher resume <name>`                                 | runs `claude --resume <name>` for that session                                                                                                                                                                                        |
-| `rucher hook session-start`                            | hook entry point, reads the hook JSON on stdin, records the session; outside a group or on any error it exits 0 and never blocks Claude                                                                                               |
+| `rucher sessions [--all]`                              | named sessions: name, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temporary and dropped ones                                                                                                         |
+| `rucher resume <name>`                                 | runs `claude --resume <id>` for that session, from its original cwd                                                                                                                                                                   |
+| `rucher hook session-start`                            | hook entry point, reads the hook JSON on stdin, records the session, prints the resume context on `source: resume`; exits 0 outside a group or on any error                                                                           |
 | `rucher serve`                                         | the stdio MCP server; the group is resolved lazily so the server always starts, tools answer `NO_GROUP` outside a group                                                                                                               |
 
 Default session: the most recently active one of the current group.
@@ -243,9 +243,9 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 
 **Milestone 2**
 
-- [ ] `session_new`, `session_list`, `session_drop`, `rucher sessions`, `rucher resume`
-- [ ] `session_resume_info` and `log_read` with journal injection on resume
-- [ ] `rucher log --md`
+- [x] `session_new`, `session_list`, `session_drop`, `rucher sessions`, `rucher resume`
+- [x] `session_resume_info` and `log_read` with journal injection on resume
+- [x] `rucher log --md`
 - [ ] Temporary session purge
 
 **Milestone 3**

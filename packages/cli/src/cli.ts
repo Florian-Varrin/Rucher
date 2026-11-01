@@ -6,7 +6,9 @@ import { groupsForget, groupsList, groupsPrune } from "./commands/groups.ts";
 import { sessionStart } from "./commands/hook.ts";
 import { init } from "./commands/init.ts";
 import { logOnce } from "./commands/log.ts";
+import { resumeTarget, runTarget } from "./commands/resume.ts";
 import { serve } from "./commands/serve.ts";
+import { sessionsOnce } from "./commands/sessions.ts";
 import { statusOnce, statusWatch } from "./commands/status.ts";
 import { type Io, processIo, readStdin } from "./io.ts";
 import { CliError } from "./session.ts";
@@ -111,6 +113,40 @@ const logCommand = defineCommand({
         count: Number(args.count) || 20,
         md: args.md,
       });
+    } catch (error) {
+      fail(io, error);
+    }
+  },
+});
+
+const sessionsCommand = defineCommand({
+  meta: { name: "sessions", description: "List the named sessions of the group" },
+  args: {
+    all: { type: "boolean", default: false, description: "Include temporary and dropped sessions" },
+    ...colorArg,
+  },
+  run({ args }) {
+    const io = processIo({ color: args.color });
+    try {
+      sessionsOnce(openCarnet({ cwd: io.cwd, env: io.env }), io, { all: args.all });
+    } catch (error) {
+      fail(io, error);
+    }
+  },
+});
+
+const resumeCommand = defineCommand({
+  meta: { name: "resume", description: "Resume a named session in Claude Code" },
+  args: {
+    name: { type: "positional", description: "Session name or id", required: true },
+  },
+  run({ args }) {
+    const io = processIo();
+    try {
+      const carnet = openCarnet({ cwd: io.cwd, env: io.env });
+      const target = resumeTarget(carnet, args.name, io);
+      carnet.close();
+      process.exitCode = runTarget(target);
     } catch (error) {
       fail(io, error);
     }
@@ -242,6 +278,8 @@ const main = defineCommand({
     init: initCommand,
     status: statusCommand,
     log: logCommand,
+    sessions: sessionsCommand,
+    resume: resumeCommand,
     group: groupCommand,
     groups: groupsCommand,
     hook: hookCommand,

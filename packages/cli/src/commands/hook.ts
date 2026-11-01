@@ -6,7 +6,13 @@ export function sessionStart(stdinText: string, io: Io): number {
     const payload = parseHookPayload(stdinText);
     const carnet = openCarnet({ cwd: payload.cwd ?? io.cwd, env: io.env });
     try {
-      handleSessionStart(carnet, payload, { CLAUDE_PID: io.env.CLAUDE_PID });
+      const { additionalContext } = handleSessionStart(carnet, payload, {
+        CLAUDE_PID: io.env.CLAUDE_PID,
+      });
+      if (additionalContext) {
+        const hookSpecificOutput = { hookEventName: "SessionStart", additionalContext };
+        io.stdout(`${JSON.stringify({ hookSpecificOutput })}\n`);
+      }
     } finally {
       carnet.close();
     }

@@ -50,3 +50,18 @@ test("malformed input never fails the hook", () => {
   expect(sessionStart("{}", io2)).toBe(0);
   expect(io2.err.join("")).toContain("session_id");
 });
+
+test("on resume it prints the session state as additional context", () => {
+  const { api, env } = group();
+  const startup = JSON.stringify({ session_id: SESSION, cwd: api, source: "startup" });
+  sessionStart(startup, makeIo({ env }));
+  const io = makeIo({ env });
+  expect(
+    sessionStart(JSON.stringify({ session_id: SESSION, cwd: api, source: "resume" }), io),
+  ).toBe(0);
+  const output = JSON.parse(io.out.join("")) as {
+    hookSpecificOutput: { hookEventName: string; additionalContext: string };
+  };
+  expect(output.hookSpecificOutput.hookEventName).toBe("SessionStart");
+  expect(output.hookSpecificOutput.additionalContext).toContain("state when resumed");
+});

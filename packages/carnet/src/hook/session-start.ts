@@ -1,4 +1,5 @@
 import type { Carnet } from "../carnet.ts";
+import { resumeContext } from "../resume.ts";
 import type { HookEnv, HookSessionPayload, Session } from "../sessions.ts";
 
 export function parseHookPayload(json: string): HookSessionPayload {
@@ -14,10 +15,17 @@ export function parseHookPayload(json: string): HookSessionPayload {
   };
 }
 
+export interface SessionStartResult {
+  session: Session;
+  additionalContext?: string;
+}
+
 export function handleSessionStart(
   carnet: Carnet,
   payload: HookSessionPayload,
   env: HookEnv,
-): Session {
-  return carnet.sessions.upsertFromHook(payload, env);
+): SessionStartResult {
+  const session = carnet.sessions.upsertFromHook(payload, env);
+  if (payload.source !== "resume") return { session };
+  return { session, additionalContext: resumeContext(carnet, session) };
 }
