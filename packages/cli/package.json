@@ -9,15 +9,15 @@
     "multi-agent",
     "status"
   ],
-  "homepage": "https://github.com/fvarrin/rucher/tree/master/packages/cli#readme",
+  "homepage": "https://github.com/Florian-Varrin/Rucher/tree/master/packages/cli#readme",
   "bugs": {
-    "url": "https://github.com/fvarrin/rucher/issues"
+    "url": "https://github.com/Florian-Varrin/Rucher/issues"
   },
   "license": "MIT",
   "author": "Florian Varrin",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/fvarrin/rucher.git",
+    "url": "git+https://github.com/Florian-Varrin/Rucher.git",
     "directory": "packages/cli"
   },
   "bin": {
