@@ -14,6 +14,7 @@ export interface Agent {
   baseCommit: string | null;
   worktree: string | null;
   queueOrder: number | null;
+  claudeAgentId: string | null;
   startedAt: string;
   updatedAt: string;
 }
@@ -40,7 +41,7 @@ export interface ListAgentsOptions {
   includeClosed?: boolean;
 }
 
-interface AgentRow {
+export interface AgentRow {
   session: string;
   name: string;
   task: string | null;
@@ -50,11 +51,12 @@ interface AgentRow {
   base_commit: string | null;
   worktree: string | null;
   queue_order: number | null;
+  claude_agent_id: string | null;
   started_at: string;
   updated_at: string;
 }
 
-function toAgent(row: AgentRow): Agent {
+export function toAgent(row: AgentRow): Agent {
   return {
     session: row.session,
     name: row.name,
@@ -65,6 +67,7 @@ function toAgent(row: AgentRow): Agent {
     baseCommit: row.base_commit,
     worktree: row.worktree,
     queueOrder: row.queue_order,
+    claudeAgentId: row.claude_agent_id,
     startedAt: row.started_at,
     updatedAt: row.updated_at,
   };

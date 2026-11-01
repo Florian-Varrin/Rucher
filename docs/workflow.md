@@ -30,7 +30,7 @@ Update **before and after** each piece of work, never batched at the end of a tu
 
 A fork starts from the main agent's context, works alone, writes its report to a file, updates its status, then waits.
 
-- Pick a short name (what the human will read in the status pane) and a one-line task. Call `agent_start` with both, then launch the fork.
+- Pick a short name (what the human will read in the status pane) and a one-line task. Call `agent_start` with both, then launch the fork in a later message: the SubagentStart hook pairs forks with Carnet agents in start order, so the agent must exist before the fork starts. Launch parallel forks in the same order as their `agent_start` calls.
 - The fork's prompt states: its agent name, the exact base commit, where to write its report (`<scratchpad>/<name>.md`), and that `agent_done` must be its last action with `has_questions` set when the report asks the human something.
 - Forks never commit, push or stash. Forks never write into `dev/claude/`; worktree isolation and git-ignore make that folder unavailable anyway.
 - Read-only analysis forks need no worktree.

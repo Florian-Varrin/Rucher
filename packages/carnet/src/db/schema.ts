@@ -54,6 +54,9 @@ CREATE TABLE events (
 CREATE INDEX events_session_at ON events(session, at);
 CREATE INDEX agents_session_status ON agents(session, status);
 `,
+  `
+ALTER TABLE agents ADD COLUMN claude_agent_id TEXT;
+`,
 ];
 
 export function schemaVersion(db: DatabaseSync): number {

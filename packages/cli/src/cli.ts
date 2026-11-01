@@ -3,7 +3,7 @@ import { CarnetError, openCarnet } from "@rucher/carnet";
 import { defineCommand, runMain } from "citty";
 import { groupAdd, groupRemove, groupShow, groupSync } from "./commands/group.ts";
 import { groupsForget, groupsList, groupsPrune } from "./commands/groups.ts";
-import { sessionStart } from "./commands/hook.ts";
+import { sessionStart, subagentStart, subagentStop } from "./commands/hook.ts";
 import { init } from "./commands/init.ts";
 import { logOnce } from "./commands/log.ts";
 import { resumeTarget, runTarget } from "./commands/resume.ts";
@@ -256,6 +256,24 @@ const hookCommand = defineCommand({
       meta: { name: "session-start", description: "SessionStart hook: records the session" },
       async run() {
         process.exitCode = sessionStart(await readStdin(), processIo());
+      },
+    }),
+    "subagent-start": defineCommand({
+      meta: {
+        name: "subagent-start",
+        description: "SubagentStart hook: pairs the fork with its agent",
+      },
+      async run() {
+        process.exitCode = subagentStart(await readStdin(), processIo());
+      },
+    }),
+    "subagent-stop": defineCommand({
+      meta: {
+        name: "subagent-stop",
+        description: "SubagentStop hook: flags a fork that never called agent_done",
+      },
+      async run() {
+        process.exitCode = subagentStop(await readStdin(), processIo());
       },
     }),
   },

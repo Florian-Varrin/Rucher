@@ -55,6 +55,7 @@ agents (
   note TEXT,                  -- displayed text, under 60 characters
   report_path TEXT, base_commit TEXT, worktree TEXT,
   queue_order INTEGER,        -- order in "Waiting on you"
+  claude_agent_id TEXT,       -- Claude subagent id paired by the SubagentStart hook
   started_at, updated_at,
   PRIMARY KEY (session, name)
 )
@@ -83,6 +84,12 @@ The MCP server process never receives the Claude session id; only hooks do. A `S
 - Every tool accepts an optional `session` argument as an override; by default the server uses its resolved session.
 - A Carnet session name is the Claude Code session title. `session_new` records the name and purpose; the hook syncs the title on the next start. Resuming goes through Claude Code itself: `rucher resume <name>` looks the session up by Carnet name and runs `claude --resume <id>` from the session's original cwd (Claude Code stores conversations per project directory), since a Carnet name and a Claude title can drift apart. When `source` is `resume`, the hook prints `additionalContext`: the status view plus the last 20 events, capped at about 2000 characters by dropping the oldest events first.
 - Unnamed sessions are recorded with status `temporary`, hidden from `rucher sessions` by default, and purged automatically after a few idle days when they hold no agents and no events. `session_new` promotes a temporary session to `active`.
+
+### Forks that stop without `agent_done`
+
+- `SubagentStart` (`rucher hook subagent-start`) pairs Claude's `agent_id` with the oldest `running` agent of the session that has no pair yet and was started in the last minute. SubagentStart fires in dispatch order (spike, 2026-11-01, 4 and 5 parallel forks), and main calls `agent_start` in an earlier message than the launch, in launch order, so the order matches. A subagent with no candidate stays unpaired; a repeated start for the same `agent_id` keeps its pair.
+- `SubagentStop` (`rucher hook subagent-stop`) moves a paired agent still `running` to `review` with the note `stopped without agent_done`, and logs `finished` with that note. Agents that already called `agent_done` are left alone.
+- Both hooks exit 0 in every case, outside a group included.
 
 ## MCP tools
 
@@ -165,6 +172,8 @@ No generated markdown files: the `rucher` CLI reads the SQLite database and rend
 | `rucher sessions [--all]`                              | named sessions: name, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temporary and dropped ones                                                                                                         |
 | `rucher resume <name>`                                 | runs `claude --resume <id>` for that session, from its original cwd                                                                                                                                                                   |
 | `rucher hook session-start`                            | hook entry point, reads the hook JSON on stdin, records the session, prints the resume context on `source: resume`; exits 0 outside a group or on any error                                                                           |
+| `rucher hook subagent-start`                           | pairs the started subagent with its Carnet agent; exits 0 in every case                                                                                                                                                               |
+| `rucher hook subagent-stop`                            | moves a paired agent still `running` to `review`; exits 0 in every case                                                                                                                                                               |
 | `rucher serve`                                         | the stdio MCP server; the group is resolved lazily so the server always starts, tools answer `NO_GROUP` outside a group                                                                                                               |
 
 Default session: the most recently active one of the current group.
@@ -251,7 +260,7 @@ The group's `CLAUDE.md` keeps one line: "multi-agent work: use rucher-carnet and
 **Milestone 3**
 
 - [ ] `rucher` skill in the plugin
-- [ ] `SubagentStop` hook as a safety net for agents left `running`
+- [x] `SubagentStop` hook as a safety net for agents left `running`
 - [ ] Open source polish: CI, publishing
 - [ ] Interactive TUI view, reuse by Rucher Core as internal tools
 

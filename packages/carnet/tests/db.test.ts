@@ -23,3 +23,22 @@ test("opens a file database in WAL mode and is idempotent", () => {
   expect(schemaVersion(second)).toBe(migrations.length);
   second.close();
 });
+
+test("upgrades a version 1 database and keeps its rows", async () => {
+  const { DatabaseSync } = await import("node:sqlite");
+  const path = join(tempDir(), "carnet.db");
+  const old = new DatabaseSync(path);
+  old.exec(migrations[0]);
+  old.exec("PRAGMA user_version = 1");
+  old.exec(
+    `INSERT INTO sessions (id, created_at, last_active_at) VALUES ('s', 'x', 'x');
+     INSERT INTO agents (session, name, status, started_at, updated_at) VALUES ('s', 'a', 'running', 'x', 'x');`,
+  );
+  old.close();
+  const db = openDatabase(path);
+  expect(schemaVersion(db)).toBe(migrations.length);
+  expect(db.prepare("SELECT name, claude_agent_id FROM agents").all()).toEqual([
+    { name: "a", claude_agent_id: null },
+  ]);
+  db.close();
+});

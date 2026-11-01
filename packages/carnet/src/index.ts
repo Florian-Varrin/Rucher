@@ -52,6 +52,8 @@ export {
   type ResumeContextOptions,
   sessionLabel,
 } from "./resume.ts";
+export { type HookSubagentPayload, parseSubagentPayload } from "./hook/subagent.ts";
+export { PAIRING_WINDOW_MS, STOPPED_NOTE } from "./subagents.ts";
 export type {
   HookEnv,
   HookSessionPayload,

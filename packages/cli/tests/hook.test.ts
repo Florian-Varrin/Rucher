@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { initGroup, openCarnet } from "@rucher/carnet";
 import { expect, test } from "vite-plus/test";
-import { sessionStart } from "../src/commands/hook.ts";
+import { sessionStart, subagentStart, subagentStop } from "../src/commands/hook.ts";
 import { makeIo, SESSION, tempDir } from "./helpers.ts";
 
 function group() {
@@ -64,4 +64,44 @@ test("on resume it prints the session state as additional context", () => {
   };
   expect(output.hookSpecificOutput.hookEventName).toBe("SessionStart");
   expect(output.hookSpecificOutput.additionalContext).toContain("state when resumed");
+});
+
+test("subagent hooks flag a fork that stopped without agent_done", () => {
+  const { root, env } = group();
+  const carnet = openCarnet({ cwd: root, env });
+  carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: "startup" });
+  carnet.agents.start(SESSION, { name: "lost", task: "t" });
+  carnet.close();
+  const io = makeIo({ env });
+  const payload = (event: string) =>
+    JSON.stringify({
+      session_id: SESSION,
+      cwd: root,
+      agent_id: "a1",
+      agent_type: "fork",
+      hook_event_name: event,
+    });
+  expect(subagentStart(payload("SubagentStart"), io)).toBe(0);
+  expect(subagentStop(payload("SubagentStop"), io)).toBe(0);
+  expect(io.err).toEqual([]);
+  const after = openCarnet({ cwd: root, env });
+  expect(after.agents.get(SESSION, "lost")).toMatchObject({
+    status: "review",
+    claudeAgentId: "a1",
+  });
+  after.close();
+});
+
+test("subagent hooks never fail, even without agent_id or group", () => {
+  const io = makeIo({ env: { RUCHER_HOME: tempDir("home-") } });
+  expect(
+    subagentStop(
+      JSON.stringify({ session_id: SESSION, agent_id: "a", cwd: tempDir("nogroup-") }),
+      io,
+    ),
+  ).toBe(0);
+  expect(io.err).toEqual([]);
+  const io2 = makeIo();
+  expect(subagentStart(JSON.stringify({ session_id: SESSION }), io2)).toBe(0);
+  expect(io2.err.join("")).toContain("agent_id");
 });

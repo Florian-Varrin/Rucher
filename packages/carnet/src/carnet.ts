@@ -35,6 +35,7 @@ import {
 } from "./sessions.ts";
 import { renderStatus } from "./status/render.ts";
 import { buildStatusView } from "./status/view.ts";
+import { pairSubagent, stopSubagent } from "./subagents.ts";
 import { clearTable, getTable, setTable, type SetTableInput } from "./table.ts";
 
 export interface CarnetOptions {
@@ -80,6 +81,10 @@ export class Carnet {
       dropAgent(this.ctx, session, name, reason),
     list: (session: string, options?: ListAgentsOptions) => listAgents(this.ctx, session, options),
     reorderQueue: (session: string, names: string[]) => reorderQueue(this.ctx, session, names),
+    pairSubagent: (session: string, claudeAgentId: string) =>
+      pairSubagent(this.ctx, session, claudeAgentId),
+    stopSubagent: (session: string, claudeAgentId: string) =>
+      stopSubagent(this.ctx, session, claudeAgentId),
   };
 
   readonly table = {
