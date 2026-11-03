@@ -39,7 +39,7 @@ rucher tmp                    # a temporary one (a name is optional: rucher tmp 
 rucher new shop-auth -- --model opus   # arguments after -- go to Claude Code
 ```
 
-`rucher` creates the session in Carnet, then runs Claude Code from the group's meta directory, so the group `CLAUDE.md` loads and every repo is reachable. Run from inside a repo, it still starts in the meta directory and records that repo as the session's starting repo. Claude Code gets the session's id (`--session-id`) and its name as title (`--name`), and the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME` and `RUCHER_GROUP`. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
+`rucher` creates the session in Carnet, then runs Claude Code from the group's meta directory, so the group `CLAUDE.md` loads and every repo is reachable. Run from inside a repo, it still starts in the meta directory and records that repo as the session's starting repo. Claude Code gets the session's id (`--session-id`) and its name as title (`--name`), and the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME`, `RUCHER_GROUP` and `RUCHER_GROUP_ROOT`. `RUCHER_GROUP_ROOT` pins the session to its group: Claude Code can move its working directory into a repo (a `cd`, a compaction), and a repo can belong to several groups, but the hooks and the Carnet server keep using the group the session was launched in. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
 
 Starting `claude` directly from the meta directory still works: the hooks record the session as `temp`.
 
@@ -73,15 +73,15 @@ The next `rucher resume` gives Claude Code the new name as its title.
 
 ## See what is going on
 
-| Command                                  | Shows                                                                                                                                               |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rucher status`                          | the default session (the most recently active one), its name next to the clock (`16:41 - shop-auth`): On the table, Waiting on you, Running, legend |
-| `rucher status --session shop-auth`      | a given session, by name, id or id prefix (`-s` for short)                                                                                          |
-| `rucher status --all`                    | every session with open agents or a table line: one clock, one block per session (name and repo-relative cwd), one legend                           |
-| `rucher status --watch [--interval 2]`   | repaints when the output changes; combine with `--all` or `--session`                                                                               |
-| `rucher sessions [--all]`                | active sessions: name (or short id), kind, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temp and archived ones      |
-| `rucher log [-s shop-auth] [-n 20]`      | the last journal events                                                                                                                             |
-| `rucher log --md > shop-auth-journal.md` | the journal as Markdown, grouped by day, for archiving                                                                                              |
+| Command                                  | Shows                                                                                                                                                                |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rucher status`                          | the default session (the most recently active one), its name and group next to the clock (`16:41 - shop-auth · shop`): On the table, Waiting on you, Running, legend |
+| `rucher status --session shop-auth`      | a given session, by name, id or id prefix (`-s` for short)                                                                                                           |
+| `rucher status --all`                    | every session with open agents or a table line: the clock and the group, one block per session (its name), one legend                                                |
+| `rucher status --watch [--interval 2]`   | repaints when the output changes; combine with `--all` or `--session`                                                                                                |
+| `rucher sessions [--all]`                | active sessions: name (or short id), kind, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temp and archived ones                       |
+| `rucher log [-s shop-auth] [-n 20]`      | the last journal events                                                                                                                                              |
+| `rucher log --md > shop-auth-journal.md` | the journal as Markdown, grouped by day, for archiving                                                                                                               |
 
 From inside Claude, the main agent has the same view through `session_list`, `session_resume_info` and `log_read`.
 
@@ -130,6 +130,28 @@ Older versions could split one conversation into two sessions after `--continue`
 rucher sessions --all                 # find the two ids
 rucher sessions merge <from> <into>   # moves agents, the table line and events into <into>
 ```
+
+## Which group a session belongs to
+
+Carnet looks for the group in this order:
+
+1. `RUCHER_GROUP_ROOT`, set by `rucher new`, `tmp`, `resume` and `fork`;
+2. the meta directory containing the working directory, or Claude Code's project directory;
+3. the registered group that has the working directory among its repos. When several groups share that repo, the one whose Carnet already knows the session wins; otherwise Carnet records nothing, the session gets a warning, and the Carnet tools answer `GROUP_AMBIGUOUS`. Launch with `rucher`, or start from the meta directory.
+
+`agent_start` names the group in its result.
+
+## Move a session to another group
+
+A session started in a shared repo by an older version can land in the wrong group. Run from the group that has it:
+
+```bash
+rucher sessions move shop-auth --to shop --dry-run   # what would move
+rucher sessions move shop-auth --to shop             # agents, table line, journal
+rucher sessions move shop-auth --to shop --merge     # when shop already has the session
+```
+
+`--to` takes a group name or a meta directory path. The session row, its agents, its table line and its journal move; notes stay in their group, unlinked from the session. Without `--merge`, a target that already has the session, or a session with the same name, is refused. With `--merge`, the two are joined: agents whose name the target already uses stay out, and the target keeps its table line when it has one. Report files are not moved: copy them to the target's `.rucher/reports/` by hand.
 
 ## Housekeeping
 

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { CarnetError } from '../errors.ts';
 import { allHosts, DEFAULT_HOST } from '../hosts/host.ts';
@@ -85,18 +86,43 @@ export function loadGroup(root: string): Group {
 export interface LocateOptions {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
+  sessionId?: string | undefined;
 }
 
-function groupByRepo(path: string, env?: NodeJS.ProcessEnv): Group | null {
+function groupsWithRepo(paths: readonly string[], env?: NodeJS.ProcessEnv): Group[] {
+  const groups: Group[] = [];
   for (const reference of readRegistry(env)) {
     if (!isGroupRoot(reference.path)) continue;
     const group = loadGroup(reference.path);
-    if (group.repos.some((repo) => isInside(repo, path))) return group;
+    if (paths.some((path) => group.repos.some((repo) => isInside(repo, path)))) groups.push(group);
   }
-  return null;
+  return groups;
 }
 
-export function locateGroup({ cwd = process.cwd(), env = process.env }: LocateOptions = {}): Group {
+function knowsSession(group: Group, sessionId: string): boolean {
+  if (!existsSync(group.dbPath)) return false;
+  const db = new DatabaseSync(group.dbPath, { readOnly: true });
+  try {
+    return db.prepare('SELECT 1 FROM sessions WHERE id = ?').get(sessionId) !== undefined;
+  } catch {
+    return false;
+  } finally {
+    db.close();
+  }
+}
+
+export function pinnedGroup(env: NodeJS.ProcessEnv): Group | null {
+  const root = env.RUCHER_GROUP_ROOT;
+  return root && isGroupRoot(resolve(root)) ? loadGroup(resolve(root)) : null;
+}
+
+export function locateGroup({
+  cwd = process.cwd(),
+  env = process.env,
+  sessionId,
+}: LocateOptions = {}): Group {
+  const pinned = pinnedGroup(env);
+  if (pinned) return pinned;
   const projectDirectories = allHosts()
     .map((host) => host.projectDirectory(env))
     .filter((directory): directory is string => directory !== undefined);
@@ -105,12 +131,24 @@ export function locateGroup({ cwd = process.cwd(), env = process.env }: LocateOp
     const root = findGroupRoot(directory);
     if (root) return loadGroup(root);
   }
-  for (const directory of candidates) {
-    const group = groupByRepo(directory, env);
-    if (group) return group;
+  const matches = groupsWithRepo(candidates, env);
+  const [only] = matches;
+  if (matches.length === 1 && only) return only;
+  if (matches.length > 1) {
+    const owners = sessionId ? matches.filter((group) => knowsSession(group, sessionId)) : [];
+    const [owner] = owners;
+    if (owners.length === 1 && owner) return owner;
+    throw new CarnetError(
+      'GROUP_AMBIGUOUS',
+      `${cwd} is in repos of several groups (${matches.map((group) => group.name).join(', ')}): launch with "rucher new" or "rucher resume", or start from the group's meta directory`,
+    );
   }
   throw new CarnetError(
     'NO_GROUP',
     `No Rucher group for ${cwd}: run "rucher init" in a meta directory, or "rucher group add <this repo>" there`,
   );
+}
+
+export function ambiguousGroupContext(reason: string): string {
+  return `Rucher could not tell which group this session belongs to, so Carnet records nothing for it: ${reason}.`;
 }

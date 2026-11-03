@@ -48,6 +48,7 @@ function launchEnv(
     RUCHER_PROMPT_VERSION: promptVersion,
     RUCHER_SESSION_NAME: session.name ?? '',
     RUCHER_GROUP: carnet.group.name,
+    RUCHER_GROUP_ROOT: carnet.group.root,
     ...(kind ? { RUCHER_SESSION_KIND: kind } : {}),
   };
 }

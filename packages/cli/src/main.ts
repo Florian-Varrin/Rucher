@@ -39,6 +39,7 @@ import {
   sessionsDemote,
   sessionsDrop,
   sessionsMerge,
+  sessionsMove,
   sessionsOnce,
   sessionsPromote,
   sessionsRename,
@@ -263,6 +264,32 @@ const sessionsDropCommand = defineCommand({
   },
 });
 
+const sessionsMoveCommand = defineCommand({
+  meta: {
+    name: 'move',
+    description: 'Move a session, its agents, table line and journal to another group',
+  },
+  args: {
+    session: sessionReference,
+    to: { type: 'string', required: true, description: 'Target group (name or path)' },
+    merge: {
+      type: 'boolean',
+      default: false,
+      description: 'Merge into the session the target group already has under this id or name',
+    },
+    'dry-run': { type: 'boolean', default: false, description: 'Show what would move' },
+  },
+  run({ args }) {
+    const io = processIo();
+    withCarnet(io, (carnet) =>
+      sessionsMove(carnet, args.session, args.to, io, {
+        merge: args.merge,
+        dryRun: args['dry-run'],
+      }),
+    );
+  },
+});
+
 const sessionsCleanCommand = defineCommand({
   meta: {
     name: 'clean',
@@ -291,6 +318,7 @@ const sessionsCommand = defineCommand({
   subCommands: {
     list: sessionsListCommand,
     merge: sessionsMergeCommand,
+    move: sessionsMoveCommand,
     rename: sessionsRenameCommand,
     promote: sessionsPromoteCommand,
     demote: sessionsDemoteCommand,

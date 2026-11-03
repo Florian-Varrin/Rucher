@@ -131,6 +131,7 @@ export const completionConfig = {
     sessions: {
       subCommands: {
         merge: { args: { from: sessions, into: sessions } },
+        move: { args: { session: sessions }, options: { to: groups } },
         rename: { args: { session: sessions } },
         promote: { args: { session: sessions } },
         demote: { args: { session: sessions } },

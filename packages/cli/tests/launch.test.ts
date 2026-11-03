@@ -57,6 +57,7 @@ test('rucher new starts a named active session from the meta directory', () => {
     RUCHER_PROMPT_VERSION: expect.stringMatching(/^[0-9a-f]{12}$/),
     RUCHER_SESSION_NAME: 'shop-auth',
     RUCHER_GROUP: 'shop',
+    RUCHER_GROUP_ROOT: root,
   });
   expect(carnet.sessions.require(plan.sessionId ?? '')).toMatchObject({
     name: 'shop-auth',

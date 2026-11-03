@@ -234,3 +234,51 @@ test('post-tool-use adds a repo memory once, and stays silent otherwise', () => 
   expect(outside.output).toEqual([]);
   expect(outside.errors).toEqual([]);
 });
+
+function twoGroupsSharingApi() {
+  const api = tempDirectory('repo-api-');
+  const shop = tempDirectory('meta-');
+  const blog = tempDirectory('meta-');
+  const env = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_PID: '4242' };
+  initGroup(shop, { env, name: 'shop', repos: [api] });
+  initGroup(blog, { env, name: 'blog', repos: [api] });
+  return { api, shop, blog, env };
+}
+
+test('a repo shared by two groups records nothing and warns in context and on stderr', () => {
+  const { api, shop, blog, env } = twoGroupsSharingApi();
+  const io = makeIo({ env });
+  const start = JSON.stringify({ session_id: SESSION, cwd: api, source: 'compact' });
+  expect(sessionStart(start, io)).toBe(0);
+  expect(io.errors).toHaveLength(1);
+  expect(io.errors[0]).toMatch(/several groups \(shop, blog\)|several groups \(blog, shop\)/);
+  const output = JSON.parse(io.output.join('')) as {
+    hookSpecificOutput: { hookEventName: string; additionalContext: string };
+  };
+  expect(output.hookSpecificOutput.hookEventName).toBe('SessionStart');
+  expect(output.hookSpecificOutput.additionalContext).toMatch(/Carnet records nothing/);
+  const prompt = makeIo({ env });
+  const submit = JSON.stringify({ session_id: SESSION, cwd: api, prompt: 'go' });
+  expect(userPromptSubmit(submit, prompt)).toBe(0);
+  expect(prompt.output.join('')).toMatch(/"hookEventName":"UserPromptSubmit"/);
+  for (const root of [shop, blog]) {
+    const carnet = openCarnet({ cwd: root, env });
+    expect(carnet.sessions.get(SESSION)).toBeUndefined();
+    carnet.close();
+  }
+});
+
+test('the launcher pin and a known session id keep the session in its group', () => {
+  const { api, shop, blog, env } = twoGroupsSharingApi();
+  const pinned = makeIo({ env: { ...env, RUCHER_GROUP_ROOT: blog } });
+  const start = JSON.stringify({ session_id: SESSION, cwd: api, source: 'startup' });
+  expect(sessionStart(start, pinned)).toBe(0);
+  const compacted = JSON.stringify({ session_id: SESSION, cwd: api, source: 'compact' });
+  expect(sessionStart(compacted, makeIo({ env }))).toBe(0);
+  const inBlog = openCarnet({ cwd: blog, env });
+  expect(inBlog.sessions.get(SESSION)).toBeDefined();
+  inBlog.close();
+  const inShop = openCarnet({ cwd: shop, env });
+  expect(inShop.sessions.get(SESSION)).toBeUndefined();
+  inShop.close();
+});
