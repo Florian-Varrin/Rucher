@@ -34,7 +34,7 @@ A dropped note is never deleted: `rucher notes --all` shows it with its reason. 
 
 ## Who writes
 
-The main agent records notes with `note_add` at the end of a step, including the `Learnings` of fork reports. Forks never call `note_add`; they end their report with a `Learnings` section. The human corrects afterwards: `rucher notes drop`, or `rucher notes add` by hand.
+Forks never call `note_add`: their report ends with a `## Learnings` section, one candidate note per line (`dead_end [shop-api] <text>`). The main agent records notes once per step, at its end: the `Learnings` of a fork when its work is applied or dropped (a dropped fork is the best source of dead ends), and what it learned itself. Nobody confirms a note: you see them in `rucher status` and correct afterwards with `rucher notes drop`, or `rucher notes add` by hand. The full rules are in the [workflow](workflow.md#memory).
 
 ## Citations and weight
 
