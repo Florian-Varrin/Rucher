@@ -107,7 +107,7 @@ export function readEvents(
   const filter = agentOnly ? "AND type NOT LIKE 'session.%'" : '';
   const rows = ctx.db
     .prepare(
-      `SELECT * FROM (SELECT * FROM events WHERE session = ? ${filter} ORDER BY id DESC LIMIT ?) ORDER BY id ASC`,
+      `SELECT * FROM (SELECT * FROM events WHERE session = ? ${filter} ORDER BY at DESC, id DESC LIMIT ?) ORDER BY at, id`,
     )
     .all(session, limit) as unknown as EventRow[];
   return rows.map(toEvent);

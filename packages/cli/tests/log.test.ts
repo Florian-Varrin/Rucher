@@ -25,6 +25,17 @@ test('logOnce honours the count and reports an empty journal', () => {
   expect(io2.output.join('')).toBe('no events yet\n');
 });
 
+test('logOnce shows events by time, not by insertion order', () => {
+  const { carnet } = makeCarnet();
+  carnet.events.log(SESSION, { type: 'tested', note: 'recent' });
+  carnet.db
+    .prepare("INSERT INTO events (session, at, type, note) VALUES (?, ?, 'tested', 'moved')")
+    .run(SESSION, '2026-10-30T09:00:00.000Z');
+  const io = makeIo();
+  logOnce(carnet, io, { count: 5 });
+  expect(io.output.join('')).toMatch(/moved\n.*recent\n$/);
+});
+
 test('--md renders the journal as markdown grouped by day', () => {
   const { carnet } = makeCarnet();
   carnet.agents.start(SESSION, { name: 'banner', task: 'Add banner' });

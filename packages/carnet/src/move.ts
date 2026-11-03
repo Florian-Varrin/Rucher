@@ -82,7 +82,11 @@ export function moveSession(
     session.id,
   );
   const movedAgents = agents.filter((agent) => !takenNames.has(agent.name));
-  const events = rows(source.db, 'SELECT * FROM events WHERE session = ? ORDER BY id', session.id);
+  const events = rows(
+    source.db,
+    'SELECT * FROM events WHERE session = ? ORDER BY at, id',
+    session.id,
+  );
   const [table] = rows(source.db, 'SELECT * FROM table_items WHERE session = ?', session.id);
   const targetHasTable =
     rows(target.db, 'SELECT 1 FROM table_items WHERE session = ?', intoId).length > 0;
