@@ -243,7 +243,7 @@ function weigh(ctx: Ctx, note: Note, days: string[], halfLifeDays: number): Weig
   };
 }
 
-function compareNotes(first: WeightedNote, second: WeightedNote): number {
+export function compareNotes(first: WeightedNote, second: WeightedNote): number {
   const kind = NOTE_KINDS.indexOf(first.kind) - NOTE_KINDS.indexOf(second.kind);
   if (kind !== 0) return kind;
   if (first.weight !== second.weight) return second.weight - first.weight;

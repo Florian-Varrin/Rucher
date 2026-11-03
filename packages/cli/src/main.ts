@@ -4,6 +4,7 @@ import packageJson from '../package.json' with { type: 'json' };
 import { groupAdd, groupRemove, groupShow, groupSync } from './commands/group.ts';
 import { groupsForget, groupsList, groupsPrune } from './commands/groups.ts';
 import {
+  postToolUse,
   sessionEnd,
   sessionStart,
   subagentStart,
@@ -611,6 +612,15 @@ const hookCommand = defineCommand({
       meta: { name: 'session-end', description: 'SessionEnd hook: marks the session idle' },
       async run() {
         process.exitCode = sessionEnd(await readStdin(), processIo());
+      },
+    }),
+    'post-tool-use': defineCommand({
+      meta: {
+        name: 'post-tool-use',
+        description: "PostToolUse hook: adds a repo's notes the first time a tool touches it",
+      },
+      async run() {
+        process.exitCode = postToolUse(await readStdin(), processIo());
       },
     }),
     'user-prompt-submit': defineCommand({

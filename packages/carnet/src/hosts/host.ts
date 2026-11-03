@@ -32,6 +32,14 @@ export interface HostSessionEndPayload {
   reason?: string | undefined;
 }
 
+export interface HostToolPayload {
+  session_id: string;
+  cwd?: string | undefined;
+  tool_name?: string | undefined;
+  agent_id?: string | undefined;
+  path?: string | undefined;
+}
+
 export interface ResumeCommand {
   command: string;
   args: string[];
@@ -60,6 +68,7 @@ export interface Host {
   parsePromptPayload(json: string): HostPromptPayload;
   parseSubagentPayload(json: string): HostSubagentPayload;
   parseSessionEndPayload(json: string): HostSessionEndPayload;
+  parseToolPayload(json: string): HostToolPayload;
   subagentNames(payload: HostSubagentPayload): string[];
   subagentInheritsContext(payload: HostSubagentPayload): boolean;
   rendersSystemPrompt(source: string): boolean;

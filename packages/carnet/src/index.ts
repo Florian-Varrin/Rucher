@@ -68,6 +68,13 @@ export {
 } from './prompt/prompt.ts';
 export { CORE_RULES } from './prompt/core-rules.ts';
 export { handleUserPromptSubmit } from './hook/user-prompt-submit.ts';
+export { handleToolUse } from './hook/post-tool-use.ts';
+export {
+  MEMORY_MAX_CHARACTERS,
+  type MemoryOptions,
+  memoryMaxCharacters,
+  renderMemory,
+} from './memory.ts';
 export {
   claudeCode,
   groupInstructions,
@@ -87,6 +94,7 @@ export {
   hostById,
   type HostPromptPayload,
   type HostSessionEndPayload,
+  type HostToolPayload,
   type HostSessionPayload,
   type HostSubagentPayload,
   type LaunchOptions,

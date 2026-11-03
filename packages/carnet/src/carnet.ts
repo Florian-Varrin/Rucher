@@ -16,6 +16,13 @@ import type { Ctx } from './context.ts';
 import { openDatabase } from './db/open.ts';
 import { logEvent, type LogEventInput, readEvents } from './events.ts';
 import { type Group, type LocateOptions, locateGroup } from './group/locate.ts';
+import {
+  copyInjectedRepos,
+  type MemoryOptions,
+  repoMemory,
+  sessionMemory,
+  sessionStartMemory,
+} from './memory.ts';
 import { mergeSessions } from './merge.ts';
 import {
   type AddNoteInput,
@@ -161,6 +168,16 @@ export class Carnet {
     cite: (id: number, input: CiteNoteInput) => citeNote(this.ctx, id, input),
     recordActiveDay: () => recordActiveDay(this.ctx),
     activity: (session: string) => sessionNoteActivity(this.ctx, session),
+  };
+
+  readonly memory = {
+    atStart: (session: Session, options?: MemoryOptions) =>
+      sessionStartMemory(this.ctx, this.group, session, options),
+    ofSession: (session: Session, options?: MemoryOptions) =>
+      sessionMemory(this.ctx, this.group, session, options),
+    forRepo: (session: Session, repo: string, options?: MemoryOptions) =>
+      repoMemory(this.ctx, session, repo, options),
+    copyRepos: (from: string, into: string) => copyInjectedRepos(this.ctx, from, into),
   };
 
   readonly status = {

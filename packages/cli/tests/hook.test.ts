@@ -9,6 +9,7 @@ import {
 } from '@rucher/carnet';
 import { expect, test } from 'vite-plus/test';
 import {
+  postToolUse,
   sessionStart,
   subagentStart,
   subagentStop,
@@ -205,4 +206,31 @@ test('named sub-agents get the reporting rules, forks inherit them', () => {
   const fork = makeIo({ env });
   expect(subagentStart(event('fork'), fork)).toBe(0);
   expect(fork.output).toEqual([]);
+});
+
+test('post-tool-use adds a repo memory once, and stays silent otherwise', () => {
+  const { root, api, env } = group();
+  const carnet = openCarnet({ cwd: root, env });
+  carnet.notes.add({
+    kind: 'dead_end',
+    text: 'retrying the payment webhook twice double charges the customer',
+    repos: [api.split('/').pop() ?? ''],
+  });
+  carnet.close();
+  const payload = (input: Record<string, unknown>) =>
+    JSON.stringify({ session_id: SESSION, cwd: root, tool_name: 'Read', tool_input: input });
+  const first = makeIo({ env });
+  expect(postToolUse(payload({ file_path: join(api, 'src', 'pay.ts') }), first)).toBe(0);
+  const output = JSON.parse(first.output.join('')) as {
+    hookSpecificOutput: { hookEventName: string; additionalContext: string };
+  };
+  expect(output.hookSpecificOutput.hookEventName).toBe('PostToolUse');
+  expect(output.hookSpecificOutput.additionalContext).toContain('double charges');
+  const again = makeIo({ env });
+  postToolUse(payload({ file_path: join(api, 'src', 'other.ts') }), again);
+  expect(again.output).toEqual([]);
+  const outside = makeIo({ env });
+  postToolUse(payload({ file_path: join(root, 'notes.md') }), outside);
+  expect(outside.output).toEqual([]);
+  expect(outside.errors).toEqual([]);
 });

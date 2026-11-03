@@ -54,6 +54,18 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read|Edit|Write|Grep|Glob|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rucher hook post-tool-use",
+            "timeout": 10
+          }
+        ]
+      }
     ]
   }
 }

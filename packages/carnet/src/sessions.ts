@@ -56,6 +56,8 @@ export interface HookEnv {
   RUCHER_SESSION_KIND?: string | undefined;
   RUCHER_SESSION_NAME?: string | undefined;
   RUCHER_PROMPT_VERSION?: string | undefined;
+  RUCHER_MEMORY_MAX_CHARACTERS?: string | undefined;
+  RUCHER_MEMORY_HALF_LIFE_DAYS?: string | undefined;
 }
 
 export interface CreateSessionInput {

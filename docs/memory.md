@@ -4,7 +4,7 @@ What a group has learned, shared by every session of the group. For the journal 
 
 ## Why
 
-Sessions start blind. The journal records what happened in one session; a new session of the same group does not know that an approach was already tried and failed, that a decision was made, or that a repo hides a trap. Memory is a small set of notes, written through tools, that every session of the group can read.
+Sessions start blind. The journal records what happened in one session; a new session of the same group does not know that an approach was already tried and failed, that a decision was made, or that a repo hides a trap. Memory is a small set of notes, written through tools, and brought into the group's sessions when they concern the work.
 
 ## Three kinds of information
 
@@ -69,6 +69,29 @@ Notes
 
 `similar to #N` flags a possible duplicate found when the note was added: drop one, or keep both if they differ. Beyond five lines the section folds to one line (`Notes  4 added · 1 cited · 1 dropped · 1 possible duplicate`), and `--all` shows only that line for each session. The section is absent when the session touched no note.
 
+## How notes reach a session
+
+At start (`rucher hook session-start`):
+
+| Source             | Brought in                                                                   |
+| ------------------ | ---------------------------------------------------------------------------- |
+| `startup`, `clear` | the general notes, and the notes of the session's repo when it starts in one |
+| `resume`           | after the resume context, the notes the session already had                  |
+| `compact`          | the notes the session already had                                            |
+
+A session started from the meta directory has no repo yet. A repo's notes come in the first time a tool touches a file of that repo (`rucher hook post-tool-use`, on `Read`, `Edit`, `Write`, `Grep`, `Glob` and `Bash`): the file path, the search path, or the shell's working directory for `Bash` (commands are not parsed). Once per repo and per session; a note shared with a repo already brought in is not repeated. Forks run in their parent's context, so they get nothing of their own.
+
+```text
+Rucher memory, repo shop-web (2 notes, note_list for details):
+
+Dead ends
+  #14  SSR cache per tenant: key too wide, leaks across tenants
+Learnings
+  #21  [shop-web] the preview build needs NODE_ENV=production
+```
+
+Inside each kind, notes come by weight, newest first on a tie. Each injection stays under `RUCHER_MEMORY_MAX_CHARACTERS` (default 2000), on its own budget, separate from the resume context: learnings are cut first, then decisions, dead ends last, the lowest weight first inside a kind, and the header says how many were left out. Every message also marks the day as active (`active_days`), for the weights.
+
 ### Keys in `rucher status --watch`
 
 When the pane is a terminal, `rucher status --watch` reads a few keys for the displayed session (not with `--all`, where only `q` works):
@@ -86,4 +109,4 @@ The refresh pauses while you type a reason. The drop is recorded for the display
 
 ## Coming next
 
-- Injection: general notes at session start, a repo's notes the first time a session touches that repo.
+- Notes for sub-agents: a fork that touches a repo first gets that repo's notes too.

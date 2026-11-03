@@ -17,6 +17,7 @@ import type {
   Host,
   HostPromptPayload,
   HostSessionEndPayload,
+  HostToolPayload,
   HostSessionPayload,
   HostSubagentPayload,
   LaunchOptions,
@@ -40,6 +41,22 @@ function payloadObject(json: string): Record<string, unknown> {
 function text(data: Record<string, unknown>, key: string): string | undefined {
   const value = data[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+// Bash commands are not parsed: their cwd is the only reliable path.
+function touchedPath(
+  toolName: string | undefined,
+  input: unknown,
+  cwd: string | undefined,
+): string | undefined {
+  const fields =
+    typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+  if (toolName === 'Read' || toolName === 'Edit' || toolName === 'Write') {
+    return text(fields, 'file_path');
+  }
+  if (toolName === 'Grep' || toolName === 'Glob') return text(fields, 'path') ?? cwd;
+  if (toolName === 'Bash') return cwd;
+  return undefined;
 }
 
 function ownTaskDescription(data: Record<string, unknown>, agentId: string): string | undefined {
@@ -232,6 +249,18 @@ export const claudeCode: Host = {
       session_id: data.session_id as string,
       cwd: text(data, 'cwd'),
       reason: text(data, 'reason'),
+    };
+  },
+  parseToolPayload(json): HostToolPayload {
+    const data = payloadObject(json);
+    const toolName = text(data, 'tool_name');
+    const cwd = text(data, 'cwd');
+    return {
+      session_id: data.session_id as string,
+      cwd,
+      tool_name: toolName,
+      agent_id: text(data, 'agent_id'),
+      path: touchedPath(toolName, data.tool_input, cwd),
     };
   },
   subagentInheritsContext(payload) {

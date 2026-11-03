@@ -3,6 +3,7 @@ import {
   claudeCode,
   handleSessionEnd,
   handleSessionStart,
+  handleToolUse,
   handleUserPromptSubmit,
   type Host,
   openCarnet,
@@ -49,6 +50,8 @@ export function sessionStart(stdinText: string, io: Io): number {
         RUCHER_SESSION_KIND: io.env.RUCHER_SESSION_KIND,
         RUCHER_SESSION_NAME: io.env.RUCHER_SESSION_NAME,
         RUCHER_PROMPT_VERSION: io.env.RUCHER_PROMPT_VERSION,
+        RUCHER_MEMORY_MAX_CHARACTERS: io.env.RUCHER_MEMORY_MAX_CHARACTERS,
+        RUCHER_MEMORY_HALF_LIFE_DAYS: io.env.RUCHER_MEMORY_HALF_LIFE_DAYS,
       });
       for (const notice of notices) io.stderr(`${notice}\n`);
       if (additionalContext) {
@@ -88,6 +91,22 @@ export function userPromptSubmit(stdinText: string, io: Io): number {
     const payload = host.parsePromptPayload(stdinText);
     withCarnet(payload.cwd, io, (carnet) => {
       handleUserPromptSubmit(carnet, host, payload);
+    });
+  });
+}
+
+export function postToolUse(stdinText: string, io: Io): number {
+  return runHook(io, () => {
+    const payload = host.parseToolPayload(stdinText);
+    if (payload.agent_id || !payload.path) return;
+    withCarnet(payload.cwd, io, (carnet) => {
+      const additionalContext = handleToolUse(carnet, payload, {
+        RUCHER_MEMORY_MAX_CHARACTERS: io.env.RUCHER_MEMORY_MAX_CHARACTERS,
+        RUCHER_MEMORY_HALF_LIFE_DAYS: io.env.RUCHER_MEMORY_HALF_LIFE_DAYS,
+      });
+      if (!additionalContext) return;
+      const hookSpecificOutput = { hookEventName: 'PostToolUse', additionalContext };
+      io.stdout(`${JSON.stringify({ hookSpecificOutput })}\n`);
     });
   });
 }
