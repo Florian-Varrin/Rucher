@@ -16,20 +16,20 @@ description: Rucher multi-agent workflow for Claude Code. Dispatch forks (sub-ag
 
 ## Roles and tools
 
-| Who        | Calls                                  | When                                                                         |
-| ---------- | -------------------------------------- | ---------------------------------------------------------------------------- |
-| Main agent | `agent_start`                          | right before dispatching a fork                                              |
-| Main agent | `table_set` (`main_working=true`)      | before applying, testing or fixing itself                                    |
-| Main agent | `table_set` (status) / `table_clear`   | when the item is back in the human's hands, or done                          |
-| Main agent | `agent_update`                         | to move an agent to the next human action, or to set its final `report_path` |
-| Main agent | `queue_reorder`                        | to change the handling order                                                 |
-| Main agent | `log_event`                            | when a step is answered, applied, tested, committed or dropped               |
-| Main agent | `agent_drop`                           | when a fork's work is committed or abandoned                                 |
-| Main agent | `agent_list`                           | to recall where things stand                                                 |
-| Main agent | `note_add` / `note_drop`               | at the end of a step: what was learned, decided or ruled out                 |
-| Fork       | `agent_update` (`running`, short note) | at meaningful progress                                                       |
-| Fork       | `agent_done`                           | as its last tool action, with the report path, then a one-line reply         |
-| Both       | `note_list` / `note_cite`              | before trying an approach; cite a note when it changed what you did          |
+| Who        | Calls                                  | When                                                                                 |
+| ---------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
+| Main agent | `agent_start`                          | right before dispatching a fork                                                      |
+| Main agent | `table_set` (`main_working=true`)      | before applying, testing or fixing itself                                            |
+| Main agent | `table_set` (status) / `table_clear`   | when the item is back in the human's hands, or done                                  |
+| Main agent | `agent_update`                         | to move an agent to the next human action, or to set its final `report_path`         |
+| Main agent | `queue_reorder`                        | to change the handling order                                                         |
+| Main agent | `log_event`                            | when a step is answered, applied, tested, committed or dropped                       |
+| Main agent | `agent_drop`                           | when a fork's work is committed or abandoned                                         |
+| Main agent | `agent_list`                           | to recall where things stand                                                         |
+| Main agent | `note_add` / `note_drop`               | at the end of a step: what was learned, decided or ruled out                         |
+| Fork       | `agent_update` (`running`, short note) | at meaningful progress                                                               |
+| Fork       | `agent_done`                           | as its last tool action, with the report path, then a one-line reply without results |
+| Both       | `note_list` / `note_cite`              | before trying an approach; cite a note when it changed what you did                  |
 
 Update **before and after** each piece of work, never batched at the end of a turn. Notes and table text stay under 60 characters, without paths or backticks.
 
@@ -39,7 +39,7 @@ A fork starts from the main agent's context, works alone, writes its report to a
 
 - Pick a short name (what the human will read in the status pane) and a one-line task. Call `agent_start` with both, then launch the fork in a later message, so the agent exists before the fork starts.
 - Launch the fork with the agent name as the Agent tool `description`, and a prompt that starts with ``You are fork `<name>`.`` The hooks pair forks with Carnet agents by that name; start order is only a fallback, and it is unreliable when several forks start at once.
-- The fork's prompt states: its agent name, the exact base commit, where to write its report (`<scratchpad>/<name>.md`), and that `agent_done` must be its last tool action with `has_questions` set when the report asks the human something, followed by a one-line final message, and that the report ends with a `## Learnings` section (see [Memory](#memory)). Until the fork has really stopped, the pane shows it as `⏳ running · reporting`.
+- The fork's prompt states: its agent name, the exact base commit, where to write its report (`<scratchpad>/<name>.md`), and that `agent_done` must be its last tool action with `has_questions` set when the report asks the human something, followed by a one-line final message that carries no results (`<name> done, report written`), and that the report ends with a `## Learnings` section (see [Memory](#memory)). Until the fork has really stopped, the pane shows it as `⏳ running · reporting`.
 - Forks never commit, push or stash. A fork writes its report only to its scratchpad; the main agent copies it into the group.
 - Read-only analysis forks need no worktree.
 - Dev forks get their own git worktree only when the human allows worktrees. First step, always: `git reset --hard <exact base commit>`, then reinstall dependencies with the lockfile frozen, because worktrees can be created from stale commits.
@@ -51,7 +51,7 @@ Phase 1: the fork analyses, then writes numbered questions, each with a recommen
 
 ## When a fork finishes
 
-- The main agent says one line in the chat: `<name> finished, report ready`. Nothing more. Reports and questions of other forks are held until the human asks for them.
+- The main agent says one line in the chat: `<name> finished, report ready`. Nothing more: no summary, no figures, no questions from the report, no action on it, even when the fork's final message carries results or when the human asks about something else. A report is presented only when the human asks for that fork's report; the reports of other forks stay held, also when several forks finish together.
 - The main agent copies the report to the report destination `agent_start` returned: `.rucher/reports/<name>.md` in the group's meta directory, outside the repos, never committed. Then it calls `agent_update` with that `report_path`. One file per fork; the human's answers are appended there once given.
 - When the human asks for a report, the main agent reads the fork file instead of keeping reports in context.
 - Once the human has answered, `log_event answered` and `agent_update` to the next status (`running` if the fork resumes, `review` if the human will read the result).
