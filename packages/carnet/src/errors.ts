@@ -1,5 +1,6 @@
 export type CarnetErrorCode =
   | 'NO_GROUP'
+  | 'GROUP_AMBIGUOUS'
   | 'GROUP_EXISTS'
   | 'REPO_NOT_FOUND'
   | 'REPO_NAME_TAKEN'
@@ -14,6 +15,8 @@ export type CarnetErrorCode =
   | 'SESSION_RUNNING'
   | 'SESSION_KIND_INVALID'
   | 'SESSION_MERGE_INVALID'
+  | 'SESSION_EXISTS'
+  | 'SESSION_MOVE_INVALID'
   | 'AGENT_EXISTS'
   | 'AGENT_NOT_FOUND'
   | 'INVALID_STATUS'

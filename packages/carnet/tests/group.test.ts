@@ -132,3 +132,30 @@ test('unregisterGroups removes registry entries by path only', () => {
   expect(unregisterGroups(['/a', '/c'], env)).toEqual([{ name: 'shop', path: '/b' }]);
   expect(readRegistry(env)).toEqual([{ name: 'shop', path: '/b' }]);
 });
+
+function twoGroupsSharingApi() {
+  const { meta: shop, api, env } = setup();
+  const blog = tempDirectory('meta-');
+  initGroup(shop, { env, name: 'shop', repos: [api] });
+  initGroup(blog, { env, name: 'blog', repos: [api] });
+  return { shop, blog, api, env };
+}
+
+test('RUCHER_GROUP_ROOT pins the group whatever the cwd, unless it is not a group', () => {
+  const { shop, blog, api, env } = twoGroupsSharingApi();
+  expect(locateGroup({ cwd: api, env: { ...env, RUCHER_GROUP_ROOT: shop } }).name).toBe('shop');
+  expect(locateGroup({ cwd: shop, env: { ...env, RUCHER_GROUP_ROOT: blog } }).name).toBe('blog');
+  const pinnedToNothing = { ...env, RUCHER_GROUP_ROOT: tempDirectory('nothing-') };
+  expect(locateGroup({ cwd: shop, env: pinnedToNothing }).name).toBe('shop');
+});
+
+test('a repo in several groups is ambiguous, unless one group already has the session', () => {
+  const { blog, api, env } = twoGroupsSharingApi();
+  expect(codeOf(() => locateGroup({ cwd: api, env }))).toBe('GROUP_AMBIGUOUS');
+  const sessionId = '0360889d-99c7-4c8f-8447-50ce30696e5a';
+  expect(codeOf(() => locateGroup({ cwd: api, env, sessionId }))).toBe('GROUP_AMBIGUOUS');
+  const carnet = openCarnet({ cwd: blog, env });
+  carnet.sessions.ensure(sessionId, blog);
+  carnet.close();
+  expect(locateGroup({ cwd: join(api, 'src'), env, sessionId }).name).toBe('blog');
+});

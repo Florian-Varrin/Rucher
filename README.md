@@ -69,9 +69,10 @@ rucher log --md > journal.md           # the journal as markdown
 rucher sessions                        # named sessions
 rucher resume shop-auth                # back into a named session
 rucher sessions merge <from> <into>    # join a session split by a resume
+rucher sessions move <session> --to <group>  # move a session to its right group
 ```
 
-Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared context and `additionalDirectories` gives access to the repos. Sessions started inside one of the repos attach to the same group.
+Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared context and `additionalDirectories` gives access to the repos. Sessions started inside one of the repos attach to the same group; when a repo belongs to several groups, launch with `rucher` so the session stays in its group.
 
 Naming, watching, resuming and dropping sessions: [docs/sessions.md](docs/sessions.md).
 

@@ -197,6 +197,9 @@ export interface OpenCarnetOptions extends LocateOptions, CarnetOptions {
 }
 
 export function openCarnet(options: OpenCarnetOptions = {}): Carnet {
-  const group = locateGroup(options);
+  return openGroupCarnet(locateGroup(options), options);
+}
+
+export function openGroupCarnet(group: Group, options: OpenCarnetOptions = {}): Carnet {
   return new Carnet(group, openDatabase(options.dbPath ?? group.dbPath), options);
 }

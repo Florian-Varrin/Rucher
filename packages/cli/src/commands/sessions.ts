@@ -1,5 +1,19 @@
 import { rmSync } from 'node:fs';
-import { type Carnet, formatClock, hostById, type Session, shortId } from '@rucher/carnet';
+import { resolve } from 'node:path';
+import {
+  type Carnet,
+  formatClock,
+  type Group,
+  hostById,
+  isGroupRoot,
+  loadGroup,
+  type MoveOptions,
+  moveSession,
+  openGroupCarnet,
+  readRegistry,
+  type Session,
+  shortId,
+} from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
 import { CliError, findSession } from '../session.ts';
@@ -85,6 +99,52 @@ export function sessionsMerge(
 
 function label(session: Session): string {
   return session.name ?? shortId(session.id);
+}
+
+export function groupNamed(reference: string, io: Io): Group {
+  const groups = readRegistry(io.env).filter((group) => isGroupRoot(group.path));
+  const byPath = groups.filter((group) => group.path === resolve(io.cwd, reference));
+  const matches = byPath.length ? byPath : groups.filter((group) => group.name === reference);
+  const [match] = matches;
+  if (!match) {
+    throw new CliError(`No registered group named "${reference}"`, 'see rucher groups');
+  }
+  if (matches.length > 1) {
+    throw new CliError(`Several groups are named "${reference}"`, 'pass the group path');
+  }
+  return loadGroup(match.path);
+}
+
+export function sessionsMove(
+  carnet: Carnet,
+  reference: string,
+  groupReference: string,
+  io: Io,
+  options: MoveOptions = {},
+): void {
+  const session = findSession(carnet, reference);
+  const target = openGroupCarnet(groupNamed(groupReference, io));
+  try {
+    const result = moveSession(carnet, session.id, target, options);
+    const into = result.into ? ` into ${label(result.into)}` : '';
+    const lines = [
+      `${options.dryRun ? 'would move' : 'moved'} ${label(session)} from ${carnet.group.name} to ${target.group.name}${into}`,
+      `  agents moved: ${result.movedAgents.join(', ') || 'none'}`,
+      ...(result.skippedAgents.length
+        ? [`  agents left out (name already used): ${result.skippedAgents.join(', ')}`]
+        : []),
+      `  events moved: ${result.movedEvents}`,
+      `  table line moved: ${result.movedTable ? 'yes' : 'no'}`,
+      ...(result.unlinkedNotes
+        ? [
+            `  notes kept in ${carnet.group.name}, unlinked from the session: ${result.unlinkedNotes}`,
+          ]
+        : []),
+    ];
+    io.stdout(`${lines.join('\n')}\n`);
+  } finally {
+    target.close();
+  }
 }
 
 export function sessionsRename(carnet: Carnet, reference: string, name: string, io: Io): void {

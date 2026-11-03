@@ -55,7 +55,7 @@ const agentStart = defineTool({
     mkdirSync(reportsDirectoryOf(carnet.group), { recursive: true });
     const reportDestination = reportPathFor(carnet.group, agent.name);
     return {
-      text: `${EMOJI.running} ${agent.name} started\nReport destination: ${reportDestination}`,
+      text: `${EMOJI.running} ${agent.name} started in group ${carnet.group.name}\nReport destination: ${reportDestination}`,
       data: { agent, reportDestination },
     };
   },

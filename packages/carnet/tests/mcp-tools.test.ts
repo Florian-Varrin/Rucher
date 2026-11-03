@@ -44,7 +44,9 @@ test("instructions fit Claude Code's limit and tools are listed", async () => {
 test('main and fork lifecycle through the protocol', async () => {
   const started = await call('agent_start', { name: 'banner', task: 'Add banner' });
   const destination = join(carnet.group.root, '.rucher', 'reports', 'banner.md');
-  expect(started.text).toBe(`⏳ banner started\nReport destination: ${destination}`);
+  expect(started.text).toBe(
+    `⏳ banner started in group ${carnet.group.name}\nReport destination: ${destination}`,
+  );
   expect(started.data).toMatchObject({ reportDestination: destination });
   expect(existsSync(dirname(destination))).toBe(true);
   expect(

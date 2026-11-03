@@ -6,7 +6,14 @@ export type {
   UpdateAgentInput,
 } from './agents.ts';
 export { PUBLISH_FALLBACK_MILLISECONDS, REPORTING_NOTE } from './agents.ts';
-export { Carnet, type CarnetOptions, type OpenCarnetOptions, openCarnet } from './carnet.ts';
+export {
+  Carnet,
+  type CarnetOptions,
+  type OpenCarnetOptions,
+  openCarnet,
+  openGroupCarnet,
+} from './carnet.ts';
+export { type MoveOptions, type MoveResult, moveSession } from './move.ts';
 export { MEMORY_DB, openDatabase } from './db/open.ts';
 export { migrate, migrations, schemaVersion } from './db/schema.ts';
 export { CarnetError, type CarnetErrorCode } from './errors.ts';
@@ -32,6 +39,8 @@ export {
   isInside,
   loadGroup,
   locateGroup,
+  pinnedGroup,
+  ambiguousGroupContext,
   type LocateOptions,
   repoNameFor,
   repoPathFor,
