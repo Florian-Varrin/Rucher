@@ -7,7 +7,7 @@ import {
   baseRules,
   CORE_RULES,
   handleSessionStart,
-  OUTSIDE_RUCHER_CONTEXT,
+  outsideRucherContext,
   OUTSIDE_RUCHER_NOTICE,
   RULES_UPDATED_NOTICE,
   rulesVersion,
@@ -93,8 +93,9 @@ test('a session started by rucher records its version and gets no warning', () =
 });
 
 test('a session never started by rucher is warned once in context and on stderr', () => {
-  const { first } = start('startup', {});
-  expect(first.additionalContext).toBe(OUTSIDE_RUCHER_CONTEXT);
+  const { first, carnet, home } = start('startup', {});
+  expect(first.additionalContext).toBe(outsideRucherContext(carnet.group, home));
+  expect(first.additionalContext).toContain('Forks never commit');
   expect(first.notices).toEqual([OUTSIDE_RUCHER_NOTICE]);
 });
 
@@ -106,7 +107,7 @@ test('a resume keeps the recorded version and tells when the rules changed since
   const resumed = run('resume', {});
   expect(resumed.session.promptVersion).toBe('oldversion00');
   expect(resumed.contextParts[0]).toContain('state when resumed');
-  expect(resumed.additionalContext).not.toContain(OUTSIDE_RUCHER_CONTEXT);
+  expect(resumed.additionalContext).not.toContain('started without rucher');
   expect(resumed.notices).toEqual([RULES_UPDATED_NOTICE]);
   const current = rulesVersion(carnet.group, home);
   const relaunched = run('startup', { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: current });

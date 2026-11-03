@@ -2,7 +2,7 @@ import type { Carnet } from '../carnet.ts';
 import type { SessionEventType } from '../events.ts';
 import {
   compactReminder,
-  OUTSIDE_RUCHER_CONTEXT,
+  outsideRucherContext,
   OUTSIDE_RUCHER_NOTICE,
   RULES_UPDATED_NOTICE,
   rulesVersion,
@@ -82,7 +82,7 @@ export function handleSessionStart(
   if (source === 'compact' && !launchedVersion) {
     contextParts.push(compactReminder(carnet.group, promptEnv));
   } else if (!env.RUCHER_SESSION_ID && !session.promptVersion) {
-    contextParts.push(OUTSIDE_RUCHER_CONTEXT);
+    contextParts.push(outsideRucherContext(carnet.group, promptEnv));
     notices.push(OUTSIDE_RUCHER_NOTICE);
   } else if (
     session.promptVersion &&

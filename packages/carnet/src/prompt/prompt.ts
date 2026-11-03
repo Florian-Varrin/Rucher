@@ -41,7 +41,7 @@ export function groupRules(group: Group): string | undefined {
 
 export function rulesText(group: Group, env: NodeJS.ProcessEnv = process.env): string {
   const extra = groupRules(group);
-  const base = `Rucher rules:\n${baseRules(env)}`;
+  const base = `Rucher rules, always follow them:\n${baseRules(env)}`;
   return extra ? `${base}\n\nRules of the ${group.name} group:\n${extra}` : base;
 }
 
@@ -77,8 +77,9 @@ export function compactReminder(group: Group, env: NodeJS.ProcessEnv = process.e
   return `The conversation was just compacted and this session was not started by rucher, so its system prompt no longer holds the Rucher rules. ${rulesText(group, env)}`;
 }
 
-export const OUTSIDE_RUCHER_CONTEXT =
-  'This session was started without rucher, so the Rucher rules are not in its system prompt. Follow the Carnet server instructions and load the rucher skill before dispatching or applying forks.';
+export function outsideRucherContext(group: Group, env: NodeJS.ProcessEnv = process.env): string {
+  return `This session was started without rucher, so its system prompt does not hold the Rucher rules. ${rulesText(group, env)}`;
+}
 
 export const OUTSIDE_RUCHER_NOTICE =
   'rucher: session started without rucher, the Rucher rules are not in its system prompt (use rucher new, tmp or resume)';

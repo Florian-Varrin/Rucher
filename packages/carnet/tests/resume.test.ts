@@ -20,6 +20,17 @@ test('resume context keeps the status and drops the oldest events to fit', () =>
   expect(resumeContext(carnet, session, { maxCharacters: 50 })).toHaveLength(50);
 });
 
+test('resume context lists the last events by time', () => {
+  const { carnet } = withSession();
+  carnet.events.log(SESSION, { type: 'tested', note: 'recent' });
+  carnet.db
+    .prepare("INSERT INTO events (session, at, type, note) VALUES (?, ?, 'tested', 'moved')")
+    .run(SESSION, '2026-10-30T09:00:00.000Z');
+  const context = resumeContext(carnet, carnet.sessions.require(SESSION));
+  expect(context.indexOf('moved')).toBeLessThan(context.indexOf('recent'));
+  expect(context.endsWith('recent')).toBe(true);
+});
+
 test('a session started by rucher gets context only on resume', () => {
   const { carnet, root } = withSession();
   const base = { session_id: SESSION, cwd: root };

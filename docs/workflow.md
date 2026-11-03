@@ -14,20 +14,18 @@ The rules of the game for a Claude Code session that drives sub-agents (forks) w
 
 ## Roles and tools
 
-| Who        | Calls                                  | When                                                                                 |
-| ---------- | -------------------------------------- | ------------------------------------------------------------------------------------ |
-| Main agent | `agent_start`                          | right before dispatching a fork                                                      |
-| Main agent | `table_set` (`main_working=true`)      | before applying, testing or fixing itself                                            |
-| Main agent | `table_set` (status) / `table_clear`   | when the item is back in the human's hands, or done                                  |
-| Main agent | `agent_update`                         | to move an agent to the next human action, or to set its final `report_path`         |
-| Main agent | `queue_reorder`                        | to change the handling order                                                         |
-| Main agent | `log_event`                            | when a step is answered, applied, tested, committed or dropped                       |
-| Main agent | `agent_drop`                           | when a fork's work is committed or abandoned                                         |
-| Main agent | `agent_list`                           | to recall where things stand                                                         |
-| Main agent | `note_add` / `note_drop`               | at the end of a step: what was learned, decided or ruled out                         |
-| Fork       | `agent_update` (`running`, short note) | at meaningful progress                                                               |
-| Fork       | `agent_done`                           | as its last tool action, with the report path, then a one-line reply without results |
-| Both       | `note_list` / `note_cite`              | before trying an approach; cite a note when it changed what you did                  |
+| Who        | Calls                                  | When                                                                                   |
+| ---------- | -------------------------------------- | -------------------------------------------------------------------------------------- |
+| Main agent | `agent_start`                          | right before dispatching a fork                                                        |
+| Main agent | `agent_step`                           | at each step of a fork's work: answered, applying, applied, tested, committed, dropped |
+| Main agent | `table_set` / `table_clear`            | for work that is not a fork's: `main_working=true` while working itself                |
+| Main agent | `agent_update` / `agent_drop`          | for moves `agent_step` does not cover                                                  |
+| Main agent | `queue_reorder`                        | to change the handling order                                                           |
+| Main agent | `agent_list`                           | to recall where things stand                                                           |
+| Main agent | `note_add` / `note_drop`               | at the end of a step: what was learned, decided or ruled out                           |
+| Fork       | `agent_update` (`running`, short note) | at meaningful progress                                                                 |
+| Fork       | `agent_done`                           | as its last tool action, with the report path, then a one-line reply without results   |
+| Both       | `note_list` / `note_cite`              | before trying an approach; cite a note when it changed what you did                    |
 
 Update **before and after** each piece of work, never batched at the end of a turn. Notes and table text stay under 60 characters, without paths or backticks.
 
@@ -50,20 +48,20 @@ Phase 1: the fork analyses, then writes numbered questions, each with a recommen
 ## When a fork finishes
 
 - The main agent says one line in the chat: `<name> finished, report ready`. Nothing more: no summary, no figures, no questions from the report, no action on it, even when the fork's final message carries results or when the human asks about something else. A report is presented only when the human asks for that fork's report; the reports of other forks stay held, also when several forks finish together.
-- The main agent copies the report to the report destination `agent_start` returned: `.rucher/reports/<name>.md` in the group's meta directory, outside the repos, never committed. Then it calls `agent_update` with that `report_path`. One file per fork; the human's answers are appended there once given.
+- `agent_done` copies the report to the report destination `agent_start` returned: `.rucher/reports/<name>.md` in the group's meta directory, outside the repos, never committed. One file per fork; the human's answers are appended there once given.
 - When the human asks for a report, the main agent reads the fork file instead of keeping reports in context.
-- Once the human has answered, `log_event answered` and `agent_update` to the next status (`running` if the fork resumes, `review` if the human will read the result).
+- Once the human has answered, `agent_step answered`: the agent moves to `apply`, or pass `next` (`running` if the fork resumes, `review` if the human will read the result).
 
 ## Applying a fork
 
-1. `table_set` with `main_working=true` naming the step. The human sees ⚙️ and knows it is not ready.
+1. `agent_step applying`. The human sees ⚙️ and knows it is not ready.
 2. Diff the worktree (`git add -N` for new files), `git apply -3` into the main repo, uncommitted. Resolve conflicts.
 3. Run typecheck and tests in the main repo. Audit the comments.
 4. Present: a short summary of what was done, how to test, the open questions with recommendations, and a one-line commit message.
-5. `agent_update` to `test`, then `commit` as the human advances; `log_event applied`, then `tested`, then `committed` with the sha.
-6. After the commit: promote the report's `Learnings` with `note_add`, then `agent_drop` with a short reason, `table_clear`, remove the worktree.
+5. `agent_step applied` (agent and table line move to `test`), then `tested` (to `commit`) as the human advances.
+6. After the commit: `agent_step committed` with the sha closes the agent and clears its table line. Promote the report's `Learnings` with `note_add`, remove the worktree.
 
-Dropped work: revert it in the main repo, keep its patch in the scratchpad, promote its `Learnings` (a dropped fork is the best source of `dead_end` notes), then `agent_drop` with the reason. The event journal keeps the trace.
+Dropped work: revert it in the main repo, keep its patch in the scratchpad, promote its `Learnings` (a dropped fork is the best source of `dead_end` notes), then `agent_step dropped` with the reason as `note`. The event journal keeps the trace.
 
 ## Memory
 
@@ -118,7 +116,7 @@ decision auth stays in a cookie session: partner SSO requires cookies
 
 - **System prompt:** a session started with `rucher` gets the core rules below appended to its system prompt. Forks inherit it; named sub-agents (`Explore`, `general-purpose`, your own agents) get the sub-agent rules from the `SubagentStart` hook instead.
 - **Skill:** the full workflow above is the plugin's `rucher` skill. It loads itself when you ask Claude for forks or parallel work, or with `/rucher`.
-- **Server instructions:** the Carnet MCP server tells every session how to use its tools, including sessions started without `rucher`.
+- **Server instructions:** the Carnet MCP server tells every session which tool to use when; no workflow rules there. A session started without `rucher` gets the core rules from the `SessionStart` hook instead.
 
 `$RUCHER_HOME/prompt.md` replaces the core rules, and `<meta directory>/.rucher/prompt.md` adds rules for one group. Claude Code keeps a session's system prompt until the conversation is compacted, so new rules reach a running session only after its next compaction, or in a new session.
 

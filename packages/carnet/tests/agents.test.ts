@@ -108,6 +108,16 @@ test('events.read returns the last N in chronological order', () => {
   expect(carnet.events.read(SESSION, 2).map((event) => event.commit)).toEqual(['c3', 'c4']);
 });
 
+test('events.read orders by time, so events inserted late with earlier times come first', () => {
+  const { carnet } = withSession();
+  carnet.events.log(SESSION, { type: 'tested', note: 'late' });
+  carnet.db
+    .prepare("INSERT INTO events (session, at, type, note) VALUES (?, ?, 'tested', 'moved')")
+    .run(SESSION, '2026-10-30T09:00:00.000Z');
+  expect(carnet.events.read(SESSION).map((event) => event.note)).toEqual(['moved', 'late']);
+  expect(carnet.events.read(SESSION, 1).map((event) => event.note)).toEqual(['late']);
+});
+
 test('leaving running without a note clears the progress note', () => {
   const { carnet } = withSession();
   carnet.agents.start(SESSION, { name: 'banner', task: 'Add banner' });

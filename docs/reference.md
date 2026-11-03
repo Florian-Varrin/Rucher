@@ -66,25 +66,26 @@ The clock line names the group whose database is read, so a session recorded in 
 
 ## MCP tools
 
-The Carnet MCP server (`rucher serve`, wired by the plugin) gives the agents these tools. All take `session` as an optional override (name, id or id prefix). Each returns one short line plus the entity as structured content; rule violations come back as tool errors with a code. Through the plugin, Claude Code names them `mcp__plugin_rucher_carnet__<tool>`.
+The Carnet MCP server (`rucher serve`, wired by the plugin) gives the agents these tools. All take `session` as an optional override (name, id or id prefix). Each returns short text only, no structured content, so results stay small in the model's context; rule violations come back as tool errors with a code. Through the plugin, Claude Code names them `mcp__plugin_rucher_carnet__<tool>`.
 
 **Agents**
 
-| Tool            | Parameters                          | Effect                                                                                                                                                                                 |
-| --------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`, returns the report destination `.rucher/reports/<name>.md`                                                                            |
-| `agent_update`  | name, status, note?, report_path?   | changes the status and the displayed text (a running note is cleared when the status leaves running without a new note); `report_path` after main copied the report to its final place |
-| `agent_done`    | name, report_path, has_questions    | stores ❓ answer or 👀 review, published at the real stop (SubagentStop) or at once when unpaired; logs `finished` then                                                                |
-| `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                                                                                                                                                          |
-| `agent_list`    | —                                   | structured list, so the main agent knows where it stands                                                                                                                               |
-| `queue_reorder` | names[]                             | order of "Waiting on you"                                                                                                                                                              |
+| Tool            | Parameters                          | Effect                                                                                                                                                                                                                                                                                        |
+| --------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_start`   | name, task, base_commit?, worktree? | creates the agent as ⏳ running, logs `started`, returns the report destination `.rucher/reports/<name>.md`                                                                                                                                                                                   |
+| `agent_update`  | name, status, note?, report_path?   | changes the status and the displayed text (a running note is cleared when the status leaves running without a new note); for moves `agent_step` does not cover                                                                                                                                |
+| `agent_done`    | name, report_path, has_questions    | copies the report to `.rucher/reports/<name>.md` and records that path; stores ❓ answer or 👀 review, published at the real stop (SubagentStop) or at once when unpaired; logs `finished` then                                                                                               |
+| `agent_step`    | name, step, commit?, note?, next?   | one call per step: `answered` (→ apply), `applying` (⚙️ table line), `applied` (→ test), `tested` (→ commit) log the event, move the agent and set the table line; `committed` (commit required) and `dropped` (note = reason) close it and clear its table line; `next` overrides the status |
+| `agent_drop`    | name, reason?                       | sets `closed`, logs `dropped`                                                                                                                                                                                                                                                                 |
+| `agent_list`    | —                                   | one line per open agent, so the main agent knows where it stands                                                                                                                                                                                                                              |
+| `queue_reorder` | names[]                             | order of "Waiting on you"                                                                                                                                                                                                                                                                     |
 
 **On the table**
 
-| Tool          | Parameters                  | Effect                                                                                                                                 |
-| ------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `table_set`   | text, main_working, status? | the "On the table" line, ⚙️ when main_working, else the emoji of `status` (default 💬); `status` is refused together with main_working |
-| `table_clear` | —                           | empties the section                                                                                                                    |
+| Tool          | Parameters                   | Effect                                                                                                                                                                                              |
+| ------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table_set`   | text, main_working?, status? | the "On the table" line, ⚙️ when main_working, else the emoji of `status` (default 💬); `status` is refused together with main_working; main_working omitted is false with a status, else unchanged |
+| `table_clear` | —                            | empties the section                                                                                                                                                                                 |
 
 **Sessions**
 
