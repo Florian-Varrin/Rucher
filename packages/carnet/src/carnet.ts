@@ -1,3 +1,5 @@
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import {
   dropAgent,
@@ -13,9 +15,10 @@ import {
   type UpdateAgentInput,
 } from './agents.ts';
 import type { Ctx } from './context.ts';
-import { openDatabase } from './db/open.ts';
+import { MEMORY_DB, openDatabase } from './db/open.ts';
+import { databasePath } from './paths.ts';
 import { logEvent, type LogEventInput, readEvents } from './events.ts';
-import { type Group, type LocateOptions, locateGroup } from './group/locate.ts';
+import { type Group, requireGroup, resolveGroup } from './group/locate.ts';
 import {
   copyInjectedRepos,
   type MemoryOptions,
@@ -87,21 +90,25 @@ export class Carnet {
   private readonly ctx: Ctx;
 
   constructor(
-    readonly group: Group,
     db: DatabaseSync,
+    readonly group: Group | null,
     options: CarnetOptions = {},
   ) {
     this.db = db;
     this.ctx = { db, now: options.now ?? (() => new Date()) };
   }
 
+  private get scope(): Group {
+    return requireGroup(this.group);
+  }
+
   readonly sessions = {
     get: (id: string) => getSession(this.ctx, id),
     find: (reference: string) => findSession(this.ctx, reference),
     require: (id: string) => requireSession(this.ctx, id),
-    ensure: (id: string, cwd?: string) => ensureSession(this.ctx, id, cwd, this.group),
+    ensure: (id: string, cwd?: string) => ensureSession(this.ctx, id, cwd, this.group ?? undefined),
     upsertFromHook: (payload: HookSessionPayload, env?: HookEnv) =>
-      upsertFromHook(this.ctx, this.group, payload, env),
+      upsertFromHook(this.ctx, this.scope, payload, env),
     touch: (id: string) => touchSession(this.ctx, id),
     merge: (fromId: string, intoId: string) => mergeSessions(this.ctx, fromId, intoId),
     purge: (keepId: string, days: number) => purgeSessions(this.ctx, keepId, days),
@@ -159,7 +166,7 @@ export class Carnet {
   };
 
   readonly notes = {
-    add: (input: AddNoteInput) => addNote(this.ctx, this.group, input),
+    add: (input: AddNoteInput) => addNote(this.ctx, this.scope, input),
     get: (id: number) => getNote(this.ctx, id),
     show: (id: number, halfLifeDays?: number) => noteDetail(this.ctx, id, halfLifeDays),
     list: (options?: ListNotesOptions) => listNotes(this.ctx, options),
@@ -172,9 +179,9 @@ export class Carnet {
 
   readonly memory = {
     atStart: (session: Session, options?: MemoryOptions) =>
-      sessionStartMemory(this.ctx, this.group, session, options),
+      sessionStartMemory(this.ctx, this.scope, session, options),
     ofSession: (session: Session, options?: MemoryOptions) =>
-      sessionMemory(this.ctx, this.group, session, options),
+      sessionMemory(this.ctx, this.scope, session, options),
     forRepo: (session: Session, repo: string, options?: MemoryOptions) =>
       repoMemory(this.ctx, session, repo, options),
     copyRepos: (from: string, into: string) => copyInjectedRepos(this.ctx, from, into),
@@ -192,14 +199,30 @@ export class Carnet {
   }
 }
 
-export interface OpenCarnetOptions extends LocateOptions, CarnetOptions {
-  dbPath?: string;
+export interface OpenCarnetOptions extends CarnetOptions {
+  group?: string | undefined;
+  sessionId?: string | undefined;
+  cwd?: string | undefined;
+  env?: NodeJS.ProcessEnv | undefined;
+  dbPath?: string | undefined;
+}
+
+function openStore(options: OpenCarnetOptions): DatabaseSync {
+  const path = options.dbPath ?? databasePath(options.env);
+  if (path !== MEMORY_DB) mkdirSync(dirname(path), { recursive: true });
+  return openDatabase(path);
 }
 
 export function openCarnet(options: OpenCarnetOptions = {}): Carnet {
-  return openGroupCarnet(locateGroup(options), options);
+  const db = openStore(options);
+  try {
+    return new Carnet(db, resolveGroup({ ...options, db }).group, options);
+  } catch (error) {
+    db.close();
+    throw error;
+  }
 }
 
-export function openGroupCarnet(group: Group, options: OpenCarnetOptions = {}): Carnet {
-  return new Carnet(group, openDatabase(options.dbPath ?? group.dbPath), options);
+export function openGroupCarnet(group: Group | null, options: OpenCarnetOptions = {}): Carnet {
+  return new Carnet(openStore(options), group, options);
 }

@@ -44,9 +44,9 @@ test("instructions fit Claude Code's limit and tools are listed", async () => {
 
 test('main and fork lifecycle through the protocol', async () => {
   const started = await call('agent_start', { name: 'banner', task: 'Add banner' });
-  const destination = join(carnet.group.root, '.rucher', 'reports', 'banner.md');
+  const destination = join(made.root, 'reports', 'banner.md');
   expect(started.text).toBe(
-    `⏳ banner started in group ${carnet.group.name}\nReport destination: ${destination}`,
+    `⏳ banner started in group ${carnet.group?.name}\nReport destination: ${destination}`,
   );
   expect(started.structured).toBeUndefined();
   expect(existsSync(dirname(destination))).toBe(true);
@@ -183,7 +183,7 @@ test('agent_done copies the report to the group destination', async () => {
   const source = join(made.root, 'copied-scratch.md');
   writeFileSync(source, '# copied report');
   await call('agent_done', { name: 'copied', report_path: source, has_questions: false });
-  const destination = join(carnet.group.root, '.rucher', 'reports', 'copied.md');
+  const destination = join(made.root, 'reports', 'copied.md');
   expect(readFileSync(destination, 'utf8')).toBe('# copied report');
   expect(carnet.agents.get(SESSION, 'copied')?.reportPath).toBe(destination);
 });

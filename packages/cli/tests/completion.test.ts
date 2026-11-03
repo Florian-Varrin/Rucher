@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { initGroup, openCarnet } from '@rucher/carnet';
+import { createGroup, openCarnet } from '@rucher/carnet';
 import type { ArgsDef, CommandDef } from 'citty';
 import { expect, test } from 'vite-plus/test';
 import {
@@ -23,9 +23,8 @@ function collect(suggest: (complete: (value: string, description: string) => voi
 
 function shopGroup() {
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  const meta = tempDirectory('meta-');
   const api = tempDirectory('shop-api-');
-  initGroup(meta, { env, name: 'shop', repos: [api] });
+  const meta = createGroup('shop', { env, repos: [api] }).workspace;
   const carnet = openCarnet({ cwd: meta, env });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: meta, source: 'startup' });
   carnet.sessions.name(SESSION, 'shop-auth', 'Login flow');

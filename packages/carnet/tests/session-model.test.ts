@@ -9,7 +9,7 @@ import {
   openDatabase,
   schemaVersion,
 } from '../src/index.ts';
-import { tempDirectory, withSession, SESSION } from './helpers.ts';
+import { tempDirectory, withSession, SESSION, groupAt } from './helpers.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -129,9 +129,9 @@ test('session start logs lifecycle events and brings an archived session back in
 
 test('lifecycle events do not keep an idle temp session from the purge', () => {
   const root = tempDirectory();
-  const group = { root, name: 'shop', repos: [], hosts: ['claude-code'], dbPath: MEMORY_DB };
+  const group = groupAt(root, 'shop', []);
   let time = Date.parse('2026-10-20T09:00:00.000Z');
-  const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: () => new Date(time) });
+  const carnet = new Carnet(openDatabase(MEMORY_DB), group, { now: () => new Date(time) });
   handleSessionStart(carnet, { session_id: 'idle', cwd: root, source: 'startup' }, {});
   time += 4 * DAY;
   handleSessionStart(carnet, { session_id: 'current', cwd: root, source: 'startup' }, {});

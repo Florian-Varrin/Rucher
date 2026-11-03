@@ -1,18 +1,20 @@
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
-import { Carnet, type CarnetError, MEMORY_DB, moveSession, openDatabase } from '../src/index.ts';
-import { makeClock, SESSION, tempDirectory } from './helpers.ts';
+import {
+  Carnet,
+  type CarnetError,
+  MEMORY_DB,
+  moveSession,
+  openDatabase,
+  requireGroup,
+} from '../src/index.ts';
+import { groupAt, makeClock, SESSION, tempDirectory } from './helpers.ts';
 
 function shopGroup(name: string): Carnet {
   const root = tempDirectory(`${name}-`);
-  const group = {
-    root,
-    name,
-    repos: [join(root, 'shop-api')],
-    hosts: ['claude-code'],
-    dbPath: MEMORY_DB,
-  };
-  return new Carnet(group, openDatabase(MEMORY_DB), { now: makeClock() });
+  return new Carnet(openDatabase(MEMORY_DB), groupAt(root, name, [join(root, 'shop-api')]), {
+    now: makeClock(),
+  });
 }
 
 function strayShopSession(): { source: Carnet; target: Carnet } {
@@ -22,7 +24,7 @@ function strayShopSession(): { source: Carnet; target: Carnet } {
     id: SESSION,
     kind: 'active',
     name: 'shop-auth',
-    cwd: source.group.root,
+    cwd: requireGroup(source.group).workspace,
   });
   source.agents.start(SESSION, { name: 'login-form', task: 'Add the login form' });
   source.agents.start(SESSION, { name: 'cart-badge', task: 'Show the cart count' });
@@ -86,7 +88,7 @@ test('a target that has the session refuses the move, --merge joins them', () =>
     id: SESSION,
     kind: 'active',
     name: 'shop-auth',
-    cwd: target.group.root,
+    cwd: requireGroup(target.group).workspace,
   });
   target.agents.start(SESSION, { name: 'login-form', task: 'Add the login form' });
   target.table.set(SESSION, { text: 'Test cart-badge', mainWorking: false });
@@ -109,7 +111,7 @@ test('a name taken in the target refuses the move, and a group cannot move into 
     id: 'bb9b338a-c4a7-4b3a-82d0-fc16193a7749',
     kind: 'active',
     name: 'shop-auth',
-    cwd: target.group.root,
+    cwd: requireGroup(target.group).workspace,
   });
   expect(codeOf(() => moveSession(source, SESSION, target))).toBe('SESSION_NAME_TAKEN');
   expect(codeOf(() => moveSession(source, SESSION, source))).toBe('SESSION_MOVE_INVALID');

@@ -2,7 +2,7 @@ import { CarnetError, openCarnet } from '@rucher/carnet';
 import { defineCommand } from 'citty';
 import packageJson from '../package.json' with { type: 'json' };
 import { groupAdd, groupRemove, groupShow, groupSync } from './commands/group.ts';
-import { groupsForget, groupsList, groupsPrune } from './commands/groups.ts';
+import { groupsList } from './commands/groups.ts';
 import {
   postToolUse,
   sessionEnd,
@@ -73,14 +73,9 @@ const sessionArgument = {
 } as const;
 
 const initCommand = defineCommand({
-  meta: { name: 'init', description: 'Make the current directory a Rucher group (meta directory)' },
+  meta: { name: 'init', description: 'Create a Rucher group' },
   args: {
-    directory: {
-      type: 'positional',
-      description: 'Meta directory (default: current directory)',
-      required: false,
-    },
-    name: { type: 'string', description: 'Group name (default: directory name)' },
+    name: { type: 'string', description: 'Group name (default: current directory name)' },
     repos: {
       type: 'string',
       description: 'Comma-separated repo paths (more later with `rucher group add`)',
@@ -95,7 +90,7 @@ const initCommand = defineCommand({
           .map((repo) => repo.trim())
           .filter(Boolean)
       : undefined;
-    process.exitCode = init({ directory: args.directory, name: args.name, repos }, io);
+    process.exitCode = init({ name: args.name, repos }, io);
   },
 });
 
@@ -534,7 +529,7 @@ const groupCommand = defineCommand({
   },
   subCommands: {
     show: defineCommand({
-      meta: { name: 'show', description: 'Name, meta directory and repos of the current group' },
+      meta: { name: 'show', description: 'Name, source, workspace and repos of the current group' },
       args: { ...colorArgument },
       run({ args }) {
         const io = processIo({ color: args.color });
@@ -595,30 +590,13 @@ const groupCommand = defineCommand({
 });
 
 const groupsCommand = defineCommand({
-  meta: { name: 'groups', description: 'Registered groups of this machine' },
+  meta: { name: 'groups', description: 'Groups of this machine' },
   subCommands: {
     list: defineCommand({
-      meta: { name: 'list', description: 'Registered groups, missing ones flagged' },
+      meta: { name: 'list', description: 'Groups with their repo count and workspace' },
       args: { ...colorArgument },
       run({ args }) {
         process.exitCode = groupsList(processIo({ color: args.color }));
-      },
-    }),
-    forget: defineCommand({
-      meta: { name: 'forget', description: 'Unregister a group by name or meta directory path' },
-      args: {
-        reference: { type: 'positional', description: 'Group name or path', required: true },
-        ...colorArgument,
-      },
-      run({ args }) {
-        process.exitCode = groupsForget(args.reference, processIo({ color: args.color }));
-      },
-    }),
-    prune: defineCommand({
-      meta: { name: 'prune', description: 'Unregister groups whose meta directory is gone' },
-      args: { ...colorArgument },
-      run({ args }) {
-        process.exitCode = groupsPrune(processIo({ color: args.color }));
       },
     }),
   },

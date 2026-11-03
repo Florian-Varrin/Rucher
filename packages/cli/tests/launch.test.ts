@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { initGroup, openCarnet } from '@rucher/carnet';
+import { createGroup, openCarnet } from '@rucher/carnet';
 import { expect, test } from 'vite-plus/test';
 import { sessionEnd, sessionStart } from '../src/commands/hook.ts';
 import {
@@ -16,12 +16,11 @@ import { pickerLines, pickerSessions } from '../src/commands/picker.ts';
 import { makeIo, tempDirectory } from './helpers.ts';
 
 function shopGroup() {
-  const root = tempDirectory('meta-');
   const api = join(tempDirectory('repos-'), 'shop-api');
   mkdirSync(join(api, 'src'), { recursive: true });
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  initGroup(root, { env, name: 'shop', repos: [api] });
-  const carnet = openCarnet({ cwd: root, env });
+  const root = createGroup('shop', { env, repos: [api] }).workspace;
+  const carnet = openCarnet({ group: 'shop', env });
   return { root, api, env, carnet };
 }
 
@@ -33,7 +32,7 @@ test('arguments after -- are passed through, positionals are read before them', 
   expect(positionals(['main', 'alt', '--active'])).toEqual(['main', 'alt']);
 });
 
-test('rucher new starts a named active session from the meta directory', () => {
+test('rucher new starts a named active session from the group workspace', () => {
   const { root, api, carnet } = shopGroup();
   const plan = planNew(carnet, makeIo({ cwd: join(api, 'src') }), {
     kind: 'active',
@@ -47,7 +46,7 @@ test('rucher new starts a named active session from the meta directory', () => {
     '--name',
     'shop-auth',
     '--append-system-prompt-file',
-    expect.stringMatching(/\.rucher\/prompts\/.+\.md$/),
+    expect.stringMatching(/state\/prompts\/.+\.md$/),
     '--model',
     'opus',
   ]);
@@ -57,7 +56,6 @@ test('rucher new starts a named active session from the meta directory', () => {
     RUCHER_PROMPT_VERSION: expect.stringMatching(/^[0-9a-f]{12}$/),
     RUCHER_SESSION_NAME: 'shop-auth',
     RUCHER_GROUP: 'shop',
-    RUCHER_GROUP_ROOT: root,
   });
   expect(carnet.sessions.require(plan.sessionId ?? '')).toMatchObject({
     name: 'shop-auth',
@@ -80,7 +78,7 @@ test('rucher tmp starts a temp session, named or not', () => {
     '--session-id',
     unnamed.sessionId,
     '--append-system-prompt-file',
-    expect.stringMatching(/\.rucher\/prompts\/.+\.md$/),
+    expect.stringMatching(/state\/prompts\/.+\.md$/),
   ]);
   expect(carnet.sessions.require(unnamed.sessionId ?? '')).toMatchObject({
     kind: 'temp',
@@ -106,7 +104,7 @@ test('a launch runs the session, and its exit ends it once', () => {
     '--name',
     'shop-auth',
     '--append-system-prompt-file',
-    expect.stringMatching(/\.rucher\/prompts\/.+\.md$/),
+    expect.stringMatching(/state\/prompts\/.+\.md$/),
     '-p',
     'hi',
   ]);
@@ -126,7 +124,7 @@ test('rucher fork branches a session; the hook records the child with its parent
     '--name',
     'shop-auth-alt',
     '--append-system-prompt-file',
-    expect.stringMatching(/\.rucher\/prompts\/.+\.md$/),
+    expect.stringMatching(/state\/prompts\/.+\.md$/),
   ]);
   expect(fork.env).toMatchObject({
     RUCHER_SESSION_ID: parent.sessionId,

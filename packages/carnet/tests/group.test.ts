@@ -1,31 +1,30 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import {
   addGroupRepo,
   type CarnetError,
-  findGroupRoot,
-  initGroup,
+  createGroup,
+  databasePath,
+  dropGroup,
+  listGroups,
   loadGroup,
-  locateGroup,
   openCarnet,
-  readRegistry,
-  registerGroup,
   removeGroupRepo,
+  renameGroup,
   repoNameFor,
   repoPathFor,
-  reportPathFor,
-  reportsDirectoryOf,
-  unregisterGroups,
+  resolveGroup,
+  rucherPaths,
+  sessionGroupName,
 } from '../src/index.ts';
-import { tempDirectory } from './helpers.ts';
+import { tempDirectory, testHome } from './helpers.ts';
 
 function setup() {
-  const meta = tempDirectory('meta-');
   const api = tempDirectory('repo-api-');
   const web = tempDirectory('repo-web-');
   mkdirSync(join(api, 'src', 'deep'), { recursive: true });
-  return { meta, api, web, env: { RUCHER_HOME: tempDirectory('home-') } };
+  return { api, web, env: testHome() };
 }
 
 function codeOf(fn: () => unknown): string | undefined {
@@ -37,125 +36,194 @@ function codeOf(fn: () => unknown): string | undefined {
   }
 }
 
-test('initGroup records repo paths, creates the database and the registry entry', () => {
-  const { meta, api, web, env } = setup();
-  const group = initGroup(meta, { env, repos: [api, web] });
-  expect(group.name).toBe(meta.split('/').at(-1));
-  expect(group.repos).toEqual([api, web]);
-  expect(existsSync(group.dbPath)).toBe(true);
-  expect(existsSync(reportsDirectoryOf(group))).toBe(true);
-  expect(reportPathFor(group, 'banner')).toBe(join(meta, '.rucher', 'reports', 'banner.md'));
-  expect(loadGroup(meta)).toEqual(group);
-  expect(readRegistry(env)).toEqual([{ name: group.name, path: meta }]);
+test('RUCHER_HOME holds every location, XDG variables otherwise', () => {
+  expect(rucherPaths({ RUCHER_HOME: '/r' })).toEqual({
+    config: '/r/config',
+    data: '/r/data',
+    state: '/r/state',
+    run: '/r/run',
+  });
+  expect(rucherPaths({ HOME: '/home/shop' })).toEqual({
+    config: '/home/shop/.config/rucher',
+    data: '/home/shop/.local/share/rucher',
+    state: '/home/shop/.local/state/rucher',
+    run: '/home/shop/.local/state/rucher/run',
+  });
+  const xdg = rucherPaths({
+    HOME: '/home/shop',
+    XDG_CONFIG_HOME: '/x/config',
+    XDG_DATA_HOME: 'relative/data',
+    XDG_RUNTIME_DIR: '/run/user/1000',
+  });
+  expect(xdg.config).toBe('/x/config/rucher');
+  expect(xdg.data).toBe('/home/shop/.local/share/rucher');
+  expect(xdg.run).toBe('/run/user/1000/rucher');
+  expect(databasePath({ RUCHER_HOME: '/r' })).toBe('/r/data/carnet.db');
 });
 
-test('initGroup without repos, then addGroupRepo; missing paths are refused', () => {
-  const { meta, api, env } = setup();
-  expect(initGroup(meta, { env, name: 'shop' }).repos).toEqual([]);
-  expect(addGroupRepo(meta, api).repos).toEqual([api]);
-  expect(addGroupRepo(meta, api).repos).toEqual([api]);
-  expect(codeOf(() => addGroupRepo(meta, join(meta, 'nope')))).toBe('REPO_NOT_FOUND');
-  expect(codeOf(() => initGroup(meta, { env }))).toBe('GROUP_EXISTS');
+test('createGroup writes the source and the workspace, the file system is the registry', () => {
+  const { api, env } = setup();
+  const group = createGroup('shop', { env, repos: [api] });
+  const home = env.RUCHER_HOME as string;
+  expect(group.source).toBe(join(home, 'config', 'groups', 'shop'));
+  expect(group.workspace).toBe(join(home, 'data', 'workspaces', 'shop'));
+  expect(existsSync(group.workspace)).toBe(true);
+  expect(readFileSync(join(group.source, 'CLAUDE.md'), 'utf8')).toBe('');
+  expect(JSON.parse(readFileSync(join(group.source, 'group.json'), 'utf8'))).toEqual({
+    name: 'shop',
+    workspace: group.workspace,
+    repos: [{ path: api, name: group.repos[0]?.name }],
+    backends: {},
+  });
+  expect(listGroups(env).map((listed) => listed.name)).toEqual(['shop']);
+  expect(codeOf(() => createGroup('shop', { env }))).toBe('GROUP_EXISTS');
+  expect(codeOf(() => createGroup('Shop', { env }))).toBe('GROUP_NAME_INVALID');
+  expect(codeOf(() => createGroup('cart', { env, repos: ['/nope'] }))).toBe('REPO_NOT_FOUND');
+  expect(codeOf(() => loadGroup('cart', env))).toBe('GROUP_NOT_FOUND');
 });
 
-test('findGroupRoot walks up inside the meta directory only', () => {
-  const { meta, api, env } = setup();
-  initGroup(meta, { env, repos: [api] });
-  mkdirSync(join(meta, 'notes', 'deep'), { recursive: true });
-  expect(findGroupRoot(join(meta, 'notes', 'deep'))).toBe(meta);
-  expect(findGroupRoot(api)).toBeNull();
+test('loadGroup expands ~ and names repos after their folder unless group.json names them', () => {
+  const { env } = setup();
+  const home = tempDirectory('user-');
+  mkdirSync(join(home, 'code', 'shop-api'), { recursive: true });
+  const group = createGroup('shop', { env });
+  writeFileSync(
+    join(group.source, 'group.json'),
+    JSON.stringify({
+      name: 'shop',
+      repos: [{ path: '~/code/shop-api' }, { path: '~/code/shop-web', name: 'web' }],
+    }),
+  );
+  const loaded = loadGroup('shop', { ...env, HOME: home });
+  expect(loaded.repos).toEqual([
+    { path: join(home, 'code', 'shop-api'), name: 'shop-api' },
+    { path: join(home, 'code', 'shop-web'), name: 'web' },
+  ]);
+  expect(loaded.workspace).toBe(join(env.RUCHER_HOME as string, 'data', 'workspaces', 'shop'));
 });
 
-test('locateGroup falls back to the registry when started inside a repo', () => {
-  const { meta, api, web, env } = setup();
-  initGroup(meta, { env, repos: [api] });
-  expect(locateGroup({ cwd: join(api, 'src', 'deep'), env }).root).toBe(meta);
-  const elsewhere = tempDirectory('elsewhere-');
-  expect(locateGroup({ cwd: elsewhere, env: { ...env, CLAUDE_PROJECT_DIR: api } }).root).toBe(meta);
-  expect(codeOf(() => locateGroup({ cwd: web, env }))).toBe('NO_GROUP');
+test('addGroupRepo and removeGroupRepo keep the other fields of group.json', () => {
+  const { api, web, env } = setup();
+  const group = createGroup('shop', { env, repos: [api] });
+  const file = join(group.source, 'group.json');
+  const settings = { 'claude-code': { settings: { model: 'opus' } } };
+  writeFileSync(
+    file,
+    JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), backends: settings }),
+  );
+  expect(addGroupRepo('shop', web, env).repos.map((repo) => repo.path)).toEqual([api, web]);
+  expect(addGroupRepo('shop', web, env).repos).toHaveLength(2);
+  expect(removeGroupRepo('shop', api, env).repos.map((repo) => repo.path)).toEqual([web]);
+  expect(loadGroup('shop', env).backends).toEqual(settings);
+  expect(codeOf(() => removeGroupRepo('shop', api, env))).toBe('REPO_NOT_FOUND');
 });
 
-test('locateGroup skips a .rucher folder without group.json, like the registry home', () => {
-  const home = tempDirectory('home-');
-  const env = { RUCHER_HOME: join(home, '.rucher') };
-  const api = join(home, 'projects', 'api');
-  mkdirSync(api, { recursive: true });
-  const meta = tempDirectory('meta-');
-  initGroup(meta, { env, repos: [api] });
-  expect(existsSync(join(home, '.rucher', 'groups.json'))).toBe(true);
-  expect(findGroupRoot(api)).toBeNull();
-  expect(locateGroup({ cwd: api, env }).root).toBe(meta);
+test('renameGroup moves the source only, the workspace keeps its path', () => {
+  const { env } = setup();
+  const group = createGroup('shop', { env });
+  const renamed = renameGroup('shop', 'store', env);
+  expect(renamed.name).toBe('store');
+  expect(renamed.workspace).toBe(group.workspace);
+  expect(existsSync(group.source)).toBe(false);
+  expect(listGroups(env).map((listed) => listed.name)).toEqual(['store']);
+  createGroup('shop', { env });
+  expect(codeOf(() => renameGroup('store', 'shop', env))).toBe('GROUP_EXISTS');
 });
 
-test('repoNameFor matches the repo containing a path', () => {
-  const { meta, api, web, env } = setup();
-  const group = initGroup(meta, { env, repos: [api, web] });
-  expect(repoNameFor(group, join(api, 'src'))).toBe(api.split('/').at(-1));
-  expect(repoNameFor(group, meta)).toBeNull();
-  expect(repoNameFor(group, `${api}-sibling`)).toBeNull();
-  expect(repoNameFor(group, undefined)).toBeNull();
+test('dropGroup removes the source, and the workspace with purge', () => {
+  const { env } = setup();
+  const kept = createGroup('shop', { env });
+  dropGroup('shop', { env });
+  expect(existsSync(kept.source)).toBe(false);
+  expect(existsSync(kept.workspace)).toBe(true);
+  const purged = createGroup('cart', { env });
+  dropGroup('cart', { env, purge: true });
+  expect(existsSync(purged.workspace)).toBe(false);
+  expect(listGroups(env)).toEqual([]);
 });
 
-test('openCarnet opens the group database from a repo of the group', () => {
-  const { meta, api, env } = setup();
-  initGroup(meta, { env, repos: [api] });
-  const carnet = openCarnet({ cwd: api, env });
-  expect(carnet.group.root).toBe(meta);
-  const session = carnet.sessions.upsertFromHook({ session_id: 's', cwd: join(api, 'src') });
-  expect(session.repo).toBe(api.split('/').at(-1));
-  carnet.close();
-});
-
-test('repoPathFor gives the repo-relative path of a directory', () => {
-  const { meta, api, web, env } = setup();
-  const group = initGroup(meta, { env, repos: [api, web] });
-  const name = api.split('/').pop();
-  expect(repoPathFor(group, join(api, 'src', 'deep'))).toBe(`${name}/src/deep`);
+test('repoNameFor and repoPathFor match the repo containing a path', () => {
+  const { api, env } = setup();
+  const group = createGroup('shop', { env, repos: [api] });
+  const name = group.repos[0]?.name as string;
+  expect(repoNameFor(group, join(api, 'src'))).toBe(name);
+  expect(repoNameFor(group, tempDirectory())).toBeNull();
+  expect(repoNameFor(null, api)).toBeNull();
+  expect(repoPathFor(group, join(api, 'src', 'deep'))).toBe(join(name, 'src', 'deep'));
   expect(repoPathFor(group, api)).toBe(name);
-  expect(repoPathFor(group, meta)).toBeNull();
-  expect(repoPathFor(group, null)).toBeNull();
 });
 
-test('removeGroupRepo drops a repo path, unknown paths are refused', () => {
-  const { meta, api, web, env } = setup();
-  initGroup(meta, { env, repos: [api, web] });
-  expect(removeGroupRepo(meta, api).repos).toEqual([web]);
-  expect(loadGroup(meta).repos).toEqual([web]);
-  expect(codeOf(() => removeGroupRepo(meta, api))).toBe('REPO_NOT_FOUND');
+test('resolution: option, then RUCHER_GROUP, then workspace, then repo, else no group', () => {
+  const { api, web, env } = setup();
+  const shop = createGroup('shop', { env, repos: [api] });
+  createGroup('cart', { env, repos: [web] });
+  expect(resolveGroup({ cwd: api, env, group: 'cart' })).toMatchObject({
+    origin: 'option',
+    group: { name: 'cart' },
+  });
+  expect(resolveGroup({ cwd: api, env: { ...env, RUCHER_GROUP: 'cart' } })).toMatchObject({
+    origin: 'env',
+    group: { name: 'cart' },
+  });
+  mkdirSync(join(shop.workspace, 'reports'), { recursive: true });
+  expect(resolveGroup({ cwd: join(shop.workspace, 'reports'), env })).toMatchObject({
+    origin: 'workspace',
+    group: { name: 'shop' },
+  });
+  expect(resolveGroup({ cwd: join(api, 'src', 'deep'), env })).toMatchObject({
+    origin: 'repo',
+    group: { name: 'shop' },
+    repo: { path: api },
+  });
+  expect(resolveGroup({ cwd: tempDirectory(), env })).toEqual({ group: null, origin: 'none' });
+  expect(codeOf(() => resolveGroup({ cwd: api, env, group: 'nope' }))).toBe('GROUP_NOT_FOUND');
 });
 
-test('unregisterGroups removes registry entries by path only', () => {
-  const env = { RUCHER_HOME: tempDirectory('home-') };
-  registerGroup({ name: 'shop', path: '/a' }, env);
-  registerGroup({ name: 'shop', path: '/b' }, env);
-  registerGroup({ name: 'blog', path: '/c' }, env);
-  expect(unregisterGroups(['/a', '/c'], env)).toEqual([{ name: 'shop', path: '/b' }]);
-  expect(readRegistry(env)).toEqual([{ name: 'shop', path: '/b' }]);
+test('the longest repo prefix wins, an equal prefix in two groups is ambiguous', () => {
+  const { api, env } = setup();
+  const nested = join(api, 'src');
+  createGroup('shop', { env, repos: [api] });
+  createGroup('shop-mobile', { env, repos: [nested] });
+  expect(resolveGroup({ cwd: join(nested, 'deep'), env }).group?.name).toBe('shop-mobile');
+  expect(resolveGroup({ cwd: api, env }).group?.name).toBe('shop');
+  createGroup('cart', { env, repos: [api] });
+  expect(codeOf(() => resolveGroup({ cwd: api, env }))).toBe('GROUP_AMBIGUOUS');
 });
 
-function twoGroupsSharingApi() {
-  const { meta: shop, api, env } = setup();
-  const blog = tempDirectory('meta-');
-  initGroup(shop, { env, name: 'shop', repos: [api] });
-  initGroup(blog, { env, name: 'blog', repos: [api] });
-  return { shop, blog, api, env };
-}
-
-test('RUCHER_GROUP_ROOT pins the group whatever the cwd, unless it is not a group', () => {
-  const { shop, blog, api, env } = twoGroupsSharingApi();
-  expect(locateGroup({ cwd: api, env: { ...env, RUCHER_GROUP_ROOT: shop } }).name).toBe('shop');
-  expect(locateGroup({ cwd: shop, env: { ...env, RUCHER_GROUP_ROOT: blog } }).name).toBe('blog');
-  const pinnedToNothing = { ...env, RUCHER_GROUP_ROOT: tempDirectory('nothing-') };
-  expect(locateGroup({ cwd: shop, env: pinnedToNothing }).name).toBe('shop');
-});
-
-test('a repo in several groups is ambiguous, unless one group already has the session', () => {
-  const { blog, api, env } = twoGroupsSharingApi();
-  expect(codeOf(() => locateGroup({ cwd: api, env }))).toBe('GROUP_AMBIGUOUS');
-  const sessionId = '0360889d-99c7-4c8f-8447-50ce30696e5a';
-  expect(codeOf(() => locateGroup({ cwd: api, env, sessionId }))).toBe('GROUP_AMBIGUOUS');
-  const carnet = openCarnet({ cwd: blog, env });
-  carnet.sessions.ensure(sessionId, blog);
+test('a known session id gives its group before anything else', () => {
+  const { api, web, env } = setup();
+  createGroup('shop', { env, repos: [api] });
+  createGroup('cart', { env, repos: [web] });
+  const carnet = openCarnet({ cwd: api, env });
+  carnet.sessions.create({ id: 'session-in-cart', kind: 'temp', cwd: api });
+  const columns = carnet.db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[];
+  if (!columns.some((column) => column.name === 'group_name')) {
+    carnet.db.exec('ALTER TABLE sessions ADD COLUMN group_name TEXT');
+  }
+  carnet.db.exec("UPDATE sessions SET group_name = 'cart'");
+  expect(sessionGroupName(carnet.db, 'session-in-cart')).toBe('cart');
+  expect(
+    resolveGroup({ db: carnet.db, sessionId: 'session-in-cart', cwd: api, env, group: 'shop' }),
+  ).toMatchObject({ origin: 'session', group: { name: 'cart' } });
+  carnet.db.exec('UPDATE sessions SET group_name = NULL');
+  expect(resolveGroup({ db: carnet.db, sessionId: 'session-in-cart', cwd: api, env })).toEqual({
+    group: null,
+    origin: 'session',
+  });
+  expect(resolveGroup({ db: carnet.db, sessionId: 'unknown', cwd: api, env }).group?.name).toBe(
+    'shop',
+  );
   carnet.close();
-  expect(locateGroup({ cwd: join(api, 'src'), env, sessionId }).name).toBe('blog');
+});
+
+test('openCarnet opens the one database whatever the group', () => {
+  const { api, env } = setup();
+  createGroup('shop', { env, repos: [api] });
+  const carnet = openCarnet({ cwd: join(api, 'src'), env });
+  expect(carnet.group?.name).toBe('shop');
+  carnet.close();
+  expect(existsSync(databasePath(env))).toBe(true);
+  const outside = openCarnet({ cwd: tempDirectory(), env });
+  expect(outside.group).toBeNull();
+  outside.close();
 });

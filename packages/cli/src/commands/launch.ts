@@ -47,8 +47,7 @@ function launchEnv(
     RUCHER_SESSION_ID: session.id,
     RUCHER_PROMPT_VERSION: promptVersion,
     RUCHER_SESSION_NAME: session.name ?? '',
-    RUCHER_GROUP: carnet.group.name,
-    RUCHER_GROUP_ROOT: carnet.group.root,
+    ...(carnet.group ? { RUCHER_GROUP: carnet.group.name } : {}),
     ...(kind ? { RUCHER_SESSION_KIND: kind } : {}),
   };
 }
@@ -67,7 +66,7 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
     id: randomUUID(),
     kind: options.kind,
     name: options.name,
-    cwd: carnet.group.root,
+    cwd: carnet.group?.workspace ?? io.cwd,
     repo: repoNameFor(carnet.group, io.cwd),
   });
   const host = hostById(session.host);
@@ -79,7 +78,7 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
   });
   return {
     ...command,
-    cwd: carnet.group.root,
+    cwd: carnet.group?.workspace ?? io.cwd,
     env: launchEnv(carnet, session, prompt.version),
     sessionId: session.id,
   };

@@ -1,16 +1,15 @@
 import { rmSync } from 'node:fs';
-import { resolve } from 'node:path';
 import {
   type Carnet,
   formatClock,
   type Group,
+  groupExists,
+  groupLabel,
   hostById,
-  isGroupRoot,
   loadGroup,
   type MoveOptions,
   moveSession,
   openGroupCarnet,
-  readRegistry,
   repoPathFor,
   type Session,
   shortId,
@@ -101,18 +100,11 @@ function label(session: Session): string {
   return session.name ?? shortId(session.id);
 }
 
-export function groupNamed(reference: string, io: Io): Group {
-  const groups = readRegistry(io.env).filter((group) => isGroupRoot(group.path));
-  const byPath = groups.filter((group) => group.path === resolve(io.cwd, reference));
-  const matches = byPath.length ? byPath : groups.filter((group) => group.name === reference);
-  const [match] = matches;
-  if (!match) {
-    throw new CliError(`No registered group named "${reference}"`, 'see rucher groups');
+export function groupNamed(name: string, io: Io): Group {
+  if (!groupExists(name, io.env)) {
+    throw new CliError(`No group named "${name}"`, 'see rucher groups list');
   }
-  if (matches.length > 1) {
-    throw new CliError(`Several groups are named "${reference}"`, 'pass the group path');
-  }
-  return loadGroup(match.path);
+  return loadGroup(name, io.env);
 }
 
 export function sessionsMove(
@@ -123,12 +115,12 @@ export function sessionsMove(
   options: MoveOptions = {},
 ): void {
   const session = findSession(carnet, reference);
-  const target = openGroupCarnet(groupNamed(groupReference, io));
+  const target = openGroupCarnet(groupNamed(groupReference, io), { env: io.env });
   try {
     const result = moveSession(carnet, session.id, target, options);
     const into = result.into ? ` into ${label(result.into)}` : '';
     const lines = [
-      `${options.dryRun ? 'would move' : 'moved'} ${label(session)} from ${carnet.group.name} to ${target.group.name}${into}`,
+      `${options.dryRun ? 'would move' : 'moved'} ${label(session)} from ${groupLabel(carnet.group)} to ${groupLabel(target.group)}${into}`,
       `  agents moved: ${result.movedAgents.join(', ') || 'none'}`,
       ...(result.skippedAgents.length
         ? [`  agents left out (name already used): ${result.skippedAgents.join(', ')}`]
@@ -137,7 +129,7 @@ export function sessionsMove(
       `  table line moved: ${result.movedTable ? 'yes' : 'no'}`,
       ...(result.unlinkedNotes
         ? [
-            `  notes kept in ${carnet.group.name}, unlinked from the session: ${result.unlinkedNotes}`,
+            `  notes kept in ${groupLabel(carnet.group)}, unlinked from the session: ${result.unlinkedNotes}`,
           ]
         : []),
     ];

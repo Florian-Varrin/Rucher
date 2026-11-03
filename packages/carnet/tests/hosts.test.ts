@@ -1,17 +1,24 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
-import { type CarnetError, DEFAULT_HOST, hostById, initGroup, loadGroup } from '../src/index.ts';
+import {
+  type CarnetError,
+  createGroup,
+  DEFAULT_HOST,
+  groupHosts,
+  hostById,
+  loadGroup,
+} from '../src/index.ts';
 import { tempDirectory } from './helpers.ts';
 
-test('a group records its hosts, claude-code when group.json has none', () => {
+test('a group renders for its backends, claude-code when group.json has none', () => {
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  const meta = tempDirectory('meta-');
-  expect(initGroup(meta, { env }).hosts).toEqual([DEFAULT_HOST]);
-  const file = join(meta, '.rucher', 'group.json');
-  expect(JSON.parse(readFileSync(file, 'utf8')).hosts).toEqual(['claude-code']);
-  writeFileSync(file, JSON.stringify({ name: 'shop', repos: [] }));
-  expect(loadGroup(meta).hosts).toEqual(['claude-code']);
+  const group = createGroup('shop', { env });
+  expect(groupHosts(group)).toEqual([DEFAULT_HOST]);
+  const file = join(group.source, 'group.json');
+  writeFileSync(file, JSON.stringify({ name: 'shop', backends: { 'claude-code': {} } }));
+  expect(groupHosts(loadGroup('shop', env))).toEqual(['claude-code']);
+  expect(JSON.parse(readFileSync(file, 'utf8')).repos).toBeUndefined();
 });
 
 test('an unknown host is refused', () => {

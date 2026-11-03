@@ -4,10 +4,10 @@ import type { Complete } from '@bomb.sh/tab';
 import tab from '@bomb.sh/tab/citty';
 import {
   groupRepoNames,
-  locateGroup,
+  listGroups,
   NOTE_KINDS,
   openCarnet,
-  readRegistry,
+  resolveGroup,
   shortId,
 } from '@rucher/carnet';
 import type { CommandDef } from 'citty';
@@ -57,23 +57,20 @@ export function suggestSessions(context: CompletionContext, complete: Complete):
 
 export function suggestGroups(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    const groups = readRegistry(context.env);
-    for (const group of groups) {
-      const shared = groups.filter((other) => other.name === group.name).length > 1;
-      complete(shared ? group.path : group.name, group.path);
-    }
+    for (const group of listGroups(context.env)) complete(group.name, group.workspace);
   });
 }
 
 export function suggestRepos(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    for (const repo of locateGroup(context).repos) complete(repo, '');
+    for (const repo of resolveGroup(context).group?.repos ?? []) complete(repo.path, repo.name);
   });
 }
 
 export function suggestRepoNames(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    for (const repo of groupRepoNames(locateGroup(context))) complete(repo, '');
+    const { group } = resolveGroup(context);
+    for (const repo of group ? groupRepoNames(group) : []) complete(repo, '');
   });
 }
 
@@ -125,7 +122,6 @@ export const completionConfig = {
   subCommands: {
     status: { options: { session: sessions } },
     log: { options: { session: sessions } },
-    init: { args: { directory: directories } },
     resume: { args: { session: sessions } },
     fork: { args: { session: sessions } },
     sessions: {
@@ -147,7 +143,6 @@ export const completionConfig = {
         drop: { args: { id: notes }, options: { 'replaced-by': notes } },
       },
     },
-    groups: { subCommands: { forget: { args: { reference: groups } } } },
     group: {
       subCommands: { add: { args: { path: directories } }, remove: { args: { path: repos } } },
     },
