@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import * as z from 'zod/v4';
 import type { Carnet } from '../carnet.ts';
 import { EVENT_TYPES } from '../events.ts';
-import { reportPathFor, reportsDirectoryOf } from '../group/locate.ts';
+import { requireGroup } from '../group/locate.ts';
+import { reportPath, reportsDirectory } from '../paths.ts';
 import { hostById } from '../hosts/host.ts';
 import { memoryHalfLife, type Note, NOTE_KINDS } from '../notes.ts';
 import { formatEventLine, resumeContext, sessionLabel } from '../resume.ts';
@@ -47,16 +48,17 @@ const agentStart = defineTool({
     session,
   }),
   run: (carnet, sessionId, args) => {
+    const group = requireGroup(carnet.group);
     const agent = carnet.agents.start(sessionId, {
       name: args.name,
       task: args.task,
       baseCommit: args.base_commit,
       worktree: args.worktree,
     });
-    mkdirSync(reportsDirectoryOf(carnet.group), { recursive: true });
-    const reportDestination = reportPathFor(carnet.group, agent.name);
+    mkdirSync(reportsDirectory(group), { recursive: true });
+    const reportDestination = reportPath(group, agent.name);
     return {
-      text: `${EMOJI.running} ${agent.name} started in group ${carnet.group.name}\nReport destination: ${reportDestination}`,
+      text: `${EMOJI.running} ${agent.name} started in group ${group.name}\nReport destination: ${reportDestination}`,
     };
   },
 });
@@ -88,11 +90,12 @@ const agentUpdate = defineTool({
   },
 });
 
-function copyReport(carnet: Carnet, name: string, reportPath: string): string {
-  const destination = reportPathFor(carnet.group, name);
-  if (resolve(reportPath) === destination || !existsSync(reportPath)) return reportPath;
-  mkdirSync(reportsDirectoryOf(carnet.group), { recursive: true });
-  copyFileSync(reportPath, destination);
+function copyReport(carnet: Carnet, name: string, reportFile: string): string {
+  if (!carnet.group) return reportFile;
+  const destination = reportPath(carnet.group, name);
+  if (resolve(reportFile) === destination || !existsSync(reportFile)) return reportFile;
+  mkdirSync(reportsDirectory(carnet.group), { recursive: true });
+  copyFileSync(reportFile, destination);
   return destination;
 }
 

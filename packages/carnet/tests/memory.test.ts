@@ -11,7 +11,7 @@ import {
   memoryMaxCharacters,
   openDatabase,
 } from '../src/index.ts';
-import { tempDirectory } from './helpers.ts';
+import { tempDirectory, groupAt } from './helpers.ts';
 
 const SESSION = '0360889d-99c7-4c8f-8447-50ce30696e5a';
 const FORK = '9f2c6a10-0000-4000-8000-000000000002';
@@ -21,15 +21,9 @@ function shop() {
   const api = join(root, 'shop-api');
   const web = join(root, 'shop-web');
   for (const repo of [api, web]) mkdirSync(join(repo, 'src'), { recursive: true });
-  const group = {
-    root,
-    name: 'shop',
-    repos: [api, web],
-    hosts: ['claude-code'],
-    dbPath: MEMORY_DB,
-  };
+  const group = groupAt(root, 'shop', [api, web]);
   const db = openDatabase(MEMORY_DB);
-  const carnet = new Carnet(group, db, { now: () => new Date('2026-11-03T09:00:00') });
+  const carnet = new Carnet(db, group, { now: () => new Date('2026-11-03T09:00:00') });
   return { carnet, db, root, api, web };
 }
 

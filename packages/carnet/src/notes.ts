@@ -1,4 +1,3 @@
-import { basename } from 'node:path';
 import { type Ctx, nowIso } from './context.ts';
 import { CarnetError } from './errors.ts';
 import type { Group } from './group/locate.ts';
@@ -121,7 +120,7 @@ function cleanText(value: string, label: string): string {
 }
 
 export function groupRepoNames(group: Group): string[] {
-  return group.repos.map((repo) => basename(repo));
+  return group.repos.map((repo) => repo.name);
 }
 
 function cleanRepos(group: Group, repos: string[] | undefined): string[] {

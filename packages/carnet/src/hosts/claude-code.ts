@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Group } from '../group/locate.ts';
 import type {
   ContextFile,
@@ -109,7 +109,7 @@ export function transcriptTitle(path: string): string | undefined {
 
 export function reposBlock(group: Group): string {
   const repos = group.repos.length
-    ? group.repos.map((repo) => `- \`${basename(repo)}\`: ${repo}`).join('\n')
+    ? group.repos.map((repo) => `- \`${repo.name}\`: ${repo.path}`).join('\n')
     : '- (none yet: `rucher group add <path>`)';
   return `${REPOS_START}\n## Repos\n\n${repos}\n${REPOS_END}`;
 }
@@ -138,8 +138,12 @@ Use the rucher tools (Carnet) for agent statuses and the journal, and the rucher
 `;
 }
 
+function repoPaths(group: Group): string[] {
+  return group.repos.map((repo) => repo.path);
+}
+
 export function groupSettings(group: Group): string {
-  return `${JSON.stringify({ permissions: { additionalDirectories: group.repos } }, null, 2)}\n`;
+  return `${JSON.stringify({ permissions: { additionalDirectories: repoPaths(group) } }, null, 2)}\n`;
 }
 
 interface Settings {
@@ -150,7 +154,7 @@ interface Settings {
 const instructionsFile: ContextFile = {
   path: 'CLAUDE.md',
   sync(group): ContextFileResult {
-    const path = join(group.root, 'CLAUDE.md');
+    const path = join(group.workspace, 'CLAUDE.md');
     if (!existsSync(path)) {
       writeFileSync(path, groupInstructions(group));
       return 'written';
@@ -167,7 +171,7 @@ const instructionsFile: ContextFile = {
 const settingsFile: ContextFile = {
   path: '.claude/settings.json',
   sync(group, mode): ContextFileResult {
-    const path = join(group.root, '.claude', 'settings.json');
+    const path = join(group.workspace, '.claude', 'settings.json');
     if (!existsSync(path)) {
       if (group.repos.length === 0) return 'unchanged';
       mkdirSync(dirname(path), { recursive: true });
@@ -176,10 +180,9 @@ const settingsFile: ContextFile = {
     }
     const settings = JSON.parse(readFileSync(path, 'utf8')) as Settings;
     const current = settings.permissions?.additionalDirectories ?? [];
+    const repos = repoPaths(group);
     const next =
-      mode === 'exact'
-        ? group.repos
-        : [...current, ...group.repos.filter((repo) => !current.includes(repo))];
+      mode === 'exact' ? repos : [...current, ...repos.filter((repo) => !current.includes(repo))];
     if (next.length === current.length && next.every((repo, index) => repo === current[index])) {
       return 'unchanged';
     }

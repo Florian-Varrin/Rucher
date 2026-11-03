@@ -6,6 +6,7 @@ import {
   assemblePrompt,
   baseRules,
   CORE_RULES,
+  corePromptPath,
   handleSessionStart,
   outsideRucherContext,
   OUTSIDE_RUCHER_NOTICE,
@@ -21,14 +22,15 @@ function setup() {
 }
 
 function writeGroupPrompt(root: string, text: string): void {
-  mkdirSync(join(root, '.rucher'), { recursive: true });
-  writeFileSync(join(root, '.rucher', 'prompt.md'), text);
+  mkdirSync(join(root, 'source'), { recursive: true });
+  writeFileSync(join(root, 'source', 'prompt.md'), text);
 }
 
-test('the base rules are the core rules unless RUCHER_HOME/prompt.md replaces them', () => {
+test('the base rules are the core rules unless the config prompt.md replaces them', () => {
   const { env } = setup();
   expect(baseRules(env)).toBe(CORE_RULES);
-  writeFileSync(join(env.RUCHER_HOME, 'prompt.md'), '- my own rules\n');
+  mkdirSync(join(env.RUCHER_HOME, 'config'), { recursive: true });
+  writeFileSync(corePromptPath(env), '- my own rules\n');
   expect(baseRules(env)).toBe('- my own rules');
 });
 
@@ -58,14 +60,14 @@ test('the version follows the rules, not the session identity', () => {
   expect(rulesVersion(group, env)).not.toBe(named.version);
 });
 
-test('the append file is written per session in the group directory', () => {
-  const { root, env, group } = setup();
+test('the append file is written per session in the state directory', () => {
+  const { env, group } = setup();
   const { path, version } = appendPromptFile(
     group,
     { id: SESSION, name: 'x', kind: 'active' },
     env,
   );
-  expect(path).toBe(join(root, '.rucher', 'prompts', `${SESSION}.md`));
+  expect(path).toBe(join(env.RUCHER_HOME, 'state', 'prompts', `${SESSION}.md`));
   expect(readFileSync(path, 'utf8')).toBe(
     assemblePrompt(group, { id: SESSION, name: 'x', kind: 'active' }, env).text,
   );

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { Carnet, MEMORY_DB, openDatabase } from '@rucher/carnet';
+import { basename, join } from 'node:path';
+import { Carnet, type Group, MEMORY_DB, openDatabase } from '@rucher/carnet';
 import type { Io } from '../src/io.ts';
 
 export const SESSION = '0360889d-99c7-4c8f-8447-50ce30696e5a';
@@ -15,17 +15,26 @@ export function makeClock(start = '2026-10-31T15:41:00.000Z'): () => Date {
   return () => new Date((time += 1000));
 }
 
+export function groupAt(root: string, name: string, repos: readonly string[]): Group {
+  return {
+    name,
+    source: join(root, 'source'),
+    workspace: root,
+    repos: repos.map((path) => ({ path, name: basename(path) })),
+    backends: {},
+  };
+}
+
 export function makeCarnet(): { carnet: Carnet; root: string } {
   const root = tempDirectory();
   mkdirSync(join(root, 'api'));
-  const group = {
-    root,
-    name: 'test-group',
-    repos: [join(root, 'api')],
-    hosts: ['claude-code'],
-    dbPath: MEMORY_DB,
-  };
-  const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: makeClock() });
+  const carnet = new Carnet(
+    openDatabase(MEMORY_DB),
+    groupAt(root, 'test-group', [join(root, 'api')]),
+    {
+      now: makeClock(),
+    },
+  );
   carnet.sessions.upsertFromHook({
     session_id: SESSION,
     cwd: join(root, 'api'),
@@ -50,7 +59,8 @@ export function makeIo(overrides: Partial<Io> = {}): FakeIo {
       io.errors.push(text);
     },
     cwd: tempDirectory('cwd-'),
-    env: {},
+    // Never the real home: every Rucher location derives from RUCHER_HOME.
+    env: { RUCHER_HOME: tempDirectory('home-') },
     color: false,
     columns: 80,
     ...overrides,

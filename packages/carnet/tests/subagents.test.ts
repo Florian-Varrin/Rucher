@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import { Carnet, MEMORY_DB, openDatabase, REPORTING_NOTE, STOPPED_NOTE } from '../src/index.ts';
-import { SESSION, tempDirectory } from './helpers.ts';
+import { SESSION, tempDirectory, groupAt } from './helpers.ts';
 
 function setup() {
   let time = Date.parse('2026-11-01T10:00:00.000Z');
@@ -14,14 +14,8 @@ function setup() {
   };
   const root = tempDirectory();
   mkdirSync(join(root, 'api'));
-  const group = {
-    root,
-    name: 'g',
-    repos: [join(root, 'api')],
-    hosts: ['claude-code'],
-    dbPath: MEMORY_DB,
-  };
-  const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: clock.now });
+  const group = groupAt(root, 'g', [join(root, 'api')]);
+  const carnet = new Carnet(openDatabase(MEMORY_DB), group, { now: clock.now });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   return { carnet, clock };
 }

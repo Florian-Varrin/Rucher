@@ -10,19 +10,13 @@ import {
   parseNoteId,
   repoList,
 } from '../src/commands/notes.ts';
-import { makeClock, makeIo, SESSION, tempDirectory } from './helpers.ts';
+import { makeClock, makeIo, SESSION, tempDirectory, groupAt } from './helpers.ts';
 
 function shop() {
   const root = tempDirectory();
   for (const repo of ['shop-api', 'shop-web']) mkdirSync(join(root, repo));
-  const group = {
-    root,
-    name: 'shop',
-    repos: [join(root, 'shop-api'), join(root, 'shop-web')],
-    hosts: ['claude-code'],
-    dbPath: MEMORY_DB,
-  };
-  const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: makeClock() });
+  const group = groupAt(root, 'shop', [join(root, 'shop-api'), join(root, 'shop-web')]);
+  const carnet = new Carnet(openDatabase(MEMORY_DB), group, { now: makeClock() });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   carnet.sessions.name(SESSION, 'shop-auth');
   return carnet;

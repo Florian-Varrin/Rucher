@@ -55,7 +55,7 @@ function existingTarget(target: Carnet, session: Session, merge: boolean): Sessi
   if (existing && !merge) {
     throw new CarnetError(
       sameId ? 'SESSION_EXISTS' : 'SESSION_NAME_TAKEN',
-      `Group ${target.group.name} already has session ${existing.name ?? existing.id}: pass --merge to merge into it`,
+      `Group ${target.group?.name ?? '(none)'} already has session ${existing.name ?? existing.id}: pass --merge to merge into it`,
     );
   }
   return existing;
@@ -67,7 +67,7 @@ export function moveSession(
   target: Carnet,
   options: MoveOptions = {},
 ): MoveResult {
-  if (source.group.root === target.group.root) {
+  if (source.group?.name === target.group?.name) {
     throw new CarnetError('SESSION_MOVE_INVALID', 'The session is already in this group');
   }
   const session = source.sessions.require(sessionId);

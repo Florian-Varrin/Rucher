@@ -6,7 +6,7 @@ import {
   addGroupRepo,
   Carnet,
   type CarnetError,
-  initGroup,
+  createGroup,
   MEMORY_DB,
   memoryHalfLife,
   migrations,
@@ -14,7 +14,7 @@ import {
   schemaVersion,
   similarity,
 } from '../src/index.ts';
-import { tempDirectory } from './helpers.ts';
+import { tempDirectory, groupAt } from './helpers.ts';
 
 const SESSION = '0360889d-99c7-4c8f-8447-50ce30696e5a';
 const OTHER = '9f2c6a10-0000-4000-8000-000000000001';
@@ -23,14 +23,8 @@ function shop(start = '2026-11-03T09:00:00') {
   const root = tempDirectory();
   for (const repo of ['shop-api', 'shop-web']) mkdirSync(join(root, repo));
   let now = new Date(start);
-  const group = {
-    root,
-    name: 'shop',
-    repos: [join(root, 'shop-api'), join(root, 'shop-web')],
-    hosts: ['claude-code'],
-    dbPath: MEMORY_DB,
-  };
-  const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: () => now });
+  const group = groupAt(root, 'shop', [join(root, 'shop-api'), join(root, 'shop-web')]);
+  const carnet = new Carnet(openDatabase(MEMORY_DB), group, { now: () => now });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   const advanceDays = (days: number) => {
     now = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
@@ -251,17 +245,15 @@ test('a group cannot hold two repos with the same name', () => {
     mkdirSync(join(root, path), { recursive: true });
   }
   const env = { RUCHER_HOME: join(root, 'home') };
-  const meta = join(root, 'meta');
-  mkdirSync(meta);
   expect(
     codeOf(() =>
-      initGroup(meta, { env, repos: [join(root, 'a/shop-api'), join(root, 'b/shop-api')] }),
+      createGroup('shop', { env, repos: [join(root, 'a/shop-api'), join(root, 'b/shop-api')] }),
     ),
   ).toBe('REPO_NAME_TAKEN');
-  initGroup(meta, { env, repos: [join(root, 'a/shop-api')] });
-  expect(codeOf(() => addGroupRepo(meta, join(root, 'b/shop-api')))).toBe('REPO_NAME_TAKEN');
-  expect(addGroupRepo(meta, join(root, 'a/shop-api')).repos).toHaveLength(1);
-  expect(addGroupRepo(meta, join(root, 'shop-web')).repos).toHaveLength(2);
+  createGroup('shop', { env, repos: [join(root, 'a/shop-api')] });
+  expect(codeOf(() => addGroupRepo('shop', join(root, 'b/shop-api'), env))).toBe('REPO_NAME_TAKEN');
+  expect(addGroupRepo('shop', join(root, 'a/shop-api'), env).repos).toHaveLength(1);
+  expect(addGroupRepo('shop', join(root, 'shop-web'), env).repos).toHaveLength(2);
 });
 
 test('sessionNoteActivity lists what a session added, cited and dropped, most recent first', () => {

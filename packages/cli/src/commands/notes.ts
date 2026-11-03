@@ -1,5 +1,6 @@
 import {
   type Carnet,
+  groupLabel,
   formatClock,
   memoryHalfLife,
   type Note,
@@ -88,7 +89,7 @@ function markdown(carnet: Carnet, notes: WeightedNote[]): string {
     });
     return `## ${KIND_TITLES[kind]}\n\n${lines.join('\n')}`;
   });
-  return `# Memory: ${carnet.group.name}\n\n${sections.join('\n\n') || 'No notes.'}\n`;
+  return `# Memory: ${groupLabel(carnet.group)}\n\n${sections.join('\n\n') || 'No notes.'}\n`;
 }
 
 export function notesList(carnet: Carnet, io: Io, options: NotesListOptions = {}): void {

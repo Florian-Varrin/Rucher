@@ -2,6 +2,8 @@ export type CarnetErrorCode =
   | 'NO_GROUP'
   | 'GROUP_AMBIGUOUS'
   | 'GROUP_EXISTS'
+  | 'GROUP_NOT_FOUND'
+  | 'GROUP_NAME_INVALID'
   | 'REPO_NOT_FOUND'
   | 'REPO_NAME_TAKEN'
   | 'NOTE_NOT_FOUND'
