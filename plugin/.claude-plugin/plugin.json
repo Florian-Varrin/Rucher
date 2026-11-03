@@ -1,6 +1,6 @@
 {
   "name": "rucher",
-  "version": "0.2.0-beta.0",
+  "version": "0.2.0-beta.1",
   "description": "Carnet MCP server and SessionStart hook: agent statuses, sessions and journal for multi-agent work with Claude Code",
   "author": {
     "name": "Florian Varrin"

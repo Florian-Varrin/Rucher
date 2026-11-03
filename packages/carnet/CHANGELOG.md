@@ -1,5 +1,11 @@
 # @rucher/carnet
 
+## 0.2.0-beta.1
+
+### Patch Changes
+
+- e0dbc71: Keep a session in its group when its working directory moves into a repo shared by several groups, and add `rucher sessions move` to repair a session recorded in the wrong group
+
 ## 0.2.0-beta.0
 
 ### Minor Changes

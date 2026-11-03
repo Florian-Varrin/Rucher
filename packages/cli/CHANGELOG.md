@@ -1,5 +1,14 @@
 # @rucher/cli
 
+## 0.2.0-beta.1
+
+### Patch Changes
+
+- e0dbc71: Keep a session in its group when its working directory moves into a repo shared by several groups, and add `rucher sessions move` to repair a session recorded in the wrong group
+- 09297ff: `rucher status` shows the group instead of the repo-relative cwd on its header: `HH:MM - <session> · <group>`, and `HH:MM - <group>` on top of `--all`, so the database being read is always visible.
+- Updated dependencies [e0dbc71]
+  - @rucher/carnet@0.2.0-beta.1
+
 ## 0.2.0-beta.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@rucher/carnet",
-  "version": "0.2.0-beta.0",
+  "version": "0.2.0-beta.1",
   "description": "Shared state for Rucher: sessions, agents, status and journal in SQLite",
   "keywords": [
     "agents",
