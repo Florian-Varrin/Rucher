@@ -1,5 +1,6 @@
 import { type Ctx, nowIso } from './context.ts';
 import { CarnetError } from './errors.ts';
+import { logEvent } from './events.ts';
 import { type Group, repoNameFor } from './group/locate.ts';
 import { DEFAULT_HOST, type HostSessionPayload } from './hosts/host.ts';
 
@@ -50,6 +51,18 @@ export interface HookEnv {
   host?: string | undefined;
   processId?: number | null | undefined;
   RUCHER_PURGE_DAYS?: string | undefined;
+  RUCHER_SESSION_ID?: string | undefined;
+  RUCHER_SESSION_KIND?: string | undefined;
+  RUCHER_SESSION_NAME?: string | undefined;
+}
+
+export interface CreateSessionInput {
+  id: string;
+  kind: SessionKind;
+  name?: string | null | undefined;
+  cwd: string;
+  repo?: string | null | undefined;
+  host?: string | undefined;
 }
 
 export interface ListSessionsOptions {
@@ -104,6 +117,72 @@ export function ensureSession(ctx: Ctx, id: string, cwd?: string, group?: Group)
     )
     .run(id, cwd ?? null, group ? repoNameFor(group, cwd) : null, at, at);
   return requireSession(ctx, id);
+}
+
+function nameTaken(error: unknown, name: string | null | undefined): never {
+  if (name && error instanceof Error && error.message.includes('UNIQUE')) {
+    throw new CarnetError('SESSION_NAME_TAKEN', `A session named "${name}" already exists`);
+  }
+  throw error;
+}
+
+export function createSession(ctx: Ctx, input: CreateSessionInput): Session {
+  if (input.kind === 'active' && !input.name) {
+    throw new CarnetError('SESSION_NAME_REQUIRED', 'An active session needs a name');
+  }
+  const at = nowIso(ctx);
+  try {
+    ctx.db
+      .prepare(
+        `INSERT INTO sessions (id, name, kind, status, cwd, repo, host, last_title,
+           created_at, last_active_at)
+         VALUES (?, ?, ?, 'running', ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.name ?? null,
+        input.kind,
+        input.cwd,
+        input.repo ?? null,
+        input.host ?? DEFAULT_HOST,
+        input.name ?? null,
+        at,
+        at,
+      );
+  } catch (error) {
+    nameTaken(error, input.name);
+  }
+  return requireSession(ctx, input.id);
+}
+
+export function setSessionKind(
+  ctx: Ctx,
+  id: string,
+  kind: SessionKind,
+  name?: string | null,
+): Session {
+  const session = requireSession(ctx, id);
+  const nextName = name ?? session.name;
+  if (kind === 'active' && !nextName) {
+    throw new CarnetError('SESSION_NAME_REQUIRED', 'An active session needs a name');
+  }
+  try {
+    ctx.db
+      .prepare('UPDATE sessions SET kind = ?, name = ?, last_title = ? WHERE id = ?')
+      .run(kind, nextName, nextName ?? session.lastTitle, id);
+  } catch (error) {
+    nameTaken(error, nextName);
+  }
+  return requireSession(ctx, id);
+}
+
+// Both the launching process and the SessionEnd hook report the end: only the first one counts.
+export function endSession(ctx: Ctx, id: string): Session {
+  const session = requireSession(ctx, id);
+  if (session.status !== 'running') return session;
+  const ended = setSessionStatus(ctx, id, 'idle');
+  logEvent(ctx, id, { type: 'session.ended' });
+  return ended;
 }
 
 function titleAvailable(ctx: Ctx, id: string, title: string): boolean {

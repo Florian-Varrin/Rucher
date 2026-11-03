@@ -108,7 +108,7 @@ test('listing hides temp and archived sessions unless asked', () => {
   expect(carnet.sessions.default()?.id).not.toBe('old');
 });
 
-test('session start logs lifecycle events and brings an archived session back', () => {
+test('session start logs lifecycle events and brings an archived session back into use', () => {
   const { carnet, root } = withSession();
   const env = {};
   handleSessionStart(carnet, { session_id: 'fresh', cwd: root, source: 'startup' }, env);
@@ -118,7 +118,7 @@ test('session start logs lifecycle events and brings an archived session back', 
     { session_id: 'fresh', cwd: root, source: 'resume' },
     env,
   );
-  expect(resumed.session.status).toBe('idle');
+  expect(resumed.session.status).toBe('running');
   handleSessionStart(carnet, { session_id: 'fresh', cwd: root, source: 'compact' }, env);
   expect(carnet.events.read('fresh').map((event) => event.type)).toEqual([
     'session.started',

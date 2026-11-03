@@ -1,6 +1,7 @@
 import {
   CarnetError,
   claudeCode,
+  handleSessionEnd,
   handleSessionStart,
   handleUserPromptSubmit,
   type Host,
@@ -42,6 +43,9 @@ export function sessionStart(stdinText: string, io: Io): number {
         host: host.id,
         processId: host.processId(io.env),
         RUCHER_PURGE_DAYS: io.env.RUCHER_PURGE_DAYS,
+        RUCHER_SESSION_ID: io.env.RUCHER_SESSION_ID,
+        RUCHER_SESSION_KIND: io.env.RUCHER_SESSION_KIND,
+        RUCHER_SESSION_NAME: io.env.RUCHER_SESSION_NAME,
       });
       if (additionalContext) {
         const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext };
@@ -74,6 +78,15 @@ export function userPromptSubmit(stdinText: string, io: Io): number {
     const payload = host.parsePromptPayload(stdinText);
     withCarnet(payload.cwd, io, (carnet) => {
       handleUserPromptSubmit(carnet, host, payload);
+    });
+  });
+}
+
+export function sessionEnd(stdinText: string, io: Io): number {
+  return runHook(io, () => {
+    const payload = host.parseSessionEndPayload(stdinText);
+    withCarnet(payload.cwd, io, (carnet) => {
+      handleSessionEnd(carnet, payload);
     });
   });
 }

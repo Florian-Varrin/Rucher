@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
-import { resumeTarget } from '../src/commands/resume.ts';
+import { planResume } from '../src/commands/launch.ts';
 import { sessionsMerge, sessionsOnce } from '../src/commands/sessions.ts';
 import { CliError } from '../src/session.ts';
 import { makeCarnet, makeIo, SESSION } from './helpers.ts';
@@ -41,12 +41,17 @@ test('resume targets claude --resume with the session id from its original cwd',
   const { carnet, root } = makeCarnet();
   carnet.sessions.name(SESSION, 'shop-auth');
   const io = makeIo();
-  expect(resumeTarget(carnet, 'shop-auth', io)).toEqual({
+  expect(planResume(carnet, io, 'shop-auth')).toMatchObject({
     command: 'claude',
-    args: ['--resume', SESSION],
+    args: ['--resume', SESSION, '--name', 'shop-auth'],
     cwd: join(root, 'api'),
   });
-  expect(resumeTarget(carnet, SESSION, io).args).toEqual(['--resume', SESSION]);
+  expect(planResume(carnet, io, SESSION).args).toEqual([
+    '--resume',
+    SESSION,
+    '--name',
+    'shop-auth',
+  ]);
   expect(io.errors).toEqual([]);
 });
 
@@ -58,9 +63,9 @@ test('resume falls back to the current directory, warns on archived, refuses unk
   carnet.sessions.name('s2', 'shop-old');
   carnet.sessions.drop('s2');
   const io = makeIo();
-  expect(resumeTarget(carnet, 'shop-old', io).cwd).toBe(io.cwd);
+  expect(planResume(carnet, io, 'shop-old').cwd).toBe(io.cwd);
   expect(io.errors.join('')).toBe('warning: session shop-old is archived\n');
-  expect(() => resumeTarget(carnet, 'nope', io)).toThrowError(CliError);
+  expect(() => planResume(carnet, io, 'nope')).toThrowError(CliError);
 });
 
 test('sessions merge moves everything into the target and reports it', () => {
@@ -83,6 +88,6 @@ test('sessions merge and resume accept the short ids shown by rucher sessions', 
   carnet.agents.start(split, { name: 'lost', task: 'task' });
   sessionsMerge(carnet, '8c2fce7d', SESSION.slice(0, 8), makeIo());
   expect(carnet.agents.get(SESSION, 'lost')?.status).toBe('running');
-  expect(resumeTarget(carnet, SESSION.slice(0, 8), makeIo()).args).toEqual(['--resume', SESSION]);
-  expect(() => resumeTarget(carnet, '036', makeIo())).toThrowError(/at least 4 characters/);
+  expect(planResume(carnet, makeIo(), SESSION.slice(0, 8)).args).toEqual(['--resume', SESSION]);
+  expect(() => planResume(carnet, makeIo(), '036')).toThrowError(/at least 4 characters/);
 });

@@ -3,7 +3,13 @@ import { defineCommand } from 'citty';
 import packageJson from '../package.json' with { type: 'json' };
 import { groupAdd, groupRemove, groupShow, groupSync } from './commands/group.ts';
 import { groupsForget, groupsList, groupsPrune } from './commands/groups.ts';
-import { sessionStart, subagentStart, subagentStop, userPromptSubmit } from './commands/hook.ts';
+import {
+  sessionEnd,
+  sessionStart,
+  subagentStart,
+  subagentStop,
+  userPromptSubmit,
+} from './commands/hook.ts';
 import { init } from './commands/init.ts';
 import { logOnce } from './commands/log.ts';
 import {
@@ -14,7 +20,18 @@ import {
   parseNoteId,
   repoList,
 } from './commands/notes.ts';
-import { resumeTarget, runTarget } from './commands/resume.ts';
+import {
+  finishLaunch,
+  type LaunchPlan,
+  planFork,
+  planNew,
+  planResume,
+  positionals,
+  spawnLaunch,
+  splitPassthrough,
+  startLaunch,
+} from './commands/launch.ts';
+import { pickSession } from './commands/picker.ts';
 import { serve } from './commands/serve.ts';
 import { sessionsMerge, sessionsOnce } from './commands/sessions.ts';
 import { statusOnce, statusWatch } from './commands/status.ts';
@@ -290,21 +307,96 @@ const notesCommand = defineCommand({
   },
 });
 
-const resumeCommand = defineCommand({
-  meta: { name: 'resume', description: 'Resume a named session in its host (Claude Code today)' },
-  args: {
-    name: { type: 'positional', description: 'Session name, id or id prefix', required: true },
+async function launch(
+  io: Io,
+  plan: (carnet: ReturnType<typeof openCarnet>) => LaunchPlan | Promise<LaunchPlan>,
+): Promise<void> {
+  try {
+    const carnet = openCarnet({ cwd: io.cwd, env: io.env });
+    const launchPlan = await plan(carnet);
+    startLaunch(carnet, launchPlan);
+    carnet.close();
+    const exitCode = spawnLaunch(launchPlan, io.env);
+    const after = openCarnet({ cwd: io.cwd, env: io.env });
+    finishLaunch(after, launchPlan);
+    after.close();
+    process.exitCode = exitCode;
+  } catch (error) {
+    fail(io, error);
+  }
+}
+
+const passthroughHelp = 'Arguments after -- are passed to Claude Code';
+
+const newCommand = defineCommand({
+  meta: { name: 'new', description: `Start a named, durable session. ${passthroughHelp}` },
+  args: { name: { type: 'positional', description: 'Session name', required: true } },
+  async run({ rawArgs }) {
+    const { own, passthrough } = splitPassthrough(rawArgs);
+    await launch(processIo(), (carnet) =>
+      planNew(carnet, processIo(), { kind: 'active', name: positionals(own)[0], passthrough }),
+    );
   },
-  run({ args }) {
+});
+
+const tmpCommand = defineCommand({
+  meta: { name: 'tmp', description: `Start a temporary session. ${passthroughHelp}` },
+  args: { name: { type: 'positional', description: 'Optional session name', required: false } },
+  async run({ rawArgs }) {
+    const { own, passthrough } = splitPassthrough(rawArgs);
+    await launch(processIo(), (carnet) =>
+      planNew(carnet, processIo(), { kind: 'temp', name: positionals(own)[0], passthrough }),
+    );
+  },
+});
+
+const resumeCommand = defineCommand({
+  meta: {
+    name: 'resume',
+    description: `Resume a session in its host, or pick one when none is given. ${passthroughHelp}`,
+  },
+  args: {
+    session: {
+      type: 'positional',
+      description: 'Session name, id or id prefix',
+      required: false,
+    },
+  },
+  async run({ rawArgs }) {
+    const { own, passthrough } = splitPassthrough(rawArgs);
     const io = processIo();
-    try {
-      const carnet = openCarnet({ cwd: io.cwd, env: io.env });
-      const target = resumeTarget(carnet, args.name, io);
-      carnet.close();
-      process.exitCode = runTarget(target);
-    } catch (error) {
-      fail(io, error);
-    }
+    await launch(io, async (carnet) => {
+      const reference = positionals(own)[0] ?? (await pickSession(carnet)).id;
+      return planResume(carnet, io, reference, passthrough);
+    });
+  },
+});
+
+const forkCommand = defineCommand({
+  meta: {
+    name: 'fork',
+    description: `Branch a session into a new one, temporary unless --active. ${passthroughHelp}`,
+  },
+  args: {
+    session: { type: 'positional', description: 'Session to branch from', required: true },
+    name: { type: 'positional', description: 'Name of the new session', required: false },
+    active: {
+      type: 'boolean',
+      default: false,
+      description: 'Make the new session durable (needs a name)',
+    },
+  },
+  async run({ rawArgs }) {
+    const { own, passthrough } = splitPassthrough(rawArgs);
+    const [reference, name] = positionals(own);
+    const io = processIo();
+    await launch(io, (carnet) =>
+      planFork(carnet, io, reference ?? '', {
+        name,
+        active: own.includes('--active'),
+        passthrough,
+      }),
+    );
   },
 });
 
@@ -417,6 +509,12 @@ const hookCommand = defineCommand({
         process.exitCode = sessionStart(await readStdin(), processIo());
       },
     }),
+    'session-end': defineCommand({
+      meta: { name: 'session-end', description: 'SessionEnd hook: marks the session idle' },
+      async run() {
+        process.exitCode = sessionEnd(await readStdin(), processIo());
+      },
+    }),
     'user-prompt-submit': defineCommand({
       meta: {
         name: 'user-prompt-submit',
@@ -464,8 +562,11 @@ export const main = defineCommand({
     init: initCommand,
     status: statusCommand,
     log: logCommand,
-    sessions: sessionsCommand,
+    new: newCommand,
+    tmp: tmpCommand,
     resume: resumeCommand,
+    fork: forkCommand,
+    sessions: sessionsCommand,
     notes: notesCommand,
     group: groupCommand,
     groups: groupsCommand,

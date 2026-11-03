@@ -126,7 +126,8 @@ export const completionConfig = {
     status: { options: { session: sessions } },
     log: { options: { session: sessions } },
     init: { args: { directory: directories } },
-    resume: { args: { name: sessions } },
+    resume: { args: { session: sessions } },
+    fork: { args: { session: sessions } },
     sessions: { subCommands: { merge: { args: { from: sessions, into: sessions } } } },
     notes: {
       options: { kind: noteKinds, repo: repoNames },
@@ -149,6 +150,9 @@ export const uncompletedArguments = [
   'init --repos',
   'status --interval',
   'log --count',
+  'new name',
+  'tmp name',
+  'fork name',
   'notes add text',
   'notes drop --reason',
 ];

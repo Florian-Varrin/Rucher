@@ -15,8 +15,10 @@ import type {
   ContextFileResult,
   Host,
   HostPromptPayload,
+  HostSessionEndPayload,
   HostSessionPayload,
   HostSubagentPayload,
+  LaunchOptions,
 } from './host.ts';
 
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
@@ -169,6 +171,14 @@ const settingsFile: ContextFile = {
   },
 };
 
+function launchArguments(options: LaunchOptions = {}): string[] {
+  return [
+    ...(options.name ? ['--name', options.name] : []),
+    ...(options.appendPromptFile ? ['--append-system-prompt-file', options.appendPromptFile] : []),
+    ...(options.passthrough ?? []),
+  ];
+}
+
 export const claudeCode: Host = {
   id: 'claude-code',
   displayName: 'Claude Code',
@@ -213,6 +223,14 @@ export const claudeCode: Host = {
       agent_transcript_path: text(data, 'agent_transcript_path'),
     };
   },
+  parseSessionEndPayload(json): HostSessionEndPayload {
+    const data = payloadObject(json);
+    return {
+      session_id: data.session_id as string,
+      cwd: text(data, 'cwd'),
+      reason: text(data, 'reason'),
+    };
+  },
   subagentNames(payload) {
     const transcript = payload.agent_transcript_path;
     const candidates = [
@@ -229,8 +247,20 @@ export const claudeCode: Host = {
       (payload.transcript_path ? transcriptTitle(payload.transcript_path) : undefined)
     );
   },
-  resumeCommand(session) {
-    return { command: 'claude', args: ['--resume', session.id] };
+  launchCommand(sessionId, options) {
+    return { command: 'claude', args: ['--session-id', sessionId, ...launchArguments(options)] };
+  },
+  resumeCommand(session, options) {
+    return {
+      command: 'claude',
+      args: ['--resume', session.id, ...launchArguments({ name: session.name, ...options })],
+    };
+  },
+  forkCommand(parent, options) {
+    return {
+      command: 'claude',
+      args: ['--resume', parent.id, '--fork-session', ...launchArguments(options)],
+    };
   },
   renameInstruction(name) {
     return `Ask the human to run /rename ${name} in Claude Code so the titles match.`;

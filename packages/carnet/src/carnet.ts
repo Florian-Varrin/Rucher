@@ -33,8 +33,11 @@ import {
 } from './notes.ts';
 import { purgeSessions } from './purge.ts';
 import {
+  createSession,
+  type CreateSessionInput,
   defaultSession,
   dropSession,
+  endSession,
   ensureSession,
   getSession,
   type HookEnv,
@@ -47,8 +50,10 @@ import {
   findSession,
   recordPromptVersion,
   type Session,
+  type SessionKind,
   type SessionStatus,
   setParent,
+  setSessionKind,
   setSessionStatus,
   sessionByHostProcess,
   sessionByName,
@@ -99,6 +104,10 @@ export class Carnet {
       recordPromptVersion(this.ctx, id, version),
     setParent: (id: string, parentId: string) => setParent(this.ctx, id, parentId),
     setStatus: (id: string, status: SessionStatus) => setSessionStatus(this.ctx, id, status),
+    create: (input: CreateSessionInput) => createSession(this.ctx, input),
+    setKind: (id: string, kind: SessionKind, name?: string | null) =>
+      setSessionKind(this.ctx, id, kind, name),
+    end: (id: string) => endSession(this.ctx, id),
   };
 
   readonly agents = {

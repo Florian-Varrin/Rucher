@@ -31,12 +31,17 @@ The **default session** of a group is the most recently active one that is not a
 
 ## Start a session
 
-Start Claude Code from the group's meta directory, so the group `CLAUDE.md` loads and every repo is reachable:
+Start sessions with `rucher`, from anywhere in the group:
 
 ```bash
-cd ~/groups/shop
-claude
+rucher new shop-auth          # a named, durable session
+rucher tmp                    # a temporary one (a name is optional: rucher tmp shop-try)
+rucher new shop-auth -- --model opus   # arguments after -- go to Claude Code
 ```
+
+`rucher` creates the session in Carnet, then runs Claude Code from the group's meta directory, so the group `CLAUDE.md` loads and every repo is reachable. Run from inside a repo, it still starts in the meta directory and records that repo as the session's starting repo. Claude Code gets the session's id (`--session-id`) and its name as title (`--name`), and the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME` and `RUCHER_GROUP`. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
+
+Starting `claude` directly from the meta directory still works: the hooks record the session as `temp`.
 
 In a side pane, watch it:
 
@@ -46,7 +51,7 @@ cd ~/groups/shop && rucher status --watch
 
 ## Name it
 
-New sessions are `temp`. Name the ones you want to come back to with `/rename` in Claude Code:
+`rucher new` names a session from the start. A `temp` session, or one started with `claude`, can be named with `/rename` in Claude Code:
 
 ```text
 /rename shop-auth
@@ -74,9 +79,13 @@ From inside Claude, the main agent has the same view through `session_list`, `se
 
 ```bash
 rucher resume shop-auth
+rucher resume                 # pick from the group's sessions (fzf when installed, a numbered list otherwise)
+rucher fork shop-auth shop-auth-alt   # branch it into a new temp session (--active to keep it)
 ```
 
-`rucher resume <name|id>` looks the session up and runs its host's resume command, `claude --resume <id>` for Claude Code, from the directory the session started in (Claude Code stores conversations per project directory). It resumes by id because a Carnet name and a Claude title can drift apart. An archived session can still be resumed, with a warning; resuming it makes it idle again.
+`rucher resume <name|id>` looks the session up and runs its host's resume command, `claude --resume <id> --name <name>` for Claude Code, from the directory the session started in (Claude Code stores conversations per project directory). It resumes by id, and passes the Rucher name as title so Claude Code shows the canonical name. An archived session can still be resumed, with a warning; resuming it brings it back into use.
+
+`rucher fork <session> [<name>] [--active]` resumes the session with `--fork-session`: Claude Code gives the branch a new id, and the `SessionStart` hook records it as a child of the original. The branch is `temp` unless `--active` is given, which needs a name.
 
 On resume, the `SessionStart` hook adds context to the conversation: the session's status view and its last 20 journal events, capped at about 2000 characters (oldest events dropped first). Claude picks up where it stopped without you pasting anything.
 
@@ -108,11 +117,11 @@ Each time a session starts, the hook purges sessions idle for more than 3 days t
 ## A typical day
 
 ```bash
-cd ~/groups/shop && claude            # pane 1
+rucher new shop-auth                  # pane 1
 cd ~/groups/shop && rucher status -w  # pane 2
 ```
 
-1. Name the session (`shop-auth`) and `/rename` it.
+1. Give the session a purpose (ask Claude, it calls `session_new`).
 2. Let the main agent dispatch forks; answer, review, apply and commit them one by one from "Waiting on you".
 3. Quit when done. Tomorrow: `rucher resume shop-auth`, and Claude starts with the status and the last events.
 4. `rucher log --md` when you want the day's trace in a file.

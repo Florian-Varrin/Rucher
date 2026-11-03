@@ -50,7 +50,7 @@ claude plugin install rucher@rucher
 mkdir -p ~/groups/shop && cd ~/groups/shop
 rucher init --name shop --repos ~/code/shop-api,~/code/shop-web
 rucher status --watch     # in a side pane
-claude                    # in another pane, from the same directory
+rucher new shop-auth      # in another pane: starts Claude Code for the group
 ```
 
 A group is a meta directory for a set of related repos. It holds context only (`CLAUDE.md`, `.claude/settings.json`, the Carnet database); the repos stay where they are and are referenced by path. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.

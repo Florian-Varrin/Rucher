@@ -26,9 +26,21 @@ export interface HostSubagentPayload {
   agent_transcript_path?: string | undefined;
 }
 
+export interface HostSessionEndPayload {
+  session_id: string;
+  cwd?: string | undefined;
+  reason?: string | undefined;
+}
+
 export interface ResumeCommand {
   command: string;
   args: string[];
+}
+
+export interface LaunchOptions {
+  name?: string | null | undefined;
+  appendPromptFile?: string | undefined;
+  passthrough?: readonly string[] | undefined;
 }
 
 export interface ContextFile {
@@ -47,9 +59,12 @@ export interface Host {
   parseSessionPayload(json: string): HostSessionPayload;
   parsePromptPayload(json: string): HostPromptPayload;
   parseSubagentPayload(json: string): HostSubagentPayload;
+  parseSessionEndPayload(json: string): HostSessionEndPayload;
   subagentNames(payload: HostSubagentPayload): string[];
   promptTitle(payload: HostPromptPayload): string | undefined;
-  resumeCommand(session: Session): ResumeCommand;
+  launchCommand(sessionId: string, options?: LaunchOptions): ResumeCommand;
+  resumeCommand(session: Session, options?: LaunchOptions): ResumeCommand;
+  forkCommand(parent: Session, options?: LaunchOptions): ResumeCommand;
   renameInstruction(name: string): string;
   contextFiles: readonly ContextFile[];
 }

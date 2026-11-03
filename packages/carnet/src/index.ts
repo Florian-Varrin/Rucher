@@ -46,6 +46,7 @@ export {
   rucherHome,
   unregisterGroups,
 } from './group/registry.ts';
+export { handleSessionEnd } from './hook/session-end.ts';
 export { handleSessionStart, type SessionStartResult } from './hook/session-start.ts';
 export { handleUserPromptSubmit } from './hook/user-prompt-submit.ts';
 export {
@@ -66,8 +67,10 @@ export {
   type Host,
   hostById,
   type HostPromptPayload,
+  type HostSessionEndPayload,
   type HostSessionPayload,
   type HostSubagentPayload,
+  type LaunchOptions,
   type ResumeCommand,
 } from './hosts/host.ts';
 export { type MergeResult } from './merge.ts';
@@ -106,6 +109,7 @@ export { PAIRING_WINDOW_MILLISECONDS, STOPPED_NOTE } from './subagents.ts';
 export type {
   HookEnv,
   HookSessionPayload,
+  CreateSessionInput,
   ListSessionsOptions,
   Session,
   SessionKind,
