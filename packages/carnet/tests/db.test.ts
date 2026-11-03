@@ -10,8 +10,13 @@ test('migrates an in-memory database to the latest version', () => {
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
     .all() as unknown as { name: string }[];
   expect(tables.map((table) => table.name)).toEqual([
+    'active_days',
     'agents',
     'events',
+    'note_citations',
+    'note_repos',
+    'notes',
+    'session_repos',
     'sessions',
     'table_items',
   ]);

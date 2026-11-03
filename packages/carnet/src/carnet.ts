@@ -17,6 +17,20 @@ import { openDatabase } from './db/open.ts';
 import { logEvent, type LogEventInput, readEvents } from './events.ts';
 import { type Group, type LocateOptions, locateGroup } from './group/locate.ts';
 import { mergeSessions } from './merge.ts';
+import {
+  type AddNoteInput,
+  addNote,
+  type CiteNoteInput,
+  citeNote,
+  type DropNoteInput,
+  dropNote,
+  getNote,
+  listNotes,
+  type ListNotesOptions,
+  noteDetail,
+  recordActiveDay,
+  staleNotes,
+} from './notes.ts';
 import { purgeSessions } from './purge.ts';
 import {
   defaultSession,
@@ -114,6 +128,17 @@ export class Carnet {
     log: (session: string, input: LogEventInput) => logEvent(this.ctx, session, input),
     read: (session: string, limit?: number, agentOnly?: boolean) =>
       readEvents(this.ctx, { session, limit, agentOnly }),
+  };
+
+  readonly notes = {
+    add: (input: AddNoteInput) => addNote(this.ctx, this.group, input),
+    get: (id: number) => getNote(this.ctx, id),
+    show: (id: number, halfLifeDays?: number) => noteDetail(this.ctx, id, halfLifeDays),
+    list: (options?: ListNotesOptions) => listNotes(this.ctx, options),
+    stale: (halfLifeDays?: number) => staleNotes(this.ctx, halfLifeDays),
+    drop: (id: number, input: DropNoteInput) => dropNote(this.ctx, id, input),
+    cite: (id: number, input: CiteNoteInput) => citeNote(this.ctx, id, input),
+    recordActiveDay: () => recordActiveDay(this.ctx),
   };
 
   readonly status = {

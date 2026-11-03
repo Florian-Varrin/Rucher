@@ -2,7 +2,14 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import type { Complete } from '@bomb.sh/tab';
 import tab from '@bomb.sh/tab/citty';
-import { locateGroup, openCarnet, readRegistry, shortId } from '@rucher/carnet';
+import {
+  groupRepoNames,
+  locateGroup,
+  NOTE_KINDS,
+  openCarnet,
+  readRegistry,
+  shortId,
+} from '@rucher/carnet';
 import type { CommandDef } from 'citty';
 
 type Handler = (complete: Complete) => void;
@@ -64,6 +71,27 @@ export function suggestRepos(context: CompletionContext, complete: Complete): vo
   });
 }
 
+export function suggestRepoNames(context: CompletionContext, complete: Complete): void {
+  quietly(() => {
+    for (const repo of groupRepoNames(locateGroup(context))) complete(repo, '');
+  });
+}
+
+export function suggestNoteKinds(complete: Complete): void {
+  for (const kind of NOTE_KINDS) complete(kind, '');
+}
+
+export function suggestNotes(context: CompletionContext, complete: Complete): void {
+  quietly(() => {
+    const carnet = openCarnet(context);
+    try {
+      for (const note of carnet.notes.list()) complete(String(note.id), note.text.slice(0, 60));
+    } finally {
+      carnet.close();
+    }
+  });
+}
+
 // tab always disables the shell's file completion, so directories are listed here.
 export function suggestDirectories(context: CompletionContext, complete: Complete): void {
   quietly(() => {
@@ -89,6 +117,9 @@ const sessions: Handler = (complete) => suggestSessions(processContext(), comple
 const groups: Handler = (complete) => suggestGroups(processContext(), complete);
 const repos: Handler = (complete) => suggestRepos(processContext(), complete);
 const directories: Handler = (complete) => suggestDirectories(processContext(), complete);
+const repoNames: Handler = (complete) => suggestRepoNames(processContext(), complete);
+const noteKinds: Handler = (complete) => suggestNoteKinds(complete);
+const notes: Handler = (complete) => suggestNotes(processContext(), complete);
 
 export const completionConfig = {
   subCommands: {
@@ -97,6 +128,15 @@ export const completionConfig = {
     init: { args: { directory: directories } },
     resume: { args: { name: sessions } },
     sessions: { subCommands: { merge: { args: { from: sessions, into: sessions } } } },
+    notes: {
+      options: { kind: noteKinds, repo: repoNames },
+      subCommands: {
+        list: { options: { kind: noteKinds, repo: repoNames } },
+        show: { args: { id: notes } },
+        add: { args: { kind: noteKinds }, options: { repo: repoNames } },
+        drop: { args: { id: notes }, options: { 'replaced-by': notes } },
+      },
+    },
     groups: { subCommands: { forget: { args: { reference: groups } } } },
     group: {
       subCommands: { add: { args: { path: directories } }, remove: { args: { path: repos } } },
@@ -109,6 +149,8 @@ export const uncompletedArguments = [
   'init --repos',
   'status --interval',
   'log --count',
+  'notes add text',
+  'notes drop --reason',
 ];
 
 export async function setupCompletion(main: CommandDef): Promise<void> {

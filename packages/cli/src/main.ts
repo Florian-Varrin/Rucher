@@ -6,6 +6,14 @@ import { groupsForget, groupsList, groupsPrune } from './commands/groups.ts';
 import { sessionStart, subagentStart, subagentStop, userPromptSubmit } from './commands/hook.ts';
 import { init } from './commands/init.ts';
 import { logOnce } from './commands/log.ts';
+import {
+  notesAdd,
+  notesDrop,
+  notesList,
+  notesShow,
+  parseNoteId,
+  repoList,
+} from './commands/notes.ts';
 import { resumeTarget, runTarget } from './commands/resume.ts';
 import { serve } from './commands/serve.ts';
 import { sessionsMerge, sessionsOnce } from './commands/sessions.ts';
@@ -173,6 +181,113 @@ const sessionsCommand = defineCommand({
   meta: { name: 'sessions', description: 'List or merge the sessions of the group' },
   default: 'list',
   subCommands: { list: sessionsListCommand, merge: sessionsMergeCommand },
+});
+
+function withCarnet(io: Io, run: (carnet: ReturnType<typeof openCarnet>) => void): void {
+  try {
+    const carnet = openCarnet({ cwd: io.cwd, env: io.env });
+    try {
+      run(carnet);
+    } finally {
+      carnet.close();
+    }
+  } catch (error) {
+    fail(io, error);
+  }
+}
+
+const noteFilterArguments = {
+  kind: { type: 'string', description: 'learning, decision or dead_end' },
+  repo: { type: 'string', description: 'Only the notes of this repo' },
+} as const;
+
+const notesListCommand = defineCommand({
+  meta: { name: 'list', description: 'Active notes of the group, by kind' },
+  args: {
+    all: { type: 'boolean', default: false, description: 'Include dropped notes and their reason' },
+    ...noteFilterArguments,
+    general: { type: 'boolean', default: false, description: 'Only the notes without repo' },
+    stale: {
+      type: 'boolean',
+      default: false,
+      description: 'Notes to review: old and never (or no longer) cited',
+    },
+    md: { type: 'boolean', default: false, description: 'Markdown output, a view only' },
+    ...colorArgument,
+  },
+  run({ args }) {
+    const io = processIo({ color: args.color });
+    withCarnet(io, (carnet) =>
+      notesList(carnet, io, {
+        all: args.all,
+        kind: args.kind,
+        repo: args.repo,
+        general: args.general,
+        stale: args.stale,
+        markdown: args.md,
+      }),
+    );
+  },
+});
+
+const notesShowCommand = defineCommand({
+  meta: { name: 'show', description: 'A note with its repos, weight and citations' },
+  args: {
+    id: { type: 'positional', description: 'Note id', required: true },
+    ...colorArgument,
+  },
+  run({ args }) {
+    const io = processIo({ color: args.color });
+    withCarnet(io, (carnet) => notesShow(carnet, io, parseNoteId(args.id)));
+  },
+});
+
+const notesAddCommand = defineCommand({
+  meta: { name: 'add', description: 'Add a note by hand' },
+  args: {
+    kind: { type: 'positional', description: 'learning, decision or dead_end', required: true },
+    text: { type: 'positional', description: 'One claim with its reason', required: true },
+    repo: { type: 'string', description: 'Repo the note applies to (repeat for several)' },
+    ...colorArgument,
+  },
+  run({ args, rawArgs }) {
+    const io = processIo({ color: args.color });
+    withCarnet(io, (carnet) =>
+      notesAdd(carnet, io, { kind: args.kind, text: args.text, repos: repoList(rawArgs) }),
+    );
+  },
+});
+
+const notesDropCommand = defineCommand({
+  meta: { name: 'drop', description: 'Close a note that proved wrong, keeping it in the history' },
+  args: {
+    id: { type: 'positional', description: 'Note id', required: true },
+    reason: { type: 'string', description: 'Why it is no longer true', required: true },
+    'replaced-by': { type: 'string', description: 'Id of the note that replaces it' },
+  },
+  run({ args }) {
+    const io = processIo();
+    const replacement = args['replaced-by'];
+    withCarnet(io, (carnet) =>
+      notesDrop(carnet, io, parseNoteId(args.id), {
+        reason: args.reason,
+        replacedBy: replacement === undefined ? undefined : parseNoteId(replacement),
+      }),
+    );
+  },
+});
+
+const notesCommand = defineCommand({
+  meta: { name: 'notes', description: "The group's memory: learnings, decisions and dead ends" },
+  // Declared here too so `rucher notes --kind dead_end` reaches the default list command.
+  args: noteFilterArguments,
+  default: 'list',
+  subCommands: {
+    list: notesListCommand,
+    show: notesShowCommand,
+    add: notesAddCommand,
+    drop: notesDropCommand,
+  },
 });
 
 const resumeCommand = defineCommand({
@@ -351,6 +466,7 @@ export const main = defineCommand({
     log: logCommand,
     sessions: sessionsCommand,
     resume: resumeCommand,
+    notes: notesCommand,
     group: groupCommand,
     groups: groupsCommand,
     hook: hookCommand,

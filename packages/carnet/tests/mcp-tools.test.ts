@@ -140,3 +140,38 @@ test('a lazy carnet that has no group answers NO_GROUP instead of failing to sta
   expect(result.isError).toBe(true);
   expect(JSON.stringify(result.content)).toContain('NO_GROUP');
 });
+
+test('notes through the protocol: add, duplicate warning, list, cite, drop', async () => {
+  const added = await call('note_add', {
+    kind: 'dead_end',
+    text: 'sessions on Workers: the cold start breaks the SSR cache',
+    repos: ['api'],
+    agent: 'banner',
+  });
+  expect(added.text).toBe(
+    'added #1 dead_end [api] sessions on Workers: the cold start breaks the SSR cache',
+  );
+  const duplicate = await call('note_add', {
+    kind: 'dead_end',
+    text: 'sessions on Workers: cold start breaks the SSR cache',
+  });
+  expect(duplicate.text).toContain('Similar active notes, possible duplicate:\n#1 dead_end');
+  expect((await call('note_add', { kind: 'learning', text: 'x', repos: ['web'] })).isError).toBe(
+    true,
+  );
+  expect((await call('note_list', { repo: 'api' })).text).toBe(
+    '#1 dead_end [api] sessions on Workers: the cold start breaks the SSR cache',
+  );
+  expect((await call('note_cite', { id: 1, why: 'kept the old runtime' })).text).toBe(
+    'cited #1: kept the old runtime',
+  );
+  expect(carnet.notes.show(1).citations[0]).toMatchObject({ session: SESSION });
+  expect((await call('note_drop', { id: 2, reason: 'duplicate of #1', replaced_by: 1 })).text).toBe(
+    'dropped #2, replaced by #1',
+  );
+  expect(carnet.notes.get(2)).toMatchObject({ droppedSession: SESSION });
+  expect((await call('note_list', { include_dropped: true })).text).toContain(
+    '(dropped: duplicate of #1)',
+  );
+  expect((await call('note_cite', { id: 9, why: 'nothing' })).isError).toBe(true);
+});

@@ -4,6 +4,7 @@ import type { Carnet } from '../carnet.ts';
 import { EVENT_TYPES } from '../events.ts';
 import { reportPathFor, reportsDirectoryOf } from '../group/locate.ts';
 import { hostById } from '../hosts/host.ts';
+import { memoryHalfLife, type Note, NOTE_KINDS } from '../notes.ts';
 import { formatEventLine, resumeContext, sessionLabel } from '../resume.ts';
 import { EMOJI, OPEN_AGENT_STATUSES, USER_ACTION_STATUSES } from '../status/model.ts';
 import { renderAgentLine, renderTableLine } from '../status/render.ts';
@@ -309,6 +310,111 @@ const logRead = defineTool({
   },
 });
 
+const noteId = z.number().int().positive().describe('Note id, as shown by note_list (#14 is 14)');
+
+export function noteLine(note: Note): string {
+  const repos = note.repos.length ? ` [${note.repos.join(', ')}]` : '';
+  return `#${note.id} ${note.kind}${repos} ${note.text}`;
+}
+
+const noteAdd = defineTool({
+  name: 'note_add',
+  description:
+    "Main agent only. Record what the group learned (learning), decided (decision) or tried and gave up (dead_end), at the end of a step. One claim under 200 characters with its reason, no markdown. `repos` only when it applies to some of the group's repos; omit it for a general note. A result listing similar notes means a likely duplicate: drop or replace instead of piling up.",
+  schema: z.object({
+    kind: z.enum(NOTE_KINDS),
+    text: z.string().min(1).describe('One claim with its reason, under 200 characters'),
+    repos: z
+      .array(z.string().min(1))
+      .optional()
+      .describe('Repo names of the group; omit for a general note'),
+    agent: z.string().optional().describe('Fork the note comes from'),
+    session,
+  }),
+  run: (carnet, sessionId, args) => {
+    const { note, similar } = carnet.notes.add({
+      kind: args.kind,
+      text: args.text,
+      repos: args.repos,
+      agent: args.agent,
+      session: sessionId,
+    });
+    const warning = similar.length
+      ? `\nSimilar active notes, possible duplicate:\n${similar.map(noteLine).join('\n')}`
+      : '';
+    return { text: `added ${noteLine(note)}${warning}`, data: { note, similar } };
+  },
+});
+
+const noteList = defineTool({
+  name: 'note_list',
+  description:
+    "The group's active notes, dead ends first, then decisions, then learnings, most cited first. Filter by kind, repo, general (notes without repo) or a substring query. Check it before trying an approach.",
+  schema: z.object({
+    kind: z.enum(NOTE_KINDS).optional(),
+    repo: z.string().optional().describe('Notes of this repo'),
+    general: z.boolean().optional().describe('Only notes without repo'),
+    query: z.string().optional().describe('Substring of the text'),
+    include_dropped: z.boolean().optional(),
+    session,
+  }),
+  run: (carnet, _sessionId, args) => {
+    const notes = carnet.notes.list({
+      kind: args.kind,
+      repo: args.repo,
+      general: args.general,
+      query: args.query,
+      includeDropped: args.include_dropped,
+      halfLifeDays: memoryHalfLife(process.env['RUCHER_MEMORY_HALF_LIFE_DAYS']),
+    });
+    const lines = notes.map(
+      (note) => `${noteLine(note)}${note.droppedAt ? ` (dropped: ${note.droppedReason})` : ''}`,
+    );
+    return { text: lines.length ? lines.join('\n') : 'no notes', data: { notes } };
+  },
+});
+
+const noteDrop = defineTool({
+  name: 'note_drop',
+  description:
+    'Main agent only. Close a note that proved wrong or outdated: it stays in the history, marked dropped with the reason. Pass replaced_by when a corrected note replaces it.',
+  schema: z.object({
+    id: noteId,
+    reason: z.string().min(1).describe('Why the note is no longer true'),
+    replaced_by: z.number().int().positive().optional().describe('Id of the note replacing it'),
+    session,
+  }),
+  run: (carnet, sessionId, args) => {
+    const note = carnet.notes.drop(args.id, {
+      reason: args.reason,
+      replacedBy: args.replaced_by,
+      session: sessionId,
+    });
+    const replaced = note.replacedBy ? `, replaced by #${note.replacedBy}` : '';
+    return { text: `dropped #${note.id}${replaced}`, data: { note } };
+  },
+});
+
+const noteCite = defineTool({
+  name: 'note_cite',
+  description:
+    'Cite a note that changed what you did (avoided, followed or adjusted something), with what it changed. Never for a plain read. Citations decide which notes come first.',
+  schema: z.object({
+    id: noteId,
+    why: z.string().min(1).describe('What the note changed, short'),
+    agent: z.string().optional().describe('Fork citing it, when not the main agent'),
+    session,
+  }),
+  run: (carnet, sessionId, args) => {
+    const citation = carnet.notes.cite(args.id, {
+      why: args.why,
+      agent: args.agent,
+      session: sessionId,
+    });
+    return { text: `cited #${citation.note}: ${citation.why}`, data: { citation } };
+  },
+});
+
 export const TOOLS: readonly ToolDefinition[] = [
   agentStart,
   agentUpdate,
@@ -324,4 +430,8 @@ export const TOOLS: readonly ToolDefinition[] = [
   sessionList,
   sessionDrop,
   sessionResumeInfo,
+  noteAdd,
+  noteList,
+  noteDrop,
+  noteCite,
 ] as readonly ToolDefinition[];

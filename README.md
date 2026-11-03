@@ -22,6 +22,7 @@ Early (0.x), used daily by its author. Commands, APIs and the database schema ma
 | Carnet       | Shared state: agent statuses, "On the table", sessions, journal. Library + SQLite + MCP server  | [reference](docs/reference.md)       |
 | CLI `rucher` | Human entry point: `status`, `log`, `sessions`, `resume`                                        | [reference](docs/reference.md)       |
 | Sessions     | Named, resumable sessions; temporary ones purged                                                | [docs/sessions.md](docs/sessions.md) |
+| Memory       | Notes the group learned, decided or ruled out, shared by its sessions                           | [docs/memory.md](docs/memory.md)     |
 | Plugin       | Claude Code wiring: MCP server, hooks, `rucher` skill                                           | [plugin/README.md](plugin/README.md) |
 | Core + TUI   | SDK wrapper, agents, forks, permissions; one-window terminal UI                                 | later                                |
 
@@ -31,7 +32,7 @@ Early (0.x), used daily by its author. Commands, APIs and the database schema ma
 packages/carnet   library, SQLite schema, MCP server
 packages/cli      the rucher binary
 plugin/           Claude Code plugin: hooks, MCP wiring, skill
-docs/             manifesto, workflow, sessions, reference
+docs/             manifesto, workflow, sessions, memory, reference
 ```
 
 ## Requirements

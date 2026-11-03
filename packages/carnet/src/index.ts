@@ -73,6 +73,28 @@ export {
 export { type MergeResult } from './merge.ts';
 export { DEFAULT_PURGE_DAYS, purgeDays } from './purge.ts';
 export {
+  type AddNoteInput,
+  type AddNoteResult,
+  type CiteNoteInput,
+  DEFAULT_HALF_LIFE_DAYS,
+  type DropNoteInput,
+  DUPLICATE_SIMILARITY,
+  groupRepoNames,
+  isNoteKind,
+  type ListNotesOptions,
+  localDay,
+  memoryHalfLife,
+  type Note,
+  type NoteCitation,
+  type NoteDetail,
+  NOTE_KINDS,
+  NOTE_TEXT_LIMIT,
+  type NoteKind,
+  similarity,
+  STALE_AFTER_ACTIVE_DAYS,
+  type WeightedNote,
+} from './notes.ts';
+export {
   formatEventLine,
   RESUME_EVENTS,
   RESUME_MAX_CHARACTERS,

@@ -39,7 +39,15 @@ export function initGroup(directory: string, options: InitOptions = {}): Group {
     throw new CarnetError('GROUP_EXISTS', `${root} is already a Rucher group`);
   }
   const name = options.name ?? basename(root);
-  const repos = (options.repos ?? []).map((repo) => resolveRepo(root, repo));
+  const repos = [...new Set((options.repos ?? []).map((repo) => resolveRepo(root, repo)))];
+  const names = repos.map((repo) => basename(repo));
+  const shared = names.find((repoName, index) => names.indexOf(repoName) !== index);
+  if (shared) {
+    throw new CarnetError(
+      'REPO_NAME_TAKEN',
+      `Two repos are named ${shared}: give them distinct names`,
+    );
+  }
   const hosts = (options.hosts?.length ? options.hosts : [DEFAULT_HOST]).map(
     (id) => hostById(id).id,
   );
@@ -53,6 +61,16 @@ export function initGroup(directory: string, options: InitOptions = {}): Group {
 export function addGroupRepo(root: string, repo: string): Group {
   const group = loadGroup(resolve(root));
   const path = resolveRepo(group.root, repo);
+  const sameName = group.repos.find(
+    (existing) => existing !== path && basename(existing) === basename(path),
+  );
+  // Notes reference repos by name, so two repos cannot share one.
+  if (sameName) {
+    throw new CarnetError(
+      'REPO_NAME_TAKEN',
+      `${group.name} already has a repo named ${basename(path)}: ${sameName}`,
+    );
+  }
   if (!group.repos.includes(path)) {
     writeGroupFile(group.root, {
       name: group.name,

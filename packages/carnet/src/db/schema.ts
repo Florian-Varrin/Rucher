@@ -125,6 +125,55 @@ DROP TABLE events;
 ALTER TABLE events_new RENAME TO events;
 CREATE INDEX events_session_at ON events(session, at);
 `,
+  `
+CREATE TABLE notes (
+  id INTEGER PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('learning', 'dead_end', 'decision')),
+  text TEXT NOT NULL,
+  session TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+  agent TEXT,
+  similar_notes TEXT,
+  created_at TEXT NOT NULL,
+  dropped_at TEXT,
+  dropped_reason TEXT,
+  dropped_session TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+  replaced_by INTEGER REFERENCES notes(id)
+);
+
+CREATE INDEX notes_active ON notes(dropped_at, kind);
+CREATE INDEX notes_session ON notes(session);
+
+CREATE TABLE note_repos (
+  note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  repo TEXT NOT NULL,
+  PRIMARY KEY (note, repo)
+);
+
+CREATE INDEX note_repos_repo ON note_repos(repo);
+
+CREATE TABLE note_citations (
+  id INTEGER PRIMARY KEY,
+  note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  session TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+  agent TEXT,
+  why TEXT NOT NULL,
+  at TEXT NOT NULL
+);
+
+CREATE INDEX note_citations_note_at ON note_citations(note, at);
+CREATE INDEX note_citations_session ON note_citations(session);
+
+CREATE TABLE active_days (
+  day TEXT PRIMARY KEY
+);
+
+CREATE TABLE session_repos (
+  session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  repo TEXT NOT NULL,
+  injected_at TEXT NOT NULL,
+  PRIMARY KEY (session, repo)
+);
+`,
 ];
 
 export function schemaVersion(db: DatabaseSync): number {
