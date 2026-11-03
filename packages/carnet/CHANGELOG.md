@@ -1,5 +1,15 @@
 # @rucher/carnet
 
+## 0.2.0-beta.2
+
+### Minor Changes
+
+- ac76418: Spend fewer tokens on Carnet: tool results are short text only, the new `agent_step` tool moves a fork through each step in one call, `agent_done` copies the report into the group, `table_set` keeps `main_working` when omitted, and the server instructions only say which tool to use when, while sessions started without rucher get the full rules at start
+
+### Patch Changes
+
+- 3cfac8b: Order the journal by event time, so events moved from another group show where they happened
+
 ## 0.2.0-beta.1
 
 ### Patch Changes
