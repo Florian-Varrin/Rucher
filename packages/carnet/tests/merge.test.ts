@@ -29,7 +29,7 @@ test('merge moves agents, events and the table line, then drops the source', () 
   expect(result.session).toMatchObject({
     name: 'shop-auth',
     purpose: 'Login flow',
-    status: 'active',
+    kind: 'active',
   });
   expect(
     carnet.agents
@@ -45,7 +45,7 @@ test('merge moves agents, events and the table line, then drops the source', () 
     'shared',
     'moved',
   ]);
-  expect(carnet.sessions.get(PROVISIONAL)).toMatchObject({ status: 'dropped', name: null });
+  expect(carnet.sessions.get(PROVISIONAL)).toMatchObject({ status: 'archived', name: null });
 });
 
 test('merge keeps the target table line and name when it has them', () => {

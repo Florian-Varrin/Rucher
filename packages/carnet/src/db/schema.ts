@@ -75,6 +75,56 @@ ALTER TABLE agents RENAME COLUMN claude_agent_id TO host_agent_id;
 DROP INDEX sessions_claude_pid;
 CREATE INDEX sessions_host_pid ON sessions(host, host_pid, hooked_at);
 `,
+  `
+CREATE TABLE sessions_new (
+  id TEXT PRIMARY KEY,
+  name TEXT UNIQUE,
+  purpose TEXT,
+  kind TEXT NOT NULL DEFAULT 'temp' CHECK (kind IN ('active', 'temp')),
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('running', 'idle', 'archived')),
+  cwd TEXT,
+  repo TEXT,
+  host TEXT NOT NULL DEFAULT 'claude-code',
+  host_pid INTEGER,
+  hooked_at TEXT,
+  last_title TEXT,
+  parent_id TEXT REFERENCES sessions(id),
+  prompt_version TEXT,
+  created_at TEXT NOT NULL,
+  last_active_at TEXT NOT NULL,
+  ended_at TEXT,
+  CHECK (kind = 'temp' OR name IS NOT NULL)
+);
+INSERT INTO sessions_new (id, name, purpose, kind, status, cwd, repo, host, host_pid, hooked_at,
+  last_title, created_at, last_active_at)
+SELECT id, name, purpose,
+  CASE WHEN status = 'active' AND name IS NOT NULL THEN 'active'
+       WHEN status = 'dropped' AND name IS NOT NULL THEN 'active'
+       ELSE 'temp' END,
+  CASE WHEN status = 'dropped' THEN 'archived' ELSE 'idle' END,
+  cwd, repo, host, host_pid, hooked_at, name, created_at, last_active_at
+FROM sessions;
+DROP TABLE sessions;
+ALTER TABLE sessions_new RENAME TO sessions;
+CREATE INDEX sessions_host_pid ON sessions(host, host_pid, hooked_at);
+
+CREATE TABLE events_new (
+  id INTEGER PRIMARY KEY,
+  session TEXT NOT NULL REFERENCES sessions(id),
+  at TEXT NOT NULL,
+  type TEXT NOT NULL
+    CHECK (type IN ('started', 'finished', 'answered', 'applied', 'tested', 'committed', 'dropped',
+      'session.started', 'session.resumed', 'session.ended', 'session.forked')),
+  agent TEXT,
+  commit_sha TEXT,
+  link TEXT,
+  note TEXT
+);
+INSERT INTO events_new SELECT id, session, at, type, agent, commit_sha, link, note FROM events;
+DROP TABLE events;
+ALTER TABLE events_new RENAME TO events;
+CREATE INDEX events_session_at ON events(session, at);
+`,
 ];
 
 export function schemaVersion(db: DatabaseSync): number {
@@ -82,18 +132,33 @@ export function schemaVersion(db: DatabaseSync): number {
   return row.user_version;
 }
 
+function foreignKeyViolations(db: DatabaseSync): number {
+  return db.prepare('PRAGMA foreign_key_check').all().length;
+}
+
 export function migrate(db: DatabaseSync): void {
   const current = schemaVersion(db);
-  for (const [version, migration] of migrations.entries()) {
-    if (version < current) continue;
-    db.exec('BEGIN');
-    try {
-      db.exec(migration);
-      db.exec(`PRAGMA user_version = ${version + 1}`);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
+  if (current >= migrations.length) return;
+  const foreignKeys = db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number };
+  // Table rebuilds need foreign keys off, and SQLite ignores that pragma inside a transaction.
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    for (const [version, migration] of migrations.entries()) {
+      if (version < current) continue;
+      db.exec('BEGIN');
+      try {
+        db.exec(migration);
+        if (foreignKeyViolations(db) > 0) {
+          throw new Error(`Migration ${version + 1} broke foreign keys`);
+        }
+        db.exec(`PRAGMA user_version = ${version + 1}`);
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
     }
+  } finally {
+    db.exec(`PRAGMA foreign_keys = ${foreignKeys.foreign_keys ? 'ON' : 'OFF'}`);
   }
 }

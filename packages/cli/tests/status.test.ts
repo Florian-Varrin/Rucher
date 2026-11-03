@@ -133,13 +133,13 @@ test('the single view names its session and follows the default on every render'
   expect(text).not.toContain('banner');
 });
 
-test('a dropped --session says so instead of showing stale data', () => {
+test('an archived --session says so instead of showing stale data', () => {
   const { carnet } = seeded();
   carnet.sessions.name(SESSION, 'shop-auth');
   carnet.sessions.drop(SESSION);
   const lines = renderStatusView(carnet, makeIo(), { session: 'shop-auth' }).split('\n');
   expect(lines[0]).toMatch(/ - shop-auth · api$/);
-  expect(lines.slice(1, 3)).toEqual(['', '  dropped, see rucher sessions --all']);
+  expect(lines.slice(1, 3)).toEqual(['', '  archived, see rucher sessions --all']);
 });
 
 test('--all --watch picks up a session that starts after the watch', async () => {

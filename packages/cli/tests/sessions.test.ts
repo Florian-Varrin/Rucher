@@ -6,11 +6,13 @@ import { sessionsMerge, sessionsOnce } from '../src/commands/sessions.ts';
 import { CliError } from '../src/session.ts';
 import { makeCarnet, makeIo, SESSION } from './helpers.ts';
 
-test('sessions lists named sessions, --all adds temporary and dropped ones', () => {
+test('sessions lists active sessions, --all adds temp and archived ones', () => {
   const { carnet } = makeCarnet();
   const io = makeIo();
   sessionsOnce(carnet, io);
-  expect(io.output.join('')).toBe('no named session yet (temporary ones are hidden, use --all)\n');
+  expect(io.output.join('')).toBe(
+    'no active session yet (temp and archived ones are hidden, use --all)\n',
+  );
 
   carnet.sessions.name(SESSION, 'shop-auth', 'Login flow');
   carnet.agents.start(SESSION, { name: 'banner', task: 't' });
@@ -22,7 +24,7 @@ test('sessions lists named sessions, --all adds temporary and dropped ones', () 
   const named = makeIo();
   sessionsOnce(carnet, named, { now });
   expect(named.output.join('')).toMatch(
-    /^shop-auth {2}active {2}api {2}\S+ {2}1 agent {2}Login flow\n$/,
+    /^shop-auth {2}active {2}idle {2}api {2}\S+ {2}1 agent {2}Login flow\n$/,
   );
 
   const all = makeIo();
@@ -48,7 +50,7 @@ test('resume targets claude --resume with the session id from its original cwd',
   expect(io.errors).toEqual([]);
 });
 
-test('resume falls back to the current directory, warns on dropped, refuses unknown', () => {
+test('resume falls back to the current directory, warns on archived, refuses unknown', () => {
   const { carnet, root } = makeCarnet();
   const gone = join(root, 'gone');
   mkdirSync(gone);
@@ -57,7 +59,7 @@ test('resume falls back to the current directory, warns on dropped, refuses unkn
   carnet.sessions.drop('s2');
   const io = makeIo();
   expect(resumeTarget(carnet, 'shop-old', io).cwd).toBe(io.cwd);
-  expect(io.errors.join('')).toBe('warning: session shop-old was dropped\n');
+  expect(io.errors.join('')).toBe('warning: session shop-old is archived\n');
   expect(() => resumeTarget(carnet, 'nope', io)).toThrowError(CliError);
 });
 

@@ -11,7 +11,18 @@ export const EVENT_TYPES = [
   'dropped',
 ] as const;
 
-export type EventType = (typeof EVENT_TYPES)[number];
+export const SESSION_EVENT_TYPES = [
+  'session.started',
+  'session.resumed',
+  'session.ended',
+  'session.forked',
+] as const;
+
+export type AgentEventType = (typeof EVENT_TYPES)[number];
+export type SessionEventType = (typeof SESSION_EVENT_TYPES)[number];
+export type EventType = AgentEventType | SessionEventType;
+
+const ALL_EVENT_TYPES: readonly string[] = [...EVENT_TYPES, ...SESSION_EVENT_TYPES];
 
 export interface CarnetEvent {
   id: number;
@@ -35,6 +46,7 @@ export interface LogEventInput {
 export interface ReadEventsOptions {
   session: string;
   limit?: number | undefined;
+  agentOnly?: boolean | undefined;
 }
 
 interface EventRow {
@@ -49,7 +61,7 @@ interface EventRow {
 }
 
 export function isEventType(value: unknown): value is EventType {
-  return typeof value === 'string' && (EVENT_TYPES as readonly string[]).includes(value);
+  return typeof value === 'string' && ALL_EVENT_TYPES.includes(value);
 }
 
 function toEvent(row: EventRow): CarnetEvent {
@@ -88,11 +100,15 @@ export function logEvent(ctx: Ctx, session: string, input: LogEventInput): Carne
   return toEvent(row);
 }
 
-export function readEvents(ctx: Ctx, { session, limit = 20 }: ReadEventsOptions): CarnetEvent[] {
+export function readEvents(
+  ctx: Ctx,
+  { session, limit = 20, agentOnly = false }: ReadEventsOptions,
+): CarnetEvent[] {
+  const filter = agentOnly ? "AND type NOT LIKE 'session.%'" : '';
   const rows = ctx.db
     .prepare(
-      `SELECT * FROM (SELECT * FROM events WHERE session = ? ORDER BY id DESC LIMIT ?) ORDER BY id ASC`,
+      `SELECT * FROM (SELECT * FROM events WHERE session = ? ${filter} ORDER BY id DESC LIMIT ?) ORDER BY id ASC`,
     )
-    .all(session, limit) as unknown as unknown as EventRow[];
+    .all(session, limit) as unknown as EventRow[];
   return rows.map(toEvent);
 }

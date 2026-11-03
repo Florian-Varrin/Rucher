@@ -34,7 +34,7 @@ function clockedCarnet() {
 
 function ids(carnet: Carnet): string[] {
   return carnet.sessions
-    .list({ includeTemporary: true, includeDropped: true })
+    .list({ includeTemp: true, includeArchived: true })
     .map((session) => session.id)
     .sort();
 }

@@ -55,7 +55,8 @@ function sessionHeader(carnet: Carnet, session: Session, io: Io): string {
 }
 
 function sessionLines(carnet: Carnet, session: Session, view: StatusView, io: Io): string[] {
-  if (session.status === 'dropped') return [paint(io).dim('  dropped, see rucher sessions --all')];
+  if (session.status === 'archived')
+    return [paint(io).dim('  archived, see rucher sessions --all')];
   return renderSections(view)
     .split('\n')
     .map((line) => colorizeLine(line, io));
@@ -83,7 +84,7 @@ function singleView(carnet: Carnet, session: Session, io: Io): string {
 export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions): string {
   const sessions = options.all
     ? carnet.sessions
-        .list({ includeTemporary: true })
+        .list({ includeTemp: true })
         .filter((session) => hasSomethingToShow(carnet, session))
     : [];
   if (sessions.length === 0) return singleView(carnet, resolveSession(carnet, options.session), io);

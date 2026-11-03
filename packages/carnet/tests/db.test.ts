@@ -102,8 +102,8 @@ test('upgrades a version 4 database: paused sessions become active', async () =>
   old.close();
   const db = openDatabase(path);
   expect(schemaVersion(db)).toBe(migrations.length);
-  expect(db.prepare('SELECT id, status FROM sessions').all()).toEqual([
-    { id: 's', status: 'active' },
+  expect(db.prepare('SELECT id, kind, status FROM sessions').all()).toEqual([
+    { id: 's', kind: 'temp', status: 'idle' },
   ]);
   db.close();
 });

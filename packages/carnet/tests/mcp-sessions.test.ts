@@ -36,7 +36,7 @@ test('session_new names, renames and refuses a name taken by another session', a
   expect(named.text).toBe(
     'Session named shop-auth. Ask the human to run /rename shop-auth in Claude Code so the titles match.',
   );
-  expect(carnet.sessions.get(SESSION)).toMatchObject({ name: 'shop-auth', status: 'active' });
+  expect(carnet.sessions.get(SESSION)).toMatchObject({ name: 'shop-auth', kind: 'active' });
   expect((await call('session_new', { name: 'shop-login' })).isError).toBe(false);
   expect(carnet.sessions.get(SESSION)).toMatchObject({ name: 'shop-login', purpose: 'Login flow' });
 
@@ -50,9 +50,9 @@ test('session_new names, renames and refuses a name taken by another session', a
 test('session_list hides temporary sessions unless asked and marks the current one', async () => {
   carnet.sessions.ensure('temp');
   await call('session_new', { name: 'shop-auth' });
-  expect((await call('session_list')).text).toBe('shop-auth [active] (current)');
-  const all = await call('session_list', { include_temporary: true });
-  expect(all.text.split('\n')).toEqual(['shop-auth [active] (current)', 'temp [temporary]']);
+  expect((await call('session_list')).text).toBe('shop-auth [active, idle] (current)');
+  const all = await call('session_list', { include_temp: true });
+  expect(all.text.split('\n')).toEqual(['shop-auth [active, idle] (current)', 'temp [temp, idle]']);
 });
 
 test('session_drop closes a session by name, unknown names are tool errors', async () => {
@@ -60,9 +60,9 @@ test('session_drop closes a session by name, unknown names are tool errors', asy
   carnet.sessions.name('other', 'shop-cart');
   carnet.agents.start('other', { name: 'banner', task: 't' });
   expect((await call('session_drop', { name: 'shop-cart' })).text).toBe(
-    'Session shop-cart dropped',
+    'Session shop-cart archived',
   );
-  expect(carnet.sessions.get('other')?.status).toBe('dropped');
+  expect(carnet.sessions.get('other')?.status).toBe('archived');
   expect(carnet.agents.list('other')).toEqual([]);
   const unknown = await call('session_drop', { name: 'nope' });
   expect(unknown.isError).toBe(true);

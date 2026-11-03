@@ -87,7 +87,7 @@ test('main and fork lifecycle through the protocol', async () => {
     'committed',
     'dropped',
   ]);
-  expect(carnet.sessions.get(SESSION)?.status).toBe('temporary');
+  expect(carnet.sessions.get(SESSION)?.kind).toBe('temp');
 });
 
 test('queue_reorder reports the waiting order', async () => {

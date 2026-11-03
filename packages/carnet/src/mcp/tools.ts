@@ -224,7 +224,7 @@ const sessionName = z.string().trim().min(1).describe('Short session name, used 
 const sessionNew = defineTool({
   name: 'session_new',
   description:
-    'Name the current session (or rename it) so it can be resumed later with `rucher resume <name>`. Promotes a temporary session to active.',
+    'Name the current session (or rename it) so it can be resumed later with `rucher resume <name>`. Makes it an active session, kept by the cleanups.',
   schema: z.object({
     name: sessionName,
     purpose: z.string().optional().describe('One line: what this session is for'),
@@ -242,20 +242,20 @@ const sessionNew = defineTool({
 const sessionList = defineTool({
   name: 'session_list',
   description:
-    "List the group's sessions, most recently active first. Temporary and dropped ones are hidden unless asked.",
+    "List the group's sessions, most recently active first. Temp and archived ones are hidden unless asked.",
   schema: z.object({
-    include_temporary: z.boolean().optional(),
-    include_dropped: z.boolean().optional(),
+    include_temp: z.boolean().optional(),
+    include_archived: z.boolean().optional(),
     session,
   }),
   run: (carnet, sessionId, args) => {
     const sessions = carnet.sessions.list({
-      includeTemporary: args.include_temporary,
-      includeDropped: args.include_dropped,
+      includeTemp: args.include_temp,
+      includeArchived: args.include_archived,
     });
     const lines = sessions.map((listed) => {
       const current = listed.id === sessionId ? ' (current)' : '';
-      return `${sessionLabel(listed)} [${listed.status}]${current}`;
+      return `${sessionLabel(listed)} [${listed.kind}, ${listed.status}]${current}`;
     });
     return { text: lines.length ? lines.join('\n') : 'no sessions', data: { sessions } };
   },
@@ -264,14 +264,14 @@ const sessionList = defineTool({
 const sessionDrop = defineTool({
   name: 'session_drop',
   description:
-    'Main agent only. Drop a session by name, id or id prefix: its open agents are closed and it leaves the lists. History stays in the journal.',
+    'Main agent only. Archive a session by name, id or id prefix: its open agents are closed and it leaves the lists. History stays in the journal.',
   schema: z.object({
     name: z.string().trim().min(1).describe('Session name, id or id prefix'),
     session,
   }),
   run: (carnet, _sessionId, args) => {
     const dropped = carnet.sessions.drop(carnet.sessions.find(args.name).id);
-    return { text: `Session ${sessionLabel(dropped)} dropped`, data: { session: dropped } };
+    return { text: `Session ${sessionLabel(dropped)} archived`, data: { session: dropped } };
   },
 });
 

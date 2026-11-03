@@ -56,17 +56,17 @@ export function mergeSessions(ctx: Ctx, fromId: string, intoId: string): MergeRe
     const keepName = into.name === null && from.name !== null;
     ctx.db
       .prepare(
-        "UPDATE sessions SET status = 'dropped', name = NULL, last_active_at = ? WHERE id = ?",
+        "UPDATE sessions SET status = 'archived', kind = 'temp', name = NULL, last_active_at = ? WHERE id = ?",
       )
       .run(at, fromId);
     ctx.db
       .prepare(
         `UPDATE sessions
          SET name = COALESCE(?, name), purpose = COALESCE(purpose, ?), last_active_at = ?,
-             status = CASE WHEN ? AND status = 'temporary' THEN 'active' ELSE status END
+             kind = CASE WHEN ? THEN ? ELSE kind END
          WHERE id = ?`,
       )
-      .run(keepName ? from.name : null, from.purpose, at, keepName ? 1 : 0, intoId);
+      .run(keepName ? from.name : null, from.purpose, at, keepName ? 1 : 0, from.kind, intoId);
     ctx.db.exec('COMMIT');
     return {
       session: requireSession(ctx, intoId),

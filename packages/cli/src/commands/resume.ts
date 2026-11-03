@@ -12,7 +12,7 @@ export interface ResumeTarget {
 
 export function resumeTarget(carnet: Carnet, reference: string, io: Io): ResumeTarget {
   const session = findSession(carnet, reference);
-  if (session.status === 'dropped') io.stderr(`warning: session ${reference} was dropped\n`);
+  if (session.status === 'archived') io.stderr(`warning: session ${reference} is archived\n`);
   // Hosts store conversations per project directory, so resume from the original cwd.
   const cwd = session.cwd && existsSync(session.cwd) ? session.cwd : io.cwd;
   return { ...hostById(session.host).resumeCommand(session), cwd };

@@ -32,7 +32,7 @@ test('records the session of a group with pid and repo', () => {
   expect(io.errors).toEqual([]);
   const carnet = openCarnet({ cwd: root, env });
   expect(carnet.sessions.get(SESSION)).toMatchObject({
-    status: 'temporary',
+    kind: 'temp',
     repo: api.split('/').at(-1),
     hostPid: 4242,
   });
@@ -119,7 +119,7 @@ test('the prompt hook names the session after a /rename and never fails', () => 
   expect(userPromptSubmit(prompt, io)).toBe(0);
   expect(io.output).toEqual([]);
   const carnet = openCarnet({ cwd: root, env });
-  expect(carnet.sessions.get(SESSION)).toMatchObject({ name: 'shop-auth', status: 'active' });
+  expect(carnet.sessions.get(SESSION)).toMatchObject({ name: 'shop-auth', kind: 'active' });
   carnet.close();
   const outside = makeIo({ env: { RUCHER_HOME: tempDirectory('home-') } });
   expect(

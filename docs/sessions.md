@@ -12,13 +12,22 @@ A Carnet session is one Claude Code conversation inside a group. It holds:
 
 You never create a session by hand. The plugin's `SessionStart` hook records one each time Claude Code starts, resumes, clears or compacts a conversation in a group (the meta directory or any of its repos). The MCP server then writes every tool call of that conversation into it.
 
-| Status      | Meaning                                                                                   |
-| ----------- | ----------------------------------------------------------------------------------------- |
-| `temporary` | recorded but not named yet; hidden from `rucher sessions` unless `--all`                  |
-| `active`    | named, by `session_new` or by a Claude Code session title (`claude -n`, `/rename`)        |
-| `dropped`   | closed on request; its open agents are closed, its journal is kept; hidden unless `--all` |
+A session has a **kind**, which says whether it is worth keeping, and a **status**, which says what its process is doing. The two are independent.
 
-The **default session** of a group is the most recently active one that is not dropped. Every `rucher` command without `--session` uses it. Wherever a session is expected, you can give its name, its full id, or the start of its id as shown by `rucher sessions --all` (at least 4 characters, and unique).
+| Kind     | Meaning                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------- |
+| `temp`   | the default for a new session; it may have a name; hidden from `rucher sessions` unless `--all`           |
+| `active` | a session to keep and come back to; always named (by `session_new`, or the first title of an unnamed one) |
+
+| Status     | Meaning                                                                                   |
+| ---------- | ----------------------------------------------------------------------------------------- |
+| `idle`     | no Claude process attached                                                                |
+| `running`  | a Claude process is attached                                                              |
+| `archived` | closed on request; its open agents are closed, its journal is kept; hidden unless `--all` |
+
+The journal also records the life of each session: `session.started`, `session.resumed` and `session.forked`, written by the `SessionStart` hook.
+
+The **default session** of a group is the most recently active one that is not archived. Every `rucher` command without `--session` uses it. Wherever a session is expected, you can give its name, its full id, or the start of its id as shown by `rucher sessions --all` (at least 4 characters, and unique).
 
 ## Start a session
 
@@ -37,13 +46,13 @@ cd ~/groups/shop && rucher status --watch
 
 ## Name it
 
-Unnamed sessions stay `temporary`. Name the ones you want to come back to with `/rename` in Claude Code:
+New sessions are `temp`. Name the ones you want to come back to with `/rename` in Claude Code:
 
 ```text
 /rename shop-auth
 ```
 
-The Carnet session takes the name with your next message, and becomes `active`. Starting Claude with a title (`claude -n shop-auth`) names it from the start. A later `/rename` renames it again; a name another session of the group already uses is ignored, and the session keeps its current name.
+The Carnet session takes the name with your next message; an unnamed session then becomes `active`. Starting Claude with a title (`claude -n shop-auth`) names it from the start. A later `/rename` renames it again; a name another session of the group already uses is ignored, and the session keeps its current name. The Rucher name is the canonical one: a title is only adopted when it changed since it was last seen, so a rename made in Rucher is not undone by the next message.
 
 You can also ask Claude to name the session (it calls `session_new` with a name and a one-line purpose). It then asks you to run `/rename` with the same name, so Claude Code's own title matches.
 
@@ -55,7 +64,7 @@ You can also ask Claude to name the session (it calls `session_new` with a name 
 | `rucher status --session shop-auth`      | a given session, by name, id or id prefix (`-s` for short)                                                                                          |
 | `rucher status --all`                    | every session with open agents or a table line: one clock, one block per session (name and repo-relative cwd), one legend                           |
 | `rucher status --watch [--interval 2]`   | repaints when the output changes; combine with `--all` or `--session`                                                                               |
-| `rucher sessions [--all]`                | named sessions: name, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temporary and dropped ones                       |
+| `rucher sessions [--all]`                | active sessions: name (or short id), kind, status, repo-relative cwd, last activity, open agents, purpose; `--all` adds temp and archived ones      |
 | `rucher log [-s shop-auth] [-n 20]`      | the last journal events                                                                                                                             |
 | `rucher log --md > shop-auth-journal.md` | the journal as Markdown, grouped by day, for archiving                                                                                              |
 
@@ -67,7 +76,7 @@ From inside Claude, the main agent has the same view through `session_list`, `se
 rucher resume shop-auth
 ```
 
-`rucher resume <name|id>` looks the session up and runs its host's resume command, `claude --resume <id>` for Claude Code, from the directory the session started in (Claude Code stores conversations per project directory). It resumes by id because a Carnet name and a Claude title can drift apart. A dropped session can still be resumed, with a warning.
+`rucher resume <name|id>` looks the session up and runs its host's resume command, `claude --resume <id>` for Claude Code, from the directory the session started in (Claude Code stores conversations per project directory). It resumes by id because a Carnet name and a Claude title can drift apart. An archived session can still be resumed, with a warning; resuming it makes it idle again.
 
 On resume, the `SessionStart` hook adds context to the conversation: the session's status view and its last 20 journal events, capped at about 2000 characters (oldest events dropped first). Claude picks up where it stopped without you pasting anything.
 
@@ -81,7 +90,7 @@ Each fork the main agent dispatches is an agent of the session: `agent_start` re
 
 ## Drop it
 
-Ask Claude to drop a session (`session_drop`, by name, id or id prefix). Its open agents are closed, it leaves the lists and the default choice, and its journal stays. The current session can be dropped too.
+Ask Claude to drop a session (`session_drop`, by name, id or id prefix). It becomes `archived`: its open agents are closed, it leaves the lists and the default choice, and its journal stays. The current session can be dropped too.
 
 ## Repair a split session
 
@@ -94,7 +103,7 @@ rucher sessions merge <from> <into>   # moves agents, the table line and events 
 
 ## Housekeeping
 
-Each time a session starts, the hook purges sessions idle for more than 3 days that never held any work: temporary sessions with no agents and no events, and dropped sessions with no events. Sessions with a journal are kept, and so is the session being started. Set `RUCHER_PURGE_DAYS` (a positive number of days) in the environment Claude Code runs in to change the delay.
+Each time a session starts, the hook purges sessions idle for more than 3 days that never held any work: temp sessions with no agents and no agent events, and archived sessions with no agent events. Session lifecycle events don't count as work and go with the session. Sessions with an agent journal are kept, and so is the session being started. Set `RUCHER_PURGE_DAYS` (a positive number of days) in the environment Claude Code runs in to change the delay.
 
 ## A typical day
 

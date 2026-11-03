@@ -26,7 +26,7 @@ export function suggestSessions(context: CompletionContext, complete: Complete):
   quietly(() => {
     const carnet = openCarnet(context);
     try {
-      const sessions = carnet.sessions.list({ includeTemporary: true });
+      const sessions = carnet.sessions.list({ includeTemp: true });
       const suggestions = [
         ...sessions.flatMap((session) =>
           session.name

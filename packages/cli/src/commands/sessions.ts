@@ -20,6 +20,7 @@ function row(carnet: Carnet, session: Session, now: Date): string[] {
   const open = carnet.agents.list(session.id).length;
   return [
     session.name ?? session.id.slice(0, 8),
+    session.kind,
     session.status,
     sessionWhere(carnet, session) ?? '',
     lastActive(session.lastActiveAt, now),
@@ -31,12 +32,12 @@ function row(carnet: Carnet, session: Session, now: Date): string[] {
 export function sessionsOnce(carnet: Carnet, io: Io, options: SessionsOptions = {}): void {
   const colors = paint(io);
   const sessions = carnet.sessions.list({
-    includeTemporary: options.all,
-    includeDropped: options.all,
+    includeTemp: options.all,
+    includeArchived: options.all,
   });
   if (sessions.length === 0) {
-    const hint = options.all ? '' : ' (temporary ones are hidden, use --all)';
-    io.stdout(`${colors.dim(`no named session yet${hint}`)}\n`);
+    const hint = options.all ? '' : ' (temp and archived ones are hidden, use --all)';
+    io.stdout(`${colors.dim(`no active session yet${hint}`)}\n`);
     return;
   }
   const now = options.now ?? new Date();
@@ -50,7 +51,8 @@ export function sessionsOnce(carnet: Carnet, io: Io, options: SessionsOptions = 
     const styled = cells.map((cell, column) => {
       const padded = column < cells.length - 1 ? cell.padEnd(widths[column] ?? 0) : cell;
       if (column === 0) return colors.bold(padded);
-      if (column === 1 && session.status !== 'active') return colors.dim(padded);
+      if (column === 1 && session.kind === 'temp') return colors.dim(padded);
+      if (column === 2 && session.status === 'archived') return colors.dim(padded);
       return padded;
     });
     return styled.join('  ').trimEnd();

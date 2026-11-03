@@ -31,7 +31,11 @@ import {
   adoptTitle,
   requireSession,
   findSession,
+  recordPromptVersion,
   type Session,
+  type SessionStatus,
+  setParent,
+  setSessionStatus,
   sessionByHostProcess,
   sessionByName,
   touchSession,
@@ -77,6 +81,10 @@ export class Carnet {
     byName: (name: string) => sessionByName(this.ctx, name),
     byHostProcess: (host: string, processId: number) =>
       sessionByHostProcess(this.ctx, host, processId),
+    recordPromptVersion: (id: string, version: string) =>
+      recordPromptVersion(this.ctx, id, version),
+    setParent: (id: string, parentId: string) => setParent(this.ctx, id, parentId),
+    setStatus: (id: string, status: SessionStatus) => setSessionStatus(this.ctx, id, status),
   };
 
   readonly agents = {
@@ -104,7 +112,8 @@ export class Carnet {
 
   readonly events = {
     log: (session: string, input: LogEventInput) => logEvent(this.ctx, session, input),
-    read: (session: string, limit?: number) => readEvents(this.ctx, { session, limit }),
+    read: (session: string, limit?: number, agentOnly?: boolean) =>
+      readEvents(this.ctx, { session, limit, agentOnly }),
   };
 
   readonly status = {

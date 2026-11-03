@@ -11,11 +11,14 @@ export { MEMORY_DB, openDatabase } from './db/open.ts';
 export { migrate, migrations, schemaVersion } from './db/schema.ts';
 export { CarnetError, type CarnetErrorCode } from './errors.ts';
 export {
+  type AgentEventType,
   type CarnetEvent,
   EVENT_TYPES,
   type EventType,
   isEventType,
   type LogEventInput,
+  SESSION_EVENT_TYPES,
+  type SessionEventType,
 } from './events.ts';
 export { addGroupRepo, initGroup, type InitOptions, removeGroupRepo } from './group/init.ts';
 export {
@@ -83,6 +86,7 @@ export type {
   HookSessionPayload,
   ListSessionsOptions,
   Session,
+  SessionKind,
   SessionStatus,
 } from './sessions.ts';
 export { MINIMUM_ID_PREFIX, shortId } from './sessions.ts';

@@ -3,34 +3,45 @@ import { CarnetError } from './errors.ts';
 import { type Group, repoNameFor } from './group/locate.ts';
 import { DEFAULT_HOST, type HostSessionPayload } from './hosts/host.ts';
 
-export type SessionStatus = 'temporary' | 'active' | 'dropped';
+export type SessionKind = 'active' | 'temp';
+export type SessionStatus = 'running' | 'idle' | 'archived';
 
 export interface Session {
   id: string;
   name: string | null;
   purpose: string | null;
+  kind: SessionKind;
   status: SessionStatus;
   cwd: string | null;
   repo: string | null;
   host: string;
   hostPid: number | null;
   hookedAt: string | null;
+  lastTitle: string | null;
+  parentId: string | null;
+  promptVersion: string | null;
   createdAt: string;
   lastActiveAt: string;
+  endedAt: string | null;
 }
 
 interface SessionRow {
   id: string;
   name: string | null;
   purpose: string | null;
+  kind: SessionKind;
   status: SessionStatus;
   cwd: string | null;
   repo: string | null;
   host: string;
   host_pid: number | null;
   hooked_at: string | null;
+  last_title: string | null;
+  parent_id: string | null;
+  prompt_version: string | null;
   created_at: string;
   last_active_at: string;
+  ended_at: string | null;
 }
 
 export type HookSessionPayload = HostSessionPayload;
@@ -42,26 +53,31 @@ export interface HookEnv {
 }
 
 export interface ListSessionsOptions {
-  includeTemporary?: boolean | undefined;
-  includeDropped?: boolean | undefined;
+  includeTemp?: boolean | undefined;
+  includeArchived?: boolean | undefined;
 }
 
-const COLUMNS =
-  'id, name, purpose, status, cwd, repo, host, host_pid, hooked_at, created_at, last_active_at';
+const COLUMNS = `id, name, purpose, kind, status, cwd, repo, host, host_pid, hooked_at, last_title,
+  parent_id, prompt_version, created_at, last_active_at, ended_at`;
 
 function toSession(row: SessionRow): Session {
   return {
     id: row.id,
     name: row.name,
     purpose: row.purpose,
+    kind: row.kind,
     status: row.status,
     cwd: row.cwd,
     repo: row.repo,
     host: row.host,
     hostPid: row.host_pid,
     hookedAt: row.hooked_at,
+    lastTitle: row.last_title,
+    parentId: row.parent_id,
+    promptVersion: row.prompt_version,
     createdAt: row.created_at,
     lastActiveAt: row.last_active_at,
+    endedAt: row.ended_at,
   };
 }
 
@@ -84,7 +100,7 @@ export function ensureSession(ctx: Ctx, id: string, cwd?: string, group?: Group)
   const at = nowIso(ctx);
   ctx.db
     .prepare(
-      "INSERT INTO sessions (id, status, cwd, repo, created_at, last_active_at) VALUES (?, 'temporary', ?, ?, ?, ?)",
+      'INSERT INTO sessions (id, cwd, repo, created_at, last_active_at) VALUES (?, ?, ?, ?, ?)',
     )
     .run(id, cwd ?? null, group ? repoNameFor(group, cwd) : null, at, at);
   return requireSession(ctx, id);
@@ -95,14 +111,18 @@ function titleAvailable(ctx: Ctx, id: string, title: string): boolean {
   return !owner || owner.id === id;
 }
 
+// The Rucher name is canonical: a host title only renames the session when the title itself
+// changed since it was last seen, so a rename made in Rucher survives the next prompt.
 export function adoptTitle(ctx: Ctx, id: string, rawTitle: string | undefined): Session {
   const session = requireSession(ctx, id);
   const title = rawTitle?.trim() || null;
-  if (title === null || title === session.name || !titleAvailable(ctx, id, title)) return session;
+  if (title === null || title === session.lastTitle) return session;
+  ctx.db.prepare('UPDATE sessions SET last_title = ? WHERE id = ?').run(title, id);
+  if (title === session.name || !titleAvailable(ctx, id, title)) return requireSession(ctx, id);
   ctx.db
     .prepare(
       `UPDATE sessions
-       SET name = ?, status = CASE WHEN status = 'temporary' THEN 'active' ELSE status END
+       SET name = ?, kind = CASE WHEN name IS NULL THEN 'active' ELSE kind END
        WHERE id = ?`,
     )
     .run(title, id);
@@ -123,8 +143,8 @@ export function upsertFromHook(
   if (!existing) {
     ctx.db
       .prepare(
-        `INSERT INTO sessions (id, status, cwd, repo, host, host_pid, hooked_at, created_at, last_active_at)
-         VALUES (?, 'temporary', ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sessions (id, cwd, repo, host, host_pid, hooked_at, created_at, last_active_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(payload.session_id, payload.cwd ?? null, repo, host, hostPid, at, at, at);
   } else {
@@ -158,7 +178,7 @@ export function nameSession(ctx: Ctx, id: string, name: string, purpose?: string
       .prepare(
         `UPDATE sessions
          SET name = ?, purpose = COALESCE(?, purpose), last_active_at = ?,
-             status = CASE WHEN status = 'temporary' THEN 'active' ELSE status END
+             kind = 'active'
          WHERE id = ?`,
       )
       .run(name, purpose ?? null, nowIso(ctx), id);
@@ -172,14 +192,13 @@ export function nameSession(ctx: Ctx, id: string, name: string, purpose?: string
 }
 
 export function listSessions(ctx: Ctx, options: ListSessionsOptions = {}): Session[] {
-  const excluded: SessionStatus[] = [];
-  if (!options.includeTemporary) excluded.push('temporary');
-  if (!options.includeDropped) excluded.push('dropped');
-  const placeholders = excluded.map(() => '?').join(', ');
-  const where = excluded.length ? `WHERE status NOT IN (${placeholders})` : '';
+  const conditions: string[] = [];
+  if (!options.includeTemp) conditions.push("kind != 'temp'");
+  if (!options.includeArchived) conditions.push("status != 'archived'");
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const rows = ctx.db
     .prepare(`SELECT ${COLUMNS} FROM sessions ${where} ORDER BY last_active_at DESC`)
-    .all(...excluded) as unknown as unknown as SessionRow[];
+    .all() as unknown as SessionRow[];
   return rows.map(toSession);
 }
 
@@ -192,7 +211,7 @@ export function dropSession(ctx: Ctx, id: string): Session {
     )
     .run(at, id);
   ctx.db
-    .prepare("UPDATE sessions SET status = 'dropped', last_active_at = ? WHERE id = ?")
+    .prepare("UPDATE sessions SET status = 'archived', last_active_at = ? WHERE id = ?")
     .run(at, id);
   return requireSession(ctx, id);
 }
@@ -200,7 +219,7 @@ export function dropSession(ctx: Ctx, id: string): Session {
 export function defaultSession(ctx: Ctx): Session | undefined {
   const row = ctx.db
     .prepare(
-      `SELECT ${COLUMNS} FROM sessions WHERE status != 'dropped' ORDER BY last_active_at DESC LIMIT 1`,
+      `SELECT ${COLUMNS} FROM sessions WHERE status != 'archived' ORDER BY last_active_at DESC LIMIT 1`,
     )
     .get() as SessionRow | undefined;
   return row && toSession(row);
@@ -259,4 +278,31 @@ export function sessionByHostProcess(
     )
     .get(host, processId) as SessionRow | undefined;
   return row && toSession(row);
+}
+
+export function recordPromptVersion(ctx: Ctx, id: string, version: string): Session {
+  requireSession(ctx, id);
+  ctx.db.prepare('UPDATE sessions SET prompt_version = ? WHERE id = ?').run(version, id);
+  return requireSession(ctx, id);
+}
+
+export function setParent(ctx: Ctx, id: string, parentId: string): Session {
+  requireSession(ctx, id);
+  requireSession(ctx, parentId);
+  ctx.db.prepare('UPDATE sessions SET parent_id = ? WHERE id = ?').run(parentId, id);
+  return requireSession(ctx, id);
+}
+
+export function setSessionStatus(ctx: Ctx, id: string, status: SessionStatus): Session {
+  requireSession(ctx, id);
+  const at = nowIso(ctx);
+  ctx.db
+    .prepare(
+      `UPDATE sessions
+       SET status = ?, last_active_at = ?,
+           ended_at = CASE WHEN ? = 'running' THEN NULL WHEN ? = 'idle' THEN ? ELSE ended_at END
+       WHERE id = ?`,
+    )
+    .run(status, at, status, status, at, id);
+  return requireSession(ctx, id);
 }

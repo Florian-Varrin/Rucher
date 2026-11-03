@@ -126,7 +126,7 @@ const logCommand = defineCommand({
 const sessionsListCommand = defineCommand({
   meta: { name: 'list', description: 'List the named sessions of the group' },
   args: {
-    all: { type: 'boolean', default: false, description: 'Include temporary and dropped sessions' },
+    all: { type: 'boolean', default: false, description: 'Include temp and archived sessions' },
     ...colorArgument,
   },
   run({ args }) {

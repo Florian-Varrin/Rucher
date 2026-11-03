@@ -8,14 +8,15 @@ export function purgeDays(value: string | undefined): number {
   return Number.isFinite(days) && days > 0 ? days : DEFAULT_PURGE_DAYS;
 }
 
-// Only rows without events go: the journal is never deleted. A dropped session's agents are all
-// closed, and agent_start always logs an event, so a dropped session without events has none left.
+// Only sessions without agent events go: the agent journal is never deleted, lifecycle events are.
 const PURGEABLE = `
   id != ? AND last_active_at < ?
-  AND NOT EXISTS (SELECT 1 FROM events WHERE events.session = sessions.id)
+  AND NOT EXISTS (
+    SELECT 1 FROM events WHERE events.session = sessions.id AND events.type NOT LIKE 'session.%'
+  )
   AND (
-    status = 'dropped'
-    OR (status = 'temporary' AND NOT EXISTS (SELECT 1 FROM agents WHERE agents.session = sessions.id))
+    status = 'archived'
+    OR (kind = 'temp' AND NOT EXISTS (SELECT 1 FROM agents WHERE agents.session = sessions.id))
   )`;
 
 export function purgeSessions(ctx: Ctx, keepId: string, days: number): string[] {
@@ -26,7 +27,7 @@ export function purgeSessions(ctx: Ctx, keepId: string, days: number): string[] 
       .prepare(`SELECT id FROM sessions WHERE ${PURGEABLE}`)
       .all(keepId, cutoff) as unknown as { id: string }[];
     const ids = rows.map((row) => row.id);
-    for (const table of ['table_items', 'agents']) {
+    for (const table of ['table_items', 'agents', 'events']) {
       const statement = ctx.db.prepare(`DELETE FROM ${table} WHERE session = ?`);
       for (const id of ids) statement.run(id);
     }
