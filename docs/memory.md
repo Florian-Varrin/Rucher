@@ -69,7 +69,21 @@ Notes
 
 `similar to #N` flags a possible duplicate found when the note was added: drop one, or keep both if they differ. Beyond five lines the section folds to one line (`Notes  4 added · 1 cited · 1 dropped · 1 possible duplicate`), and `--all` shows only that line for each session. The section is absent when the session touched no note.
 
+### Keys in `rucher status --watch`
+
+When the pane is a terminal, `rucher status --watch` reads a few keys for the displayed session (not with `--all`, where only `q` works):
+
+| Key     | Does                                                                              |
+| ------- | --------------------------------------------------------------------------------- |
+| `n`     | unfold the Notes section (never folded while open), or fold it back               |
+| `↑` `↓` | select a note in the unfolded section                                             |
+| `enter` | show the note under its line: full text, repos, weight, citations; again to close |
+| `esc`   | close the detail, or cancel a drop                                                |
+| `d`     | drop the selected note: type the reason, `enter` to drop, `esc` to cancel         |
+| `q`     | quit (`ctrl-c` too)                                                               |
+
+The refresh pauses while you type a reason. The drop is recorded for the displayed session. Without a terminal (a pipe, CI) `--watch` stays read-only.
+
 ## Coming next
 
 - Injection: general notes at session start, a repo's notes the first time a session touches that repo.
-- Keys in `rucher status --watch` to unfold the section, read a note and drop it.

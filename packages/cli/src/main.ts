@@ -44,6 +44,7 @@ import {
 } from './commands/sessions.ts';
 import { statusOnce, statusWatch } from './commands/status.ts';
 import { type Io, processIo, readStdin } from './io.ts';
+import { terminalKeys } from './terminal-keys.ts';
 import { CliError } from './session.ts';
 
 function fail(io: Io, error: unknown): never {
@@ -126,6 +127,7 @@ const statusCommand = defineCommand({
         ...options,
         intervalMilliseconds,
         signal: controller.signal,
+        keys: terminalKeys(process.stdin, process.stdout),
       });
     } catch (error) {
       fail(io, error);

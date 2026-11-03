@@ -12,10 +12,12 @@ import {
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
 import { resolveSession } from '../session.ts';
+import { INITIAL_WATCH_STATE, type Key, pressKey, type WatchState } from './watch-keys.ts';
 
 export interface StatusOptions {
   session?: string | undefined;
   all?: boolean | undefined;
+  interaction?: WatchState | undefined;
 }
 
 const SECTION_HEADERS = new Set(['On the table', 'Waiting on you', 'Running', NOTES_HEADER]);
@@ -79,6 +81,56 @@ function sessionLines(
     .map((line) => colorizeLine(line, io));
 }
 
+export const SELECTED_MARK = '›';
+export const KEYS_HINT = 'n fold · ↑↓ select · enter detail · d drop · q quit';
+
+function noteDetailLines(carnet: Carnet, id: number): string[] {
+  const note = carnet.notes.show(id);
+  const lines = [`    ${note.text}`];
+  if (note.repos.length > 0) lines.push(`    repos: ${note.repos.join(', ')}`);
+  const status = note.droppedAt ? `dropped: ${note.droppedReason ?? ''}` : 'active';
+  lines.push(`    ${status} · weight ${note.weight.toFixed(2)} · ${note.citationCount} cited`);
+  for (const citation of note.citations)
+    lines.push(`    ★ ${citation.at.slice(0, 10)}  ${citation.why}`);
+  return lines;
+}
+
+function interactiveLines(
+  carnet: Carnet,
+  session: Session,
+  view: StatusView,
+  io: Io,
+  state: WatchState,
+): string[] {
+  if (!state.notesOpen || session.status === 'archived') return sessionLines(session, view, io);
+  const colors = paint(io);
+  const raw = renderSections(view, { notes: 'expanded' }).split('\n');
+  const header = raw.indexOf(NOTES_HEADER);
+  const selected = Math.min(state.selected, view.notes.length - 1);
+  return raw.flatMap((line, index) => {
+    const position = index - header - 1;
+    if (header === -1 || position !== selected) return [colorizeLine(line, io)];
+    const marked = colors.cyan(truncate(`${SELECTED_MARK}${line.slice(1)}`, io.columns));
+    const note = view.notes[selected];
+    if (!state.detail || !note) return [marked];
+    return [
+      marked,
+      ...noteDetailLines(carnet, note.note).map((detail) => truncate(detail, io.columns)),
+    ];
+  });
+}
+
+function footerLine(view: StatusView, io: Io, state: WatchState | undefined): string | null {
+  if (!state) return null;
+  const colors = paint(io);
+  if (state.reason !== null) {
+    const note = view.notes[Math.min(state.selected, view.notes.length - 1)];
+    return colors.yellow(`drop #${note?.note ?? '?'}, reason: ${state.reason}`);
+  }
+  if (state.message) return colors.red(state.message);
+  return state.notesOpen ? colors.dim(KEYS_HINT) : null;
+}
+
 function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
   return (
     carnet.agents.list(session.id).length > 0 ||
@@ -93,13 +145,17 @@ function sessionBlock(carnet: Carnet, session: Session, view: StatusView, io: Io
   );
 }
 
-function singleView(carnet: Carnet, session: Session, io: Io): string {
+function singleView(carnet: Carnet, session: Session, io: Io, state?: WatchState): string {
   const colors = paint(io);
   const view = carnet.status.view(session);
   const separator = ' - ';
   const label = sessionLabel(carnet, session, io.columns - view.time.length - separator.length);
   const title = `${colors.dim(view.time)}${separator}${colors.cyan(label)}`;
-  return [title, '', ...sessionLines(session, view, io), '', colors.dim(LEGEND)].join('\n');
+  const body = state
+    ? interactiveLines(carnet, session, view, io, state)
+    : sessionLines(session, view, io);
+  const footer = footerLine(view, io, state);
+  return [title, '', ...body, '', ...(footer ? [footer] : []), colors.dim(LEGEND)].join('\n');
 }
 
 export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions): string {
@@ -108,7 +164,9 @@ export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions)
         .list({ includeTemp: true })
         .filter((session) => hasSomethingToShow(carnet, session))
     : [];
-  if (sessions.length === 0) return singleView(carnet, resolveSession(carnet, options.session), io);
+  if (sessions.length === 0) {
+    return singleView(carnet, resolveSession(carnet, options.session), io, options.interaction);
+  }
   let time = '';
   const blocks = sessions.map((session) => {
     const view = carnet.status.view(session);
@@ -122,9 +180,35 @@ export function statusOnce(carnet: Carnet, io: Io, options: StatusOptions): void
   io.stdout(`${renderStatusView(carnet, io, options)}\n`);
 }
 
+export interface KeySource {
+  onKey: (listener: (key: Key) => void) => void;
+  close: () => void;
+}
+
 export interface WatchOptions extends StatusOptions {
   intervalMilliseconds: number;
   signal?: AbortSignal;
+  keys?: KeySource | undefined;
+}
+
+function dropSelected(carnet: Carnet, options: WatchOptions, index: number, reason: string) {
+  const session = resolveSession(carnet, options.session);
+  const item = carnet.notes.activity(session.id)[index];
+  if (!item) return 'no note selected';
+  try {
+    carnet.notes.drop(item.note, { reason, session: session.id });
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+function noteCount(carnet: Carnet, options: WatchOptions): number {
+  try {
+    return carnet.notes.activity(resolveSession(carnet, options.session).id).length;
+  } catch {
+    return 0;
+  }
 }
 
 const CLEAR = '\x1b[H\x1b[2J';
@@ -134,10 +218,15 @@ const SHOW_CURSOR = '\x1b[?25h';
 export function statusWatch(carnet: Carnet, io: Io, options: WatchOptions): Promise<void> {
   return new Promise((resolve) => {
     let last = '';
+    const interactive = options.keys !== undefined && !options.all;
+    let state = INITIAL_WATCH_STATE;
     const repaint = () => {
       let text: string;
       try {
-        text = renderStatusView(carnet, io, options);
+        text = renderStatusView(carnet, io, {
+          ...options,
+          interaction: interactive ? state : undefined,
+        });
       } catch (error) {
         text = paint(io).dim(error instanceof Error ? error.message : String(error));
       }
@@ -145,12 +234,31 @@ export function statusWatch(carnet: Carnet, io: Io, options: WatchOptions): Prom
       last = text;
       io.stdout(`${CLEAR}${text}\n`);
     };
-    const timer = setInterval(repaint, options.intervalMilliseconds);
+    // Typing a reason pauses the refresh so the prompt line stays put.
+    const timer = setInterval(() => {
+      if (state.reason === null) repaint();
+    }, options.intervalMilliseconds);
+    let stopped = false;
     const stop = () => {
+      if (stopped) return;
+      stopped = true;
       clearInterval(timer);
+      options.keys?.close();
       io.stdout(SHOW_CURSOR);
       resolve();
     };
+    options.keys?.onKey((key) => {
+      const result = pressKey(state, key, interactive ? noteCount(carnet, options) : 0);
+      state = result.state;
+      if (result.action?.type === 'quit') return stop();
+      if (result.action?.type === 'drop') {
+        state = {
+          ...state,
+          message: dropSelected(carnet, options, result.action.index, result.action.reason),
+        };
+      }
+      repaint();
+    });
     options.signal?.addEventListener('abort', stop, { once: true });
     io.stdout(HIDE_CURSOR);
     repaint();

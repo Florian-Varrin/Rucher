@@ -20,7 +20,7 @@ const ACTIVITY_MARK = { added: '+', cited: '★', dropped: '−' } as const;
 const LABEL_WIDTH = 'dead_end'.length;
 export const SIMILAR_PREFIX = 'similar to ';
 
-export type NotesMode = 'full' | 'summary';
+export type NotesMode = 'full' | 'summary' | 'expanded';
 
 export interface RenderOptions {
   notes?: NotesMode | undefined;
@@ -60,7 +60,9 @@ export function renderNoteLine(item: NoteActivity, idWidth: number): string {
 
 export function renderNotes(notes: NoteActivity[], mode: NotesMode = 'full'): string[] {
   if (notes.length === 0) return [];
-  if (mode === 'summary' || notes.length > NOTES_FOLD_LINES) return [renderNotesSummary(notes)];
+  if (mode === 'summary' || (mode === 'full' && notes.length > NOTES_FOLD_LINES)) {
+    return [renderNotesSummary(notes)];
+  }
   const idWidth = Math.max(...notes.map((item) => `#${item.note}`.length));
   return [NOTES_HEADER, ...notes.map((item) => `  ${renderNoteLine(item, idWidth)}`)];
 }
