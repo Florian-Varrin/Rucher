@@ -112,6 +112,9 @@ export {
   NOTE_KINDS,
   NOTE_TEXT_LIMIT,
   type NoteKind,
+  type NoteActivity,
+  type NoteActivityKind,
+  sessionNoteActivity,
   similarity,
   STALE_AFTER_ACTIVE_DAYS,
   type WeightedNote,
@@ -153,6 +156,14 @@ export {
   renderSections,
   renderStatus,
   renderTableLine,
+  NOTES_FOLD_LINES,
+  NOTES_HEADER,
+  type NotesMode,
+  renderNoteLine,
+  renderNotes,
+  renderNotesSummary,
+  SIMILAR_PREFIX,
+  type RenderOptions,
 } from './status/render.ts';
 export { buildStatusView, formatClock, type StatusLine, type StatusView } from './status/view.ts';
 export type { SetTableInput, TableItem } from './table.ts';

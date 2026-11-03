@@ -378,3 +378,82 @@ export function citeNote(ctx: Ctx, id: number, input: CiteNoteInput): NoteCitati
     .prepare('SELECT id, note, session, agent, why, at FROM note_citations WHERE id = ?')
     .get(Number(result.lastInsertRowid)) as unknown as NoteCitation;
 }
+
+export type NoteActivityKind = 'added' | 'cited' | 'dropped';
+
+export interface NoteActivity {
+  activity: NoteActivityKind;
+  note: number;
+  kind: NoteKind;
+  text: string;
+  similarNotes: number[];
+  replacedBy: number | null;
+  at: string;
+}
+
+const ACTIVITY_ORDER: Record<NoteActivityKind, number> = { dropped: 0, cited: 1, added: 2 };
+
+function activeIds(ctx: Ctx, json: string | null): number[] {
+  if (!json) return [];
+  const active = ctx.db.prepare('SELECT 1 FROM notes WHERE id = ? AND dropped_at IS NULL');
+  return (JSON.parse(json) as number[]).filter((id) => active.get(id) !== undefined);
+}
+
+export function sessionNoteActivity(ctx: Ctx, session: string): NoteActivity[] {
+  const added = ctx.db
+    .prepare('SELECT id, kind, text, similar_notes, created_at FROM notes WHERE session = ?')
+    .all(session) as unknown as Pick<
+    NoteRow,
+    'id' | 'kind' | 'text' | 'similar_notes' | 'created_at'
+  >[];
+  const cited = ctx.db
+    .prepare(
+      `SELECT note_citations.note, notes.kind, note_citations.why, note_citations.at
+       FROM note_citations JOIN notes ON notes.id = note_citations.note
+       WHERE note_citations.session = ?`,
+    )
+    .all(session) as unknown as { note: number; kind: NoteKind; why: string; at: string }[];
+  const dropped = ctx.db
+    .prepare(
+      'SELECT id, kind, dropped_reason, replaced_by, dropped_at FROM notes WHERE dropped_session = ?',
+    )
+    .all(session) as unknown as Pick<
+    NoteRow,
+    'id' | 'kind' | 'dropped_reason' | 'replaced_by' | 'dropped_at'
+  >[];
+  const activity: NoteActivity[] = [
+    ...added.map((row) => ({
+      activity: 'added' as const,
+      note: row.id,
+      kind: row.kind,
+      text: row.text,
+      similarNotes: activeIds(ctx, row.similar_notes),
+      replacedBy: null,
+      at: row.created_at,
+    })),
+    ...cited.map((row) => ({
+      activity: 'cited' as const,
+      note: row.note,
+      kind: row.kind,
+      text: row.why,
+      similarNotes: [],
+      replacedBy: null,
+      at: row.at,
+    })),
+    ...dropped.map((row) => ({
+      activity: 'dropped' as const,
+      note: row.id,
+      kind: row.kind,
+      text: row.dropped_reason ?? '',
+      similarNotes: [],
+      replacedBy: row.replaced_by,
+      at: row.dropped_at ?? '',
+    })),
+  ];
+  return activity.sort(
+    (first, second) =>
+      second.at.localeCompare(first.at) ||
+      ACTIVITY_ORDER[first.activity] - ACTIVITY_ORDER[second.activity] ||
+      second.note - first.note,
+  );
+}

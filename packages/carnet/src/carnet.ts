@@ -30,6 +30,7 @@ import {
   noteDetail,
   recordActiveDay,
   staleNotes,
+  sessionNoteActivity,
 } from './notes.ts';
 import { purgeSessions } from './purge.ts';
 import {
@@ -60,7 +61,7 @@ import {
   touchSession,
   upsertFromHook,
 } from './sessions.ts';
-import { renderSections, renderStatus } from './status/render.ts';
+import { type RenderOptions, renderSections, renderStatus } from './status/render.ts';
 import { buildStatusView } from './status/view.ts';
 import { pairSubagent, stopSubagent } from './subagents.ts';
 import { clearTable, getTable, setTable, type SetTableInput } from './table.ts';
@@ -148,11 +149,13 @@ export class Carnet {
     drop: (id: number, input: DropNoteInput) => dropNote(this.ctx, id, input),
     cite: (id: number, input: CiteNoteInput) => citeNote(this.ctx, id, input),
     recordActiveDay: () => recordActiveDay(this.ctx),
+    activity: (session: string) => sessionNoteActivity(this.ctx, session),
   };
 
   readonly status = {
     view: (session: Session) => buildStatusView(this.ctx, session),
-    render: (session: Session) => renderStatus(buildStatusView(this.ctx, session)),
+    render: (session: Session, options?: RenderOptions) =>
+      renderStatus(buildStatusView(this.ctx, session), options),
     sections: (session: Session) => renderSections(buildStatusView(this.ctx, session)),
   };
 

@@ -56,7 +56,20 @@ rucher notes add dead_end "…" --repo shop-api --repo shop-web
 rucher notes drop 14 --reason "…" [--replaced-by 31]
 ```
 
+## In `rucher status`
+
+Nothing asks you to confirm a note: you see them go by in `rucher status`. Under "Running", a "Notes" section lists what the displayed session added, cited and dropped, most recent first:
+
+```text
+Notes
+  − #7   dropped   replaced by #31
+  + #31  dead_end  similar to #12 · tenant SSR cache: key too wide, leaks between tenants
+  ★ #14  cited     avoided the Workers migration
+```
+
+`similar to #N` flags a possible duplicate found when the note was added: drop one, or keep both if they differ. Beyond five lines the section folds to one line (`Notes  4 added · 1 cited · 1 dropped · 1 possible duplicate`), and `--all` shows only that line for each session. The section is absent when the session touched no note.
+
 ## Coming next
 
 - Injection: general notes at session start, a repo's notes the first time a session touches that repo.
-- A "Notes" section in `rucher status` showing the notes added, cited and dropped in the session, then keys in `--watch` to read and drop them.
+- Keys in `rucher status --watch` to unfold the section, read a note and drop it.

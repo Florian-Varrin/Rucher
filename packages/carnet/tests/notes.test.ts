@@ -263,3 +263,66 @@ test('a group cannot hold two repos with the same name', () => {
   expect(addGroupRepo(meta, join(root, 'a/shop-api')).repos).toHaveLength(1);
   expect(addGroupRepo(meta, join(root, 'shop-web')).repos).toHaveLength(2);
 });
+
+test('sessionNoteActivity lists what a session added, cited and dropped, most recent first', () => {
+  const { carnet, advanceDays } = shop();
+  carnet.sessions.ensure(OTHER);
+  const old = carnet.notes.add({
+    kind: 'decision',
+    text: 'auth stays in session: SSO partners need cookies',
+    session: OTHER,
+  });
+  advanceDays(1);
+  const first = carnet.notes.add({
+    kind: 'dead_end',
+    text: 'SSR cache keyed per tenant: too wide, leaks between tenants',
+    session: SESSION,
+  });
+  advanceDays(1);
+  const second = carnet.notes.add({
+    kind: 'dead_end',
+    text: 'SSR cache keyed per tenant: too wide, leaks across tenants',
+    session: SESSION,
+  });
+  advanceDays(1);
+  carnet.notes.cite(old.note.id, { why: 'kept the cookie session', session: SESSION });
+  advanceDays(1);
+  carnet.notes.drop(first.note.id, {
+    reason: 'reworded',
+    replacedBy: second.note.id,
+    session: SESSION,
+  });
+
+  const activity = carnet.notes.activity(SESSION);
+  expect(activity.map((item) => [item.activity, item.note])).toEqual([
+    ['dropped', first.note.id],
+    ['cited', old.note.id],
+    ['added', second.note.id],
+    ['added', first.note.id],
+  ]);
+  expect(activity[0]).toMatchObject({ replacedBy: second.note.id, text: 'reworded' });
+  expect(activity[1]).toMatchObject({ kind: 'decision', text: 'kept the cookie session' });
+  expect(activity[2]?.similarNotes).toEqual([]);
+  expect(carnet.notes.activity(OTHER).map((item) => item.activity)).toEqual(['added']);
+});
+
+test('a possible duplicate stops showing once the similar note is dropped', () => {
+  const { carnet } = shop();
+  const first = carnet.notes.add({
+    kind: 'dead_end',
+    text: 'tenant SSR cache: key too wide, leaks between tenants',
+    session: SESSION,
+  });
+  const second = carnet.notes.add({
+    kind: 'dead_end',
+    text: 'tenant SSR cache: key too wide, leaks across tenants',
+    session: SESSION,
+  });
+  expect(
+    carnet.notes.activity(SESSION).find((item) => item.note === second.note.id)?.similarNotes,
+  ).toEqual([first.note.id]);
+  carnet.notes.drop(first.note.id, { reason: 'duplicate' });
+  expect(
+    carnet.notes.activity(SESSION).find((item) => item.note === second.note.id)?.similarNotes,
+  ).toEqual([]);
+});

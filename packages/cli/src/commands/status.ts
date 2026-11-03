@@ -1,6 +1,9 @@
 import {
   type Carnet,
   LEGEND,
+  NOTES_HEADER,
+  type NotesMode,
+  SIMILAR_PREFIX,
   renderSections,
   repoPathFor,
   type Session,
@@ -15,7 +18,7 @@ export interface StatusOptions {
   all?: boolean | undefined;
 }
 
-const SECTION_HEADERS = new Set(['On the table', 'Waiting on you', 'Running']);
+const SECTION_HEADERS = new Set(['On the table', 'Waiting on you', 'Running', NOTES_HEADER]);
 
 function truncate(line: string, columns: number): string {
   const chars = Array.from(line);
@@ -29,6 +32,15 @@ function colorizeLine(line: string, io: Io): string {
   if (SECTION_HEADERS.has(line)) return colors.bold(cut);
   if (line.startsWith('  ⚙️')) return colors.yellow(cut);
   if (line === '  nothing') return colors.dim(cut);
+  if (cut.startsWith(`${NOTES_HEADER}  `)) {
+    return `${colors.bold(NOTES_HEADER)}${cut.slice(NOTES_HEADER.length)}`;
+  }
+  const marker = /^ {2}\+ #\d+ +\S+ {2}(similar to [^·]*·)/.exec(cut);
+  if (marker?.[1]) {
+    const start = cut.indexOf(SIMILAR_PREFIX);
+    const end = start + marker[1].length;
+    return `${cut.slice(0, start)}${colors.yellow(cut.slice(start, end))}${cut.slice(end)}`;
+  }
   return cut;
 }
 
@@ -54,20 +66,29 @@ function sessionHeader(carnet: Carnet, session: Session, io: Io): string {
   return paint(io).cyan(sessionLabel(carnet, session, io.columns));
 }
 
-function sessionLines(carnet: Carnet, session: Session, view: StatusView, io: Io): string[] {
+function sessionLines(
+  session: Session,
+  view: StatusView,
+  io: Io,
+  notes: NotesMode = 'full',
+): string[] {
   if (session.status === 'archived')
     return [paint(io).dim('  archived, see rucher sessions --all')];
-  return renderSections(view)
+  return renderSections(view, { notes })
     .split('\n')
     .map((line) => colorizeLine(line, io));
 }
 
 function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
-  return carnet.agents.list(session.id).length > 0 || carnet.table.get(session.id) !== undefined;
+  return (
+    carnet.agents.list(session.id).length > 0 ||
+    carnet.table.get(session.id) !== undefined ||
+    carnet.notes.activity(session.id).length > 0
+  );
 }
 
 function sessionBlock(carnet: Carnet, session: Session, view: StatusView, io: Io): string {
-  return [sessionHeader(carnet, session, io), ...sessionLines(carnet, session, view, io)].join(
+  return [sessionHeader(carnet, session, io), ...sessionLines(session, view, io, 'summary')].join(
     '\n',
   );
 }
@@ -78,7 +99,7 @@ function singleView(carnet: Carnet, session: Session, io: Io): string {
   const separator = ' - ';
   const label = sessionLabel(carnet, session, io.columns - view.time.length - separator.length);
   const title = `${colors.dim(view.time)}${separator}${colors.cyan(label)}`;
-  return [title, '', ...sessionLines(carnet, session, view, io), '', colors.dim(LEGEND)].join('\n');
+  return [title, '', ...sessionLines(session, view, io), '', colors.dim(LEGEND)].join('\n');
 }
 
 export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions): string {

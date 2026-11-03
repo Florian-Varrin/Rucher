@@ -30,3 +30,15 @@ test('a session started by rucher gets context only on resume', () => {
   const resumed = handleSessionStart(carnet, { ...base, source: 'resume' }, env);
   expect(resumed.additionalContext).toContain('state when resumed');
 });
+
+test('resume context shows the session notes as a summary line', () => {
+  const { carnet } = withSession();
+  carnet.notes.add({
+    kind: 'decision',
+    text: 'auth stays cookie based: partners need cookies',
+    session: SESSION,
+  });
+  const context = resumeContext(carnet, carnet.sessions.require(SESSION));
+  expect(context).toContain('Notes  1 added');
+  expect(context).not.toContain('+ #1');
+});
