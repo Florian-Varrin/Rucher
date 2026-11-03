@@ -13,7 +13,8 @@ export interface TableItem {
 
 export interface SetTableInput {
   text: string;
-  mainWorking: boolean;
+  // Omitted: false with a status, else the current value.
+  mainWorking?: boolean | undefined;
   status?: UserActionStatus | undefined;
 }
 
@@ -43,7 +44,9 @@ export function getTable(ctx: Ctx, session: string): TableItem | undefined {
 }
 
 export function setTable(ctx: Ctx, session: string, input: SetTableInput): TableItem {
-  if (input.mainWorking && input.status) {
+  const mainWorking =
+    input.mainWorking ?? (input.status ? false : (getTable(ctx, session)?.mainWorking ?? false));
+  if (mainWorking && input.status) {
     throw new CarnetError(
       'TABLE_STATUS_WITH_MAIN_WORKING',
       'A user-action status cannot be set while main is working',
@@ -58,13 +61,7 @@ export function setTable(ctx: Ctx, session: string, input: SetTableInput): Table
        ON CONFLICT(session) DO UPDATE SET text = excluded.text, status = excluded.status,
          main_working = excluded.main_working, updated_at = excluded.updated_at`,
     )
-    .run(
-      session,
-      sanitizeNote(input.text),
-      input.status ?? null,
-      input.mainWorking ? 1 : 0,
-      nowIso(ctx),
-    );
+    .run(session, sanitizeNote(input.text), input.status ?? null, mainWorking ? 1 : 0, nowIso(ctx));
   return getTable(ctx, session) as TableItem;
 }
 

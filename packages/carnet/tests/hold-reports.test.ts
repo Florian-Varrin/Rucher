@@ -1,9 +1,10 @@
 import { expect, test } from 'vite-plus/test';
-import { CORE_RULES } from '../src/index.ts';
-import { INSTRUCTIONS } from '../src/mcp/index.ts';
+import { CORE_RULES, outsideRucherContext } from '../src/index.ts';
+import { makeCarnet } from './helpers.ts';
 
-test('the core rules and the server instructions both hold fork reports until the human asks', () => {
-  for (const text of [CORE_RULES, INSTRUCTIONS]) {
+test('the core rules hold fork reports until the human asks, also outside rucher', () => {
+  const { carnet } = makeCarnet();
+  for (const text of [CORE_RULES, outsideRucherContext(carnet.group, {})]) {
     expect(text).toContain('"<name> finished, report ready"');
     expect(text).toMatch(/until the human asks|only when the human asks/);
     expect(text).toContain('carries no results');

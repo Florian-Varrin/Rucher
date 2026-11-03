@@ -1,4 +1,5 @@
-import { mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 import * as z from 'zod/v4';
 import type { Carnet } from '../carnet.ts';
 import { EVENT_TYPES } from '../events.ts';
@@ -8,10 +9,10 @@ import { memoryHalfLife, type Note, NOTE_KINDS } from '../notes.ts';
 import { formatEventLine, resumeContext, sessionLabel } from '../resume.ts';
 import { EMOJI, OPEN_AGENT_STATUSES, USER_ACTION_STATUSES } from '../status/model.ts';
 import { renderAgentLine, renderTableLine } from '../status/render.ts';
+import { AGENT_STEPS, stepAgent } from '../steps.ts';
 
 export interface ToolOutput {
   text: string;
-  data?: Record<string, unknown>;
 }
 
 export interface ToolDefinition<Schema extends z.ZodObject = z.ZodObject> {
@@ -37,7 +38,7 @@ const agentName = z.string().min(1).describe('Short agent name, no paths');
 const agentStart = defineTool({
   name: 'agent_start',
   description:
-    'Main agent only. Register a fork before dispatching it (launch it in a later message). The agent appears as ⏳ running and a `started` event is logged. The result gives the report destination: where main copies the fork report once it finishes, in the group meta directory, outside the repos.',
+    'Main agent only. Register a fork before dispatching it (launch it in a later message). Logs `started`. The result gives the report destination in the group, where agent_done copies the report.',
   schema: z.object({
     name: agentName,
     task: z.string().min(1).describe('One-line task given to the fork'),
@@ -56,7 +57,6 @@ const agentStart = defineTool({
     const reportDestination = reportPathFor(carnet.group, agent.name);
     return {
       text: `${EMOJI.running} ${agent.name} started in group ${carnet.group.name}\nReport destination: ${reportDestination}`,
-      data: { agent, reportDestination },
     };
   },
 });
@@ -64,7 +64,7 @@ const agentStart = defineTool({
 const agentUpdate = defineTool({
   name: 'agent_update',
   description:
-    "Change an agent's status and displayed note. Forks use it with status `running` to show progress; the main agent uses user-action statuses (discussing, answer, review, apply, test, commit, branch) as the next step moves, and sets report_path after copying a report to its final place. Use agent_drop to close.",
+    "Set an agent's status and note. Forks: status running at progress. Main agent: only for moves agent_step does not cover.",
   schema: z.object({
     name: agentName,
     status: z.enum(OPEN_AGENT_STATUSES).describe('Next action: running means the fork is working'),
@@ -84,14 +84,22 @@ const agentUpdate = defineTool({
       emoji: agent.status === 'closed' ? '' : EMOJI[agent.status],
       note: agent.note,
     });
-    return { text, data: { agent } };
+    return { text };
   },
 });
+
+function copyReport(carnet: Carnet, name: string, reportPath: string): string {
+  const destination = reportPathFor(carnet.group, name);
+  if (resolve(reportPath) === destination || !existsSync(reportPath)) return reportPath;
+  mkdirSync(reportsDirectoryOf(carnet.group), { recursive: true });
+  copyFileSync(reportPath, destination);
+  return destination;
+}
 
 const agentDone = defineTool({
   name: 'agent_done',
   description:
-    'Forks call this as their LAST tool action, then reply with one line that carries no results (the report holds them). Records the report path and the outcome: ❓ answer (has_questions=true) or 👀 review, shown once the fork has really stopped. Logs a `finished` event then.',
+    'Forks call this as their LAST tool action, then reply with one line that carries no results. Copies the report to the group report destination and marks the agent ❓ answer (has_questions) or 👀 review once the fork stops.',
   schema: z.object({
     name: agentName,
     report_path: z.string().min(1).describe('Absolute path of the markdown report'),
@@ -100,7 +108,7 @@ const agentDone = defineTool({
   }),
   run: (carnet, sessionId, args) => {
     const agent = carnet.agents.finish(sessionId, args.name, {
-      reportPath: args.report_path,
+      reportPath: copyReport(carnet, args.name, args.report_path),
       hasQuestions: args.has_questions,
     });
     const outcome = args.has_questions
@@ -110,7 +118,7 @@ const agentDone = defineTool({
       agent.status === 'running'
         ? `${outcome} once you stop; reply now with one line that carries no results`
         : outcome;
-    return { text, data: { agent } };
+    return { text };
   },
 });
 
@@ -125,7 +133,7 @@ const agentDrop = defineTool({
   }),
   run: (carnet, sessionId, args) => {
     const agent = carnet.agents.drop(sessionId, args.name, args.reason);
-    return { text: `${agent.name} closed`, data: { agent } };
+    return { text: `${agent.name} closed` };
   },
 });
 
@@ -141,7 +149,7 @@ const agentList = defineTool({
       const report = agent.reportPath ? ` (report: ${agent.reportPath})` : '';
       return `${emoji} ${agent.name} [${agent.status}]${note}${report}`;
     });
-    return { text: lines.length ? lines.join('\n') : 'no open agents', data: { agents } };
+    return { text: lines.length ? lines.join('\n') : 'no open agents' };
   },
 });
 
@@ -159,7 +167,6 @@ const queueReorder = defineTool({
     const order = view.waiting.map((line) => line.name).join(', ');
     return {
       text: order ? `Waiting order: ${order}` : 'nothing waiting',
-      data: { waiting: view.waiting },
     };
   },
 });
@@ -167,10 +174,13 @@ const queueReorder = defineTool({
 const tableSet = defineTool({
   name: 'table_set',
   description:
-    "Main agent only. Set the 'On the table' line: what the main agent is handling now. main_working=true while you apply, test or fix yourself (shown ⚙️, not ready for the human). Otherwise give the status of the next human action.",
+    "Main agent only. Set the 'On the table' line: what the main agent is handling now. main_working=true while you work yourself (⚙️); otherwise the status of the next human action.",
   schema: z.object({
     text: z.string().min(1).describe('Under 60 characters, no paths, no backticks'),
-    main_working: z.boolean().describe('true while the main agent itself is working on it'),
+    main_working: z
+      .boolean()
+      .optional()
+      .describe('Omitted: false when a status is given, else unchanged'),
     status: z
       .enum(USER_ACTION_STATUSES)
       .optional()
@@ -183,8 +193,26 @@ const tableSet = defineTool({
       mainWorking: args.main_working,
       status: args.status,
     });
-    return { text: renderTableLine(item), data: { table: item } };
+    return { text: renderTableLine(item) };
   },
+});
+
+const agentStep = defineTool({
+  name: 'agent_step',
+  description:
+    "Main agent only. One call per step of a fork's work: logs the event, moves the agent to the next human action and keeps the 'On the table' line in sync. answered → apply, applying → ⚙️ table line, applied → test, tested → commit, committed (commit required) → closed, dropped (note = reason) → closed.",
+  schema: z.object({
+    name: agentName,
+    step: z.enum(AGENT_STEPS),
+    commit: z.string().optional().describe('Commit sha, for committed'),
+    note: z.string().optional().describe('Short note for the journal; the reason for dropped'),
+    next: z
+      .enum(OPEN_AGENT_STATUSES)
+      .optional()
+      .describe('Override the next status, e.g. running when the fork resumes'),
+    session,
+  }),
+  run: (carnet, sessionId, args) => ({ text: stepAgent(carnet, sessionId, args) }),
 });
 
 const tableClear = defineTool({
@@ -200,7 +228,7 @@ const tableClear = defineTool({
 const logEvent = defineTool({
   name: 'log_event',
   description:
-    "Append a journal event: started, finished, answered, applied, tested, committed, dropped. agent_start, agent_done and agent_drop already log theirs; use this for the human's steps (answered, applied, tested, committed).",
+    'Append a journal event. agent_start, agent_done, agent_drop and agent_step already log theirs: use this only for events outside them.',
   schema: z.object({
     type: z.enum(EVENT_TYPES),
     agent: z.string().optional().describe('Agent concerned'),
@@ -218,7 +246,7 @@ const logEvent = defineTool({
       note: args.note,
     });
     const parts = ['logged', event.type, event.agent, event.commit].filter(Boolean);
-    return { text: parts.join(' '), data: { event } };
+    return { text: parts.join(' ') };
   },
 });
 
@@ -237,7 +265,6 @@ const sessionNew = defineTool({
     const named = carnet.sessions.name(sessionId, args.name, args.purpose);
     return {
       text: `Session named ${named.name}. ${hostById(named.host).renameInstruction(named.name ?? args.name)}`,
-      data: { session: named },
     };
   },
 });
@@ -260,7 +287,7 @@ const sessionList = defineTool({
       const current = listed.id === sessionId ? ' (current)' : '';
       return `${sessionLabel(listed)} [${listed.kind}, ${listed.status}]${current}`;
     });
-    return { text: lines.length ? lines.join('\n') : 'no sessions', data: { sessions } };
+    return { text: lines.length ? lines.join('\n') : 'no sessions' };
   },
 });
 
@@ -274,7 +301,7 @@ const sessionDrop = defineTool({
   }),
   run: (carnet, _sessionId, args) => {
     const dropped = carnet.sessions.drop(carnet.sessions.find(args.name).id);
-    return { text: `Session ${sessionLabel(dropped)} archived`, data: { session: dropped } };
+    return { text: `Session ${sessionLabel(dropped)} archived` };
   },
 });
 
@@ -291,7 +318,6 @@ const sessionResumeInfo = defineTool({
     const resume = `rucher resume ${target.name ?? target.id}`;
     return {
       text: `${resumeContext(carnet, target)}\n\nResume with: ${resume}`,
-      data: { session: target, resume },
     };
   },
 });
@@ -307,7 +333,6 @@ const logRead = defineTool({
     const events = carnet.events.read(sessionId, args.limit ?? 20);
     return {
       text: events.length ? events.map(formatEventLine).join('\n') : 'no events yet',
-      data: { events },
     };
   },
 });
@@ -344,7 +369,7 @@ const noteAdd = defineTool({
     const warning = similar.length
       ? `\nSimilar active notes, possible duplicate:\n${similar.map(noteLine).join('\n')}`
       : '';
-    return { text: `added ${noteLine(note)}${warning}`, data: { note, similar } };
+    return { text: `added ${noteLine(note)}${warning}` };
   },
 });
 
@@ -372,7 +397,7 @@ const noteList = defineTool({
     const lines = notes.map(
       (note) => `${noteLine(note)}${note.droppedAt ? ` (dropped: ${note.droppedReason})` : ''}`,
     );
-    return { text: lines.length ? lines.join('\n') : 'no notes', data: { notes } };
+    return { text: lines.length ? lines.join('\n') : 'no notes' };
   },
 });
 
@@ -393,7 +418,7 @@ const noteDrop = defineTool({
       session: sessionId,
     });
     const replaced = note.replacedBy ? `, replaced by #${note.replacedBy}` : '';
-    return { text: `dropped #${note.id}${replaced}`, data: { note } };
+    return { text: `dropped #${note.id}${replaced}` };
   },
 });
 
@@ -413,7 +438,7 @@ const noteCite = defineTool({
       agent: args.agent,
       session: sessionId,
     });
-    return { text: `cited #${citation.note}: ${citation.why}`, data: { citation } };
+    return { text: `cited #${citation.note}: ${citation.why}` };
   },
 });
 
@@ -422,6 +447,7 @@ export const TOOLS: readonly ToolDefinition[] = [
   agentUpdate,
   agentDone,
   agentDrop,
+  agentStep,
   agentList,
   queueReorder,
   tableSet,

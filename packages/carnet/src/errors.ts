@@ -21,6 +21,7 @@ export type CarnetErrorCode =
   | 'AGENT_NOT_FOUND'
   | 'INVALID_STATUS'
   | 'INVALID_EVENT_TYPE'
+  | 'COMMIT_REQUIRED'
   | 'TABLE_STATUS_WITH_MAIN_WORKING';
 
 export class CarnetError extends Error {

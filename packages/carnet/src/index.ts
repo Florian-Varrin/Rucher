@@ -65,7 +65,7 @@ export {
   baseRules,
   compactReminder,
   groupRules,
-  OUTSIDE_RUCHER_CONTEXT,
+  outsideRucherContext,
   OUTSIDE_RUCHER_NOTICE,
   PROMPT_FILE,
   type PromptSession,
@@ -184,3 +184,4 @@ export {
 } from './status/render.ts';
 export { buildStatusView, formatClock, type StatusLine, type StatusView } from './status/view.ts';
 export type { SetTableInput, TableItem } from './table.ts';
+export { AGENT_STEPS, type AgentStep, stepAgent, type StepAgentInput } from './steps.ts';

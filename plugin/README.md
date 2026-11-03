@@ -2,7 +2,7 @@
 
 Wires [Carnet](../docs/reference.md) into Claude Code:
 
-- MCP server `carnet` (`rucher serve`): `agent_start`, `agent_update`, `agent_done`, `agent_drop`, `agent_list`, `queue_reorder`, `table_set`, `table_clear`, `log_event`, `log_read`, `session_new`, `session_list`, `session_drop`, `session_resume_info`.
+- MCP server `carnet` (`rucher serve`): `agent_start`, `agent_update`, `agent_done`, `agent_drop`, `agent_list`, `queue_reorder`, `table_set`, `table_clear`, `log_event`, `log_read`, `agent_step`, `note_add`, `note_list`, `note_drop`, `note_cite`, `session_new`, `session_list`, `session_drop`, `session_resume_info`.
 - `SessionStart` hook (`rucher hook session-start`): records every session in the group database so the server and the CLI know which session is which, and watches the Rucher rules of the system prompt: rules version, reminder after a compaction, warning for a session started without `rucher`.
 - `UserPromptSubmit` hook (`rucher hook user-prompt-submit`): picks up the session title after a `/rename`, so the session gets its name with the next message.
 - `PostToolUse` hook (`rucher hook post-tool-use`, on `Read|Edit|Write|Grep|Glob|Bash`): brings a repo's notes into the session the first time a tool touches that repo.

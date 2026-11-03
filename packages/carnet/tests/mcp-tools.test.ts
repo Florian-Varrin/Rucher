@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
@@ -8,6 +8,7 @@ import { createCarnetServer, INSTRUCTIONS, TOOLS } from '../src/mcp/index.ts';
 import { makeCarnet, SESSION } from './helpers.ts';
 
 let carnet: Carnet;
+let made: ReturnType<typeof makeCarnet>;
 let client: Client;
 
 async function call(name: string, args: Record<string, unknown> = {}) {
@@ -15,11 +16,11 @@ async function call(name: string, args: Record<string, unknown> = {}) {
   const text = (result.content as { type: string; text?: string }[])
     .map((content) => content.text ?? '')
     .join('\n');
-  return { text, isError: result.isError === true, data: result.structuredContent };
+  return { text, isError: result.isError === true, structured: result.structuredContent };
 }
 
 beforeAll(async () => {
-  const made = makeCarnet();
+  made = makeCarnet();
   carnet = made.carnet;
   const server = createCarnetServer({
     carnet,
@@ -47,7 +48,7 @@ test('main and fork lifecycle through the protocol', async () => {
   expect(started.text).toBe(
     `⏳ banner started in group ${carnet.group.name}\nReport destination: ${destination}`,
   );
-  expect(started.data).toMatchObject({ reportDestination: destination });
+  expect(started.structured).toBeUndefined();
   expect(existsSync(dirname(destination))).toBe(true);
   expect(
     (await call('agent_update', { name: 'banner', status: 'running', note: 'halfway' })).text,
@@ -75,7 +76,6 @@ test('main and fork lifecycle through the protocol', async () => {
   });
   const list = await call('agent_list');
   expect(list.text).toBe('❓ banner [answer] (report: /repo/forks/banner.md)');
-  expect(list.data).toMatchObject({ agents: [{ name: 'banner', status: 'answer' }] });
 
   expect((await call('agent_drop', { name: 'banner', reason: 'merged' })).text).toBe(
     'banner closed',
@@ -176,4 +176,77 @@ test('notes through the protocol: add, duplicate warning, list, cite, drop', asy
     '(dropped: duplicate of #1)',
   );
   expect((await call('note_cite', { id: 9, why: 'nothing' })).isError).toBe(true);
+});
+
+test('agent_done copies the report to the group destination', async () => {
+  await call('agent_start', { name: 'copied', task: 't' });
+  const source = join(made.root, 'copied-scratch.md');
+  writeFileSync(source, '# copied report');
+  await call('agent_done', { name: 'copied', report_path: source, has_questions: false });
+  const destination = join(carnet.group.root, '.rucher', 'reports', 'copied.md');
+  expect(readFileSync(destination, 'utf8')).toBe('# copied report');
+  expect(carnet.agents.get(SESSION, 'copied')?.reportPath).toBe(destination);
+});
+
+test('table_set keeps main_working when omitted, and a status clears it', async () => {
+  await call('table_set', { text: 'shop fix', main_working: true });
+  expect((await call('table_set', { text: 'shop fix, step 2' })).text).toContain('main working');
+  expect(carnet.table.get(SESSION)?.mainWorking).toBe(true);
+  await call('table_set', { text: 'shop fix', status: 'test' });
+  expect(carnet.table.get(SESSION)).toMatchObject({ mainWorking: false, status: 'test' });
+  await call('table_clear');
+});
+
+test('agent_step walks a fork from answers to commit in one call per step', async () => {
+  await call('agent_start', { name: 'cart', task: 't' });
+  await call('agent_done', { name: 'cart', report_path: 'cart.md', has_questions: true });
+  expect((await call('agent_step', { name: 'cart', step: 'answered', note: 'yes' })).text).toBe(
+    'logged answered · 📥 cart apply',
+  );
+  expect((await call('agent_step', { name: 'cart', step: 'applying' })).text).toBe(
+    '⚙️ cart applying',
+  );
+  expect(carnet.table.get(SESSION)).toMatchObject({ text: 'cart applying', mainWorking: true });
+  await call('agent_step', { name: 'cart', step: 'applied' });
+  expect(carnet.agents.get(SESSION, 'cart')?.status).toBe('test');
+  expect(carnet.table.get(SESSION)).toMatchObject({ status: 'test', mainWorking: false });
+  await call('agent_step', { name: 'cart', step: 'tested' });
+  expect(carnet.agents.get(SESSION, 'cart')?.status).toBe('commit');
+  expect((await call('agent_step', { name: 'cart', step: 'committed' })).text).toContain(
+    'COMMIT_REQUIRED',
+  );
+  expect(
+    (await call('agent_step', { name: 'cart', step: 'committed', commit: 'abc123' })).text,
+  ).toBe('✅ cart committed abc123, closed');
+  expect(carnet.agents.get(SESSION, 'cart')?.status).toBe('closed');
+  expect(carnet.table.get(SESSION)).toBeUndefined();
+  const types = carnet.events
+    .read(SESSION, 200, true)
+    .filter((event) => event.agent === 'cart')
+    .map((event) => event.type);
+  expect(types).toEqual([
+    'started',
+    'finished',
+    'answered',
+    'applied',
+    'tested',
+    'committed',
+    'dropped',
+  ]);
+});
+
+test('agent_step next overrides the status, dropped closes with the reason', async () => {
+  await call('agent_start', { name: 'promo', task: 't' });
+  await call('agent_done', { name: 'promo', report_path: 'promo.md', has_questions: true });
+  await call('table_set', { text: 'promo: report, questions', status: 'answer' });
+  await call('agent_step', { name: 'promo', step: 'answered', next: 'running' });
+  expect(carnet.agents.get(SESSION, 'promo')?.status).toBe('running');
+  expect(carnet.table.get(SESSION)).toBeUndefined();
+  expect(
+    (await call('agent_step', { name: 'promo', step: 'dropped', note: 'not needed' })).text,
+  ).toBe('promo dropped, closed');
+  expect(carnet.events.read(SESSION, 1)[0]).toMatchObject({ type: 'dropped', note: 'not needed' });
+  expect((await call('agent_step', { name: 'ghost', step: 'tested' })).text).toContain(
+    'AGENT_NOT_FOUND',
+  );
 });

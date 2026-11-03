@@ -43,7 +43,7 @@ export function createCarnetServer(options: CarnetServerOptions): McpServer {
           const { carnet, resolver } = open();
           const sessionId = resolver.resolve(args.session as string | undefined);
           const out = tool.run(carnet, sessionId, args);
-          return { content: [{ type: 'text', text: out.text }], structuredContent: out.data };
+          return { content: [{ type: 'text', text: out.text }] };
         } catch (error) {
           if (error instanceof CarnetError) return errorResult(error);
           throw error;
