@@ -5,7 +5,6 @@ import {
   type NotesMode,
   SIMILAR_PREFIX,
   renderSections,
-  repoPathFor,
   type Session,
   type StatusView,
 } from '@rucher/carnet';
@@ -51,21 +50,19 @@ export function colorizeStatus(text: string, io: Io): string {
   return [paint(io).dim(time), ...rest.map((line) => colorizeLine(line, io))].join('\n');
 }
 
-export function sessionWhere(carnet: Carnet, session: Session): string | null {
-  return repoPathFor(carnet.group, session.cwd) ?? session.repo;
+function sessionName(session: Session): string {
+  return session.name ?? session.id.slice(0, 8);
 }
 
 function sessionLabel(carnet: Carnet, session: Session, columns: number): string {
-  const name = session.name ?? session.id.slice(0, 8);
-  const where = sessionWhere(carnet, session);
-  if (!where) return name;
-  // The name identifies the pane: only the cwd gives way to a narrow terminal.
+  const name = sessionName(session);
+  // The name identifies the pane: only the group gives way to a narrow terminal.
   const room = columns - Array.from(name).length - 3;
-  return room > 1 ? `${name} · ${truncate(where, room)}` : name;
+  return room > 1 ? `${name} · ${truncate(carnet.group.name, room)}` : name;
 }
 
-function sessionHeader(carnet: Carnet, session: Session, io: Io): string {
-  return paint(io).cyan(sessionLabel(carnet, session, io.columns));
+function sessionHeader(session: Session, io: Io): string {
+  return paint(io).cyan(truncate(sessionName(session), io.columns));
 }
 
 function sessionLines(
@@ -139,10 +136,8 @@ function hasSomethingToShow(carnet: Carnet, session: Session): boolean {
   );
 }
 
-function sessionBlock(carnet: Carnet, session: Session, view: StatusView, io: Io): string {
-  return [sessionHeader(carnet, session, io), ...sessionLines(session, view, io, 'summary')].join(
-    '\n',
-  );
+function sessionBlock(session: Session, view: StatusView, io: Io): string {
+  return [sessionHeader(session, io), ...sessionLines(session, view, io, 'summary')].join('\n');
 }
 
 function singleView(carnet: Carnet, session: Session, io: Io, state?: WatchState): string {
@@ -171,9 +166,13 @@ export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions)
   const blocks = sessions.map((session) => {
     const view = carnet.status.view(session);
     time ||= view.time;
-    return sessionBlock(carnet, session, view, io);
+    return sessionBlock(session, view, io);
   });
-  return [paint(io).dim(time), '', blocks.join('\n\n'), '', paint(io).dim(LEGEND)].join('\n');
+  const colors = paint(io);
+  const separator = ' - ';
+  const group = truncate(carnet.group.name, io.columns - time.length - separator.length);
+  const title = `${colors.dim(time)}${separator}${colors.cyan(group)}`;
+  return [title, '', blocks.join('\n\n'), '', colors.dim(LEGEND)].join('\n');
 }
 
 export function statusOnce(carnet: Carnet, io: Io, options: StatusOptions): void {

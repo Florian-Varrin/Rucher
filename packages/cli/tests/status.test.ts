@@ -20,7 +20,7 @@ test('renders the default session as plain text without color', () => {
   const { carnet } = seeded();
   const text = renderStatusView(carnet, makeIo(), {});
   const lines = text.split('\n');
-  expect(lines[0]).toMatch(/^\d\d:\d\d - 0360889d · api$/);
+  expect(lines[0]).toMatch(/^\d\d:\d\d - 0360889d · test-group$/);
   expect(lines.slice(1)).toEqual([
     '',
     'On the table',
@@ -74,7 +74,7 @@ test('--all lists sessions with activity under a header, most recent first', () 
   const headers = text
     .split('\n')
     .filter((line) => line.startsWith('other-work') || line.startsWith('0360889d'));
-  expect(headers).toEqual(['other-work', '0360889d · api']);
+  expect(headers).toEqual(['other-work', '0360889d']);
   expect(text).not.toContain('idle');
 });
 
@@ -83,8 +83,8 @@ test('--all shows the clock and the legend once, and a header on every block', (
   carnet.sessions.upsertFromHook({ session_id: 'other', cwd: root, session_title: 'other-work' });
   carnet.agents.start('other', { name: 'x', task: 't' });
   const lines = renderStatusView(carnet, makeIo(), { all: true }).split('\n');
-  expect(lines[0]).toMatch(/^\d\d:\d\d$/);
-  expect(lines.filter((line) => /^\d\d:\d\d$/.test(line))).toHaveLength(1);
+  expect(lines[0]).toMatch(/^\d\d:\d\d - test-group$/);
+  expect(lines.filter((line) => /^\d\d:\d\d/.test(line))).toHaveLength(1);
   expect(lines.filter((line) => line === LEGEND)).toHaveLength(1);
   expect(lines.at(-1)).toBe(LEGEND);
   expect(lines.filter((line) => line === 'Waiting on you')).toHaveLength(2);
@@ -92,7 +92,7 @@ test('--all shows the clock and the legend once, and a header on every block', (
     (line, index) =>
       line !== '' && (lines[index + 1] === 'Waiting on you' || lines[index + 1] === 'On the table'),
   );
-  expect(headers).toEqual(['other-work', '0360889d · api']);
+  expect(headers).toEqual(['other-work', '0360889d']);
 });
 
 test('watch repaints only on change and stops on abort', async () => {
@@ -111,7 +111,7 @@ test('watch repaints only on change and stops on abort', async () => {
   expect(io.output.at(-1)).toBe('\x1b[?25h');
 });
 
-test('--all headers show the cwd relative to its repo', () => {
+test('the header names the group, never the cwd', () => {
   const { carnet, root } = seeded();
   mkdirSync(join(root, 'api', 'src', 'deep'), { recursive: true });
   carnet.sessions.upsertFromHook({
@@ -119,17 +119,24 @@ test('--all headers show the cwd relative to its repo', () => {
     cwd: join(root, 'api', 'src', 'deep'),
     source: 'resume',
   });
-  const text = renderStatusView(carnet, makeIo(), { all: true });
-  expect(text.split('\n')[2]).toBe('0360889d · api/src/deep');
+  expect(renderStatusView(carnet, makeIo(), {}).split('\n')[0]).toMatch(
+    /^\d\d:\d\d - 0360889d · test-group$/,
+  );
+  const lines = renderStatusView(carnet, makeIo(), { all: true }).split('\n');
+  expect(lines[0]).toMatch(/^\d\d:\d\d - test-group$/);
+  expect(lines[2]).toBe('0360889d');
+  expect(lines.join('\n')).not.toContain('api/src/deep');
 });
 
 test('the single view names its session and follows the default on every render', () => {
   const { carnet, root } = seeded();
   carnet.sessions.name(SESSION, 'shop-auth');
-  expect(renderStatusView(carnet, makeIo(), {}).split('\n')[0]).toMatch(/ - shop-auth · api$/);
+  expect(renderStatusView(carnet, makeIo(), {}).split('\n')[0]).toMatch(
+    / - shop-auth · test-group$/,
+  );
   carnet.sessions.upsertFromHook({ session_id: 'later', cwd: root, session_title: 'shop-cart' });
   const text = renderStatusView(carnet, makeIo(), {});
-  expect(text.split('\n')[0]).toMatch(/^\d\d:\d\d - shop-cart$/);
+  expect(text.split('\n')[0]).toMatch(/^\d\d:\d\d - shop-cart · test-group$/);
   expect(text).not.toContain('banner');
 });
 
@@ -138,7 +145,7 @@ test('an archived --session says so instead of showing stale data', () => {
   carnet.sessions.name(SESSION, 'shop-auth');
   carnet.sessions.drop(SESSION);
   const lines = renderStatusView(carnet, makeIo(), { session: 'shop-auth' }).split('\n');
-  expect(lines[0]).toMatch(/ - shop-auth · api$/);
+  expect(lines[0]).toMatch(/ - shop-auth · test-group$/);
   expect(lines.slice(1, 3)).toEqual(['', '  archived, see rucher sessions --all']);
 });
 
@@ -159,7 +166,7 @@ test('--all --watch picks up a session that starts after the watch', async () =>
   expect(io.output.join('')).toContain('shop-cart');
 });
 
-test('a narrow terminal cuts the cwd, never the clock or the session name', () => {
+test('a narrow terminal cuts the group, never the clock or the session name', () => {
   const { carnet, root } = seeded();
   mkdirSync(join(root, 'api', 'src', 'deep'), { recursive: true });
   carnet.sessions.upsertFromHook({
@@ -169,7 +176,7 @@ test('a narrow terminal cuts the cwd, never the clock or the session name', () =
     session_title: 'shop-auth',
   });
   expect(renderStatusView(carnet, makeIo({ columns: 24 }), {}).split('\n')[0]).toMatch(
-    /^\d\d:\d\d - shop-auth · api…$/,
+    /^\d\d:\d\d - shop-auth · tes…$/,
   );
   expect(renderStatusView(carnet, makeIo({ columns: 10 }), {}).split('\n')[0]).toMatch(
     /^\d\d:\d\d - shop-auth$/,

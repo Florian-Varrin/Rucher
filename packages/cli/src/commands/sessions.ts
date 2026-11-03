@@ -11,13 +11,13 @@ import {
   moveSession,
   openGroupCarnet,
   readRegistry,
+  repoPathFor,
   type Session,
   shortId,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
 import { CliError, findSession } from '../session.ts';
-import { sessionWhere } from './status.ts';
 
 export interface SessionsOptions {
   all?: boolean | undefined;
@@ -37,7 +37,7 @@ function row(carnet: Carnet, session: Session, now: Date): string[] {
     session.name ?? session.id.slice(0, 8),
     session.kind,
     session.status,
-    sessionWhere(carnet, session) ?? '',
+    repoPathFor(carnet.group, session.cwd) ?? session.repo ?? '',
     lastActive(session.lastActiveAt, now),
     open ? `${open} agent${open > 1 ? 's' : ''}` : '',
     session.purpose ?? '',
