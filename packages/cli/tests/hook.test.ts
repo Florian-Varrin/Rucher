@@ -1,6 +1,12 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { initGroup, openCarnet } from '@rucher/carnet';
+import {
+  initGroup,
+  openCarnet,
+  OUTSIDE_RUCHER_NOTICE,
+  rulesVersion,
+  SUBAGENT_RULES,
+} from '@rucher/carnet';
 import { expect, test } from 'vite-plus/test';
 import {
   sessionStart,
@@ -14,8 +20,13 @@ function group() {
   const root = tempDirectory('meta-');
   const api = tempDirectory('repo-api-');
   mkdirSync(join(api, 'src'), { recursive: true });
-  const env = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_PID: '4242' };
-  initGroup(root, { env, repos: [api] });
+  const home = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_PID: '4242' };
+  const group = initGroup(root, { env: home, repos: [api] });
+  const env = {
+    ...home,
+    RUCHER_SESSION_ID: SESSION,
+    RUCHER_PROMPT_VERSION: rulesVersion(group, home),
+  };
   return { root, api, env };
 }
 
@@ -163,4 +174,35 @@ test('a stop names its fork even when the starts arrived in the wrong order', ()
     hostAgentId: 'id-launch',
   });
   after.close();
+});
+
+test('a session started without rucher is warned on stderr and in context', () => {
+  const { root, env } = group();
+  const io = makeIo({ env: { RUCHER_HOME: env.RUCHER_HOME, CLAUDE_PID: env.CLAUDE_PID } });
+  const payload = JSON.stringify({ session_id: SESSION, cwd: root, source: 'startup' });
+  expect(sessionStart(payload, io)).toBe(0);
+  expect(io.errors).toEqual([`${OUTSIDE_RUCHER_NOTICE}\n`]);
+  expect(io.output.join('')).toContain('started without rucher');
+});
+
+test('named sub-agents get the reporting rules, forks inherit them', () => {
+  const { root, env } = group();
+  const carnet = openCarnet({ cwd: root, env });
+  carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
+  carnet.close();
+  const event = (agentType: string) =>
+    JSON.stringify({
+      session_id: SESSION,
+      cwd: root,
+      agent_id: `a-${agentType}`,
+      agent_type: agentType,
+    });
+  const explore = makeIo({ env });
+  expect(subagentStart(event('Explore'), explore)).toBe(0);
+  expect(JSON.parse(explore.output.join(''))).toEqual({
+    hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: SUBAGENT_RULES },
+  });
+  const fork = makeIo({ env });
+  expect(subagentStart(event('fork'), fork)).toBe(0);
+  expect(fork.output).toEqual([]);
 });

@@ -48,6 +48,25 @@ export {
 } from './group/registry.ts';
 export { handleSessionEnd } from './hook/session-end.ts';
 export { handleSessionStart, type SessionStartResult } from './hook/session-start.ts';
+export {
+  type AppendPromptFile,
+  appendPromptFile,
+  assemblePrompt,
+  type AssembledPrompt,
+  baseRules,
+  compactReminder,
+  groupRules,
+  OUTSIDE_RUCHER_CONTEXT,
+  OUTSIDE_RUCHER_NOTICE,
+  PROMPT_FILE,
+  type PromptSession,
+  PROMPTS_DIRECTORY,
+  RULES_UPDATED_NOTICE,
+  rulesText,
+  rulesVersion,
+  SUBAGENT_RULES,
+} from './prompt/prompt.ts';
+export { CORE_RULES } from './prompt/core-rules.ts';
 export { handleUserPromptSubmit } from './hook/user-prompt-submit.ts';
 export {
   claudeCode,

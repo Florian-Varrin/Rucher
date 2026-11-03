@@ -1,5 +1,5 @@
 import { expect, test } from 'vite-plus/test';
-import { handleSessionStart, resumeContext } from '../src/index.ts';
+import { handleSessionStart, resumeContext, rulesVersion } from '../src/index.ts';
 import { SESSION, withSession } from './helpers.ts';
 
 test('resume context keeps the status and drops the oldest events to fit', () => {
@@ -20,12 +20,13 @@ test('resume context keeps the status and drops the oldest events to fit', () =>
   expect(resumeContext(carnet, session, { maxCharacters: 50 })).toHaveLength(50);
 });
 
-test('the session start hook adds context only on resume', () => {
+test('a session started by rucher gets context only on resume', () => {
   const { carnet, root } = withSession();
   const base = { session_id: SESSION, cwd: root };
-  expect(handleSessionStart(carnet, { ...base, source: 'startup' }, {}).additionalContext).toBe(
+  const env = { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: rulesVersion(carnet.group, {}) };
+  expect(handleSessionStart(carnet, { ...base, source: 'startup' }, env).additionalContext).toBe(
     undefined,
   );
-  const resumed = handleSessionStart(carnet, { ...base, source: 'resume' }, {});
+  const resumed = handleSessionStart(carnet, { ...base, source: 'resume' }, env);
   expect(resumed.additionalContext).toContain('state when resumed');
 });

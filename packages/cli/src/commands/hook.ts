@@ -6,6 +6,7 @@ import {
   handleUserPromptSubmit,
   type Host,
   openCarnet,
+  SUBAGENT_RULES,
 } from '@rucher/carnet';
 import type { Io } from '../io.ts';
 
@@ -39,14 +40,17 @@ export function sessionStart(stdinText: string, io: Io): number {
   return runHook(io, () => {
     const payload = host.parseSessionPayload(stdinText);
     withCarnet(payload.cwd, io, (carnet) => {
-      const { additionalContext } = handleSessionStart(carnet, payload, {
+      const { additionalContext, notices } = handleSessionStart(carnet, payload, {
         host: host.id,
         processId: host.processId(io.env),
         RUCHER_PURGE_DAYS: io.env.RUCHER_PURGE_DAYS,
+        RUCHER_HOME: io.env.RUCHER_HOME,
         RUCHER_SESSION_ID: io.env.RUCHER_SESSION_ID,
         RUCHER_SESSION_KIND: io.env.RUCHER_SESSION_KIND,
         RUCHER_SESSION_NAME: io.env.RUCHER_SESSION_NAME,
+        RUCHER_PROMPT_VERSION: io.env.RUCHER_PROMPT_VERSION,
       });
+      for (const notice of notices) io.stderr(`${notice}\n`);
       if (additionalContext) {
         const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext };
         io.stdout(`${JSON.stringify({ hookSpecificOutput })}\n`);
@@ -61,6 +65,12 @@ export function subagentStart(stdinText: string, io: Io): number {
     withCarnet(payload.cwd, io, (carnet) => {
       carnet.agents.pairSubagent(payload.session_id, payload.agent_id);
     });
+    if (host.subagentInheritsContext(payload)) return;
+    const hookSpecificOutput = {
+      hookEventName: 'SubagentStart',
+      additionalContext: SUBAGENT_RULES,
+    };
+    io.stdout(`${JSON.stringify({ hookSpecificOutput })}\n`);
   });
 }
 

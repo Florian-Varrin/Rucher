@@ -179,6 +179,8 @@ function launchArguments(options: LaunchOptions = {}): string[] {
   ];
 }
 
+const RENDERING_SOURCES = new Set(['startup', 'clear', 'compact', 'fork']);
+
 export const claudeCode: Host = {
   id: 'claude-code',
   displayName: 'Claude Code',
@@ -230,6 +232,13 @@ export const claudeCode: Host = {
       cwd: text(data, 'cwd'),
       reason: text(data, 'reason'),
     };
+  },
+  subagentInheritsContext(payload) {
+    return payload.agent_type === 'fork';
+  },
+  // The system prompt is rendered again on these sources and kept as is on resume.
+  rendersSystemPrompt(source) {
+    return RENDERING_SOURCES.has(source);
   },
   subagentNames(payload) {
     const transcript = payload.agent_transcript_path;

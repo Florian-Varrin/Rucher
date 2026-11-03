@@ -95,9 +95,26 @@ Dropped work: revert it in the main repo, keep its patch in the scratchpad, `age
 
 <!-- skill:skip start -->
 
-## Loading these rules
+## Where the rules live
 
-The plugin's `rucher` skill carries this workflow: it loads itself when you ask Claude for forks or parallel work, or with `/rucher`. To have the rules in every session regardless, import this file from your `CLAUDE.md`: `@<path to your rucher clone>/docs/workflow.md`.
+- **System prompt:** a session started with `rucher` gets the core rules below appended to its system prompt. Forks inherit it; named sub-agents (`Explore`, `general-purpose`, your own agents) get the sub-agent rules from the `SubagentStart` hook instead.
+- **Skill:** the full workflow above is the plugin's `rucher` skill. It loads itself when you ask Claude for forks or parallel work, or with `/rucher`.
+- **Server instructions:** the Carnet MCP server tells every session how to use its tools, including sessions started without `rucher`.
+
+`$RUCHER_HOME/prompt.md` replaces the core rules, and `<meta directory>/.rucher/prompt.md` adds rules for one group. Claude Code keeps a session's system prompt until the conversation is compacted, so new rules reach a running session only after its next compaction, or in a new session.
+
+### Core rules
+
+<!-- prompt:core start -->
+
+- Work can be parallel, review stays sequential: forks work at the same time, the human handles their results one at a time.
+- The human keeps the hand: only the human launches forks, applies, tests and commits. Agents propose, they never push.
+- Status lives in Carnet: agent statuses, the "On the table" line and the journal go through the Carnet tools, never into status files nor chat updates. Update before and after each piece of work.
+- When a fork finishes, say one line, "<name> finished, report ready", and hold its report until the human asks for it.
+- Forks never commit, push or stash. A fork writes its report to a file, calls agent_done as its last tool action, then replies with one line.
+- To dispatch, apply or review forks, load the rucher skill: it holds the full workflow.
+
+<!-- prompt:core end -->
 
 ## Groups on disk
 

@@ -1,8 +1,14 @@
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { type Carnet, hostById, repoNameFor, type Session, type SessionKind } from '@rucher/carnet';
-import { appendPromptFile } from '../append-prompt.ts';
+import {
+  appendPromptFile,
+  type Carnet,
+  hostById,
+  repoNameFor,
+  type Session,
+  type SessionKind,
+} from '@rucher/carnet';
 import type { Io } from '../io.ts';
 import { CliError, findSession } from '../session.ts';
 
@@ -31,9 +37,15 @@ export function positionals(own: readonly string[]): string[] {
   return own.filter((argument) => !argument.startsWith('-'));
 }
 
-function launchEnv(carnet: Carnet, session: Pick<Session, 'id' | 'name'>, kind?: SessionKind) {
+function launchEnv(
+  carnet: Carnet,
+  session: Pick<Session, 'id' | 'name'>,
+  promptVersion: string,
+  kind?: SessionKind,
+) {
   return {
     RUCHER_SESSION_ID: session.id,
+    RUCHER_PROMPT_VERSION: promptVersion,
     RUCHER_SESSION_NAME: session.name ?? '',
     RUCHER_GROUP: carnet.group.name,
     ...(kind ? { RUCHER_SESSION_KIND: kind } : {}),
@@ -58,15 +70,16 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
     repo: repoNameFor(carnet.group, io.cwd),
   });
   const host = hostById(session.host);
+  const prompt = appendPromptFile(carnet.group, session, io.env);
   const command = host.launchCommand(session.id, {
     name: session.name,
-    appendPromptFile: appendPromptFile({ group: carnet.group, session }),
+    appendPromptFile: prompt.path,
     passthrough: options.passthrough,
   });
   return {
     ...command,
     cwd: carnet.group.root,
-    env: launchEnv(carnet, session),
+    env: launchEnv(carnet, session, prompt.version),
     sessionId: session.id,
   };
 }
@@ -84,14 +97,15 @@ export function planResume(
 ): LaunchPlan {
   const session = findSession(carnet, reference);
   if (session.status === 'archived') io.stderr(`warning: session ${reference} is archived\n`);
+  const prompt = appendPromptFile(carnet.group, session, io.env);
   const command = hostById(session.host).resumeCommand(session, {
-    appendPromptFile: appendPromptFile({ group: carnet.group, session }),
+    appendPromptFile: prompt.path,
     passthrough,
   });
   return {
     ...command,
     cwd: sessionDirectory(session, io),
-    env: launchEnv(carnet, session),
+    env: launchEnv(carnet, session, prompt.version),
     sessionId: session.id,
   };
 }
@@ -118,16 +132,17 @@ export function planFork(
   const kind: SessionKind = options.active ? 'active' : 'temp';
   const command = hostById(parent.host).forkCommand(parent, {
     name: options.name,
-    appendPromptFile: appendPromptFile({
-      group: carnet.group,
-      session: { id: parent.id, name: options.name ?? null, kind },
-    }),
+    appendPromptFile: appendPromptFile(carnet.group, parent, io.env).path,
     passthrough: options.passthrough,
   });
   return {
     ...command,
     cwd: sessionDirectory(parent, io),
-    env: { ...launchEnv(carnet, parent, kind), RUCHER_SESSION_NAME: options.name ?? '' },
+    // A fork keeps its parent's system prompt snapshot, so the parent's rules are the ones in effect.
+    env: {
+      ...launchEnv(carnet, parent, parent.promptVersion ?? '', kind),
+      RUCHER_SESSION_NAME: options.name ?? '',
+    },
     parentId: parent.id,
     knownChildren: childrenOf(carnet, parent.id).map((session) => session.id),
   };

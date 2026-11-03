@@ -61,6 +61,8 @@ export interface Host {
   parseSubagentPayload(json: string): HostSubagentPayload;
   parseSessionEndPayload(json: string): HostSessionEndPayload;
   subagentNames(payload: HostSubagentPayload): string[];
+  subagentInheritsContext(payload: HostSubagentPayload): boolean;
+  rendersSystemPrompt(source: string): boolean;
   promptTitle(payload: HostPromptPayload): string | undefined;
   launchCommand(sessionId: string, options?: LaunchOptions): ResumeCommand;
   resumeCommand(session: Session, options?: LaunchOptions): ResumeCommand;

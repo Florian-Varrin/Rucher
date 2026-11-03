@@ -46,12 +46,15 @@ test('rucher new starts a named active session from the meta directory', () => {
     plan.sessionId,
     '--name',
     'shop-auth',
+    '--append-system-prompt-file',
+    expect.stringMatching(/\.rucher\/prompts\/.+\.md$/),
     '--model',
     'opus',
   ]);
   expect(plan.cwd).toBe(root);
   expect(plan.env).toEqual({
     RUCHER_SESSION_ID: plan.sessionId,
+    RUCHER_PROMPT_VERSION: expect.stringMatching(/^[0-9a-f]{12}$/),
     RUCHER_SESSION_NAME: 'shop-auth',
     RUCHER_GROUP: 'shop',
   });
@@ -72,7 +75,12 @@ test('rucher new starts a named active session from the meta directory', () => {
 test('rucher tmp starts a temp session, named or not', () => {
   const { carnet } = shopGroup();
   const unnamed = planNew(carnet, makeIo(), { kind: 'temp' });
-  expect(unnamed.args).toEqual(['--session-id', unnamed.sessionId]);
+  expect(unnamed.args).toEqual([
+    '--session-id',
+    unnamed.sessionId,
+    '--append-system-prompt-file',
+    expect.stringMatching(/\.rucher\/prompts\/.+\.md$/),
+  ]);
   expect(carnet.sessions.require(unnamed.sessionId ?? '')).toMatchObject({
     kind: 'temp',
     name: null,
@@ -91,7 +99,16 @@ test('a launch runs the session, and its exit ends it once', () => {
   finishLaunch(carnet, plan);
   expect(carnet.events.read(id).filter((event) => event.type === 'session.ended')).toHaveLength(1);
   const resume = planResume(carnet, makeIo(), 'shop-auth', ['-p', 'hi']);
-  expect(resume.args).toEqual(['--resume', id, '--name', 'shop-auth', '-p', 'hi']);
+  expect(resume.args).toEqual([
+    '--resume',
+    id,
+    '--name',
+    'shop-auth',
+    '--append-system-prompt-file',
+    expect.stringMatching(/\.rucher\/prompts\/.+\.md$/),
+    '-p',
+    'hi',
+  ]);
   startLaunch(carnet, resume);
   expect(carnet.sessions.require(id).status).toBe('running');
 });
@@ -99,6 +116,7 @@ test('a launch runs the session, and its exit ends it once', () => {
 test('rucher fork branches a session; the hook records the child with its parent', () => {
   const { root, env, carnet } = shopGroup();
   const parent = planNew(carnet, makeIo(), { kind: 'active', name: 'shop-auth' });
+  carnet.sessions.recordPromptVersion(parent.sessionId ?? '', 'abcdef012345');
   const fork = planFork(carnet, makeIo(), 'shop-auth', { name: 'shop-auth-alt' });
   expect(fork.args).toEqual([
     '--resume',
@@ -106,11 +124,14 @@ test('rucher fork branches a session; the hook records the child with its parent
     '--fork-session',
     '--name',
     'shop-auth-alt',
+    '--append-system-prompt-file',
+    expect.stringMatching(/\.rucher\/prompts\/.+\.md$/),
   ]);
   expect(fork.env).toMatchObject({
     RUCHER_SESSION_ID: parent.sessionId,
     RUCHER_SESSION_KIND: 'temp',
     RUCHER_SESSION_NAME: 'shop-auth-alt',
+    RUCHER_PROMPT_VERSION: 'abcdef012345',
   });
   carnet.close();
   const payload = JSON.stringify({

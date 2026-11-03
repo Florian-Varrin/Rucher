@@ -51,9 +51,11 @@ export interface HookEnv {
   host?: string | undefined;
   processId?: number | null | undefined;
   RUCHER_PURGE_DAYS?: string | undefined;
+  RUCHER_HOME?: string | undefined;
   RUCHER_SESSION_ID?: string | undefined;
   RUCHER_SESSION_KIND?: string | undefined;
   RUCHER_SESSION_NAME?: string | undefined;
+  RUCHER_PROMPT_VERSION?: string | undefined;
 }
 
 export interface CreateSessionInput {
@@ -359,7 +361,7 @@ export function sessionByHostProcess(
   return row && toSession(row);
 }
 
-export function recordPromptVersion(ctx: Ctx, id: string, version: string): Session {
+export function recordPromptVersion(ctx: Ctx, id: string, version: string | null): Session {
   requireSession(ctx, id);
   ctx.db.prepare('UPDATE sessions SET prompt_version = ? WHERE id = ?').run(version, id);
   return requireSession(ctx, id);

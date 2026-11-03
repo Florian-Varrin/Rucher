@@ -100,7 +100,7 @@ export class Carnet {
     byName: (name: string) => sessionByName(this.ctx, name),
     byHostProcess: (host: string, processId: number) =>
       sessionByHostProcess(this.ctx, host, processId),
-    recordPromptVersion: (id: string, version: string) =>
+    recordPromptVersion: (id: string, version: string | null) =>
       recordPromptVersion(this.ctx, id, version),
     setParent: (id: string, parentId: string) => setParent(this.ctx, id, parentId),
     setStatus: (id: string, status: SessionStatus) => setSessionStatus(this.ctx, id, status),

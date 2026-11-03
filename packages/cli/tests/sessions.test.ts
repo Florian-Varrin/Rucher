@@ -43,7 +43,14 @@ test('resume targets claude --resume with the session id from its original cwd',
   const io = makeIo();
   expect(planResume(carnet, io, 'shop-auth')).toMatchObject({
     command: 'claude',
-    args: ['--resume', SESSION, '--name', 'shop-auth'],
+    args: [
+      '--resume',
+      SESSION,
+      '--name',
+      'shop-auth',
+      '--append-system-prompt-file',
+      expect.any(String),
+    ],
     cwd: join(root, 'api'),
   });
   expect(planResume(carnet, io, SESSION).args).toEqual([
@@ -51,6 +58,8 @@ test('resume targets claude --resume with the session id from its original cwd',
     SESSION,
     '--name',
     'shop-auth',
+    '--append-system-prompt-file',
+    expect.any(String),
   ]);
   expect(io.errors).toEqual([]);
 });
@@ -88,6 +97,11 @@ test('sessions merge and resume accept the short ids shown by rucher sessions', 
   carnet.agents.start(split, { name: 'lost', task: 'task' });
   sessionsMerge(carnet, '8c2fce7d', SESSION.slice(0, 8), makeIo());
   expect(carnet.agents.get(SESSION, 'lost')?.status).toBe('running');
-  expect(planResume(carnet, makeIo(), SESSION.slice(0, 8)).args).toEqual(['--resume', SESSION]);
+  expect(planResume(carnet, makeIo(), SESSION.slice(0, 8)).args).toEqual([
+    '--resume',
+    SESSION,
+    '--append-system-prompt-file',
+    expect.any(String),
+  ]);
   expect(() => planResume(carnet, makeIo(), '036')).toThrowError(/at least 4 characters/);
 });

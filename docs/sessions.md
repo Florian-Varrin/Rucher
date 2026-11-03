@@ -97,6 +97,17 @@ The other ways back in also stay in the same Carnet session: `claude --resume <i
 
 Each fork the main agent dispatches is an agent of the session: `agent_start` registers it, the fork reports progress with `agent_update` and ends with `agent_done` and a one-line reply. Until the fork has really stopped it shows as `⏳ name — reporting`, then moves to `❓` or `👀`. The `SubagentStart` and `SubagentStop` hooks are a safety net: they pair each fork with its agent, and a fork that stops without calling `agent_done` moves to `👀 review` with the note `stopped without agent_done`. Pairing goes by name: the main agent calls `agent_start` in an earlier message than the launch, gives the fork the agent name as its Agent description, and starts its prompt with ``You are fork `<name>`.`` Start order is only a fallback.
 
+## The rules a session runs with
+
+A session started with `rucher` gets the Rucher core rules appended to its system prompt (see [workflow.md](workflow.md#where-the-rules-live)), plus the group's own rules from `<meta>/.rucher/prompt.md` and one line naming the session. Forks inherit them; named sub-agents get short reporting rules from the `SubagentStart` hook.
+
+Claude Code keeps a session's system prompt until the conversation is compacted, so:
+
+- A resume, even with plain `claude --resume` or `/resume`, keeps the rules the session started with.
+- When the rules changed since, the session start prints `rucher: rules updated, will apply after the next compaction or in a new session`.
+- After a compaction in a session that was not launched by `rucher`, the rules are gone from the system prompt; the hook puts them back in the conversation.
+- A session never started by `rucher` gets a warning, in its context and on stderr.
+
 ## Drop it
 
 Ask Claude to drop a session (`session_drop`, by name, id or id prefix). It becomes `archived`: its open agents are closed, it leaves the lists and the default choice, and its journal stays. The current session can be dropped too.
