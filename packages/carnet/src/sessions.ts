@@ -387,3 +387,76 @@ export function setSessionStatus(ctx: Ctx, id: string, status: SessionStatus): S
     .run(status, at, status, status, at, id);
   return requireSession(ctx, id);
 }
+
+function refuseWhileRunning(session: Session, action: string): void {
+  if (session.status === 'running') {
+    throw new CarnetError(
+      'SESSION_RUNNING',
+      `Session ${session.name ?? shortId(session.id)} is running: ${action} it once it has ended`,
+    );
+  }
+}
+
+// last_title keeps the host title last seen: the old title then matches it and doesn't undo the rename.
+export function renameSession(ctx: Ctx, id: string, name: string): Session {
+  const session = requireSession(ctx, id);
+  refuseWhileRunning(session, 'rename');
+  try {
+    ctx.db.prepare('UPDATE sessions SET name = ? WHERE id = ?').run(name, id);
+  } catch (error) {
+    nameTaken(error, name);
+  }
+  return requireSession(ctx, id);
+}
+
+export function promoteSession(ctx: Ctx, id: string, name?: string): Session {
+  const session = requireSession(ctx, id);
+  if (session.kind === 'active') {
+    throw new CarnetError('SESSION_KIND_INVALID', `Session ${session.name} is already active`);
+  }
+  const nextName = name ?? session.name;
+  if (!nextName) {
+    throw new CarnetError('SESSION_NAME_REQUIRED', 'An active session needs a name');
+  }
+  if (nextName !== session.name) refuseWhileRunning(session, 'rename');
+  try {
+    ctx.db.prepare("UPDATE sessions SET kind = 'active', name = ? WHERE id = ?").run(nextName, id);
+  } catch (error) {
+    nameTaken(error, nextName);
+  }
+  return requireSession(ctx, id);
+}
+
+export function demoteSession(ctx: Ctx, id: string): Session {
+  const session = requireSession(ctx, id);
+  if (session.kind === 'temp') {
+    throw new CarnetError(
+      'SESSION_KIND_INVALID',
+      `Session ${session.name ?? shortId(session.id)} is already temp`,
+    );
+  }
+  ctx.db.prepare("UPDATE sessions SET kind = 'temp' WHERE id = ?").run(id);
+  return requireSession(ctx, id);
+}
+
+export function staleTempSessions(ctx: Ctx, olderThanMilliseconds: number): Session[] {
+  const before = new Date(ctx.now().getTime() - olderThanMilliseconds).toISOString();
+  const rows = ctx.db
+    .prepare(
+      `SELECT ${COLUMNS} FROM sessions
+       WHERE kind = 'temp' AND status = 'idle' AND last_active_at < ?
+       ORDER BY last_active_at ASC`,
+    )
+    .all(before) as unknown as SessionRow[];
+  return rows.map(toSession);
+}
+
+export function resetDeadSessions(ctx: Ctx, isAlive: (processId: number) => boolean): Session[] {
+  const running = (
+    ctx.db
+      .prepare(`SELECT ${COLUMNS} FROM sessions WHERE status = 'running'`)
+      .all() as unknown as SessionRow[]
+  ).map(toSession);
+  const dead = running.filter((session) => session.hostPid === null || !isAlive(session.hostPid));
+  return dead.map((session) => endSession(ctx, session.id));
+}

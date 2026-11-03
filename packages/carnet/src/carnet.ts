@@ -56,6 +56,11 @@ import {
   setParent,
   setSessionKind,
   setSessionStatus,
+  demoteSession,
+  promoteSession,
+  renameSession,
+  resetDeadSessions,
+  staleTempSessions,
   sessionByHostProcess,
   sessionByName,
   touchSession,
@@ -109,6 +114,12 @@ export class Carnet {
     setKind: (id: string, kind: SessionKind, name?: string | null) =>
       setSessionKind(this.ctx, id, kind, name),
     end: (id: string) => endSession(this.ctx, id),
+    rename: (id: string, name: string) => renameSession(this.ctx, id, name),
+    promote: (id: string, name?: string) => promoteSession(this.ctx, id, name),
+    demote: (id: string) => demoteSession(this.ctx, id),
+    staleTemp: (olderThanMilliseconds: number) =>
+      staleTempSessions(this.ctx, olderThanMilliseconds),
+    resetDead: (isAlive: (processId: number) => boolean) => resetDeadSessions(this.ctx, isAlive),
   };
 
   readonly agents = {

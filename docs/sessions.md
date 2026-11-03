@@ -61,6 +61,16 @@ The Carnet session takes the name with your next message; an unnamed session the
 
 You can also ask Claude to name the session (it calls `session_new` with a name and a one-line purpose). It then asks you to run `/rename` with the same name, so Claude Code's own title matches.
 
+From the terminal, once the session has ended:
+
+```bash
+rucher sessions rename shop-auth shop-login   # refused while the session is running
+rucher sessions promote 5eed shop-try         # temp to active, a name is needed
+rucher sessions demote shop-try               # active to temp, the name stays
+```
+
+The next `rucher resume` gives Claude Code the new name as its title.
+
 ## See what is going on
 
 | Command                                  | Shows                                                                                                                                               |
@@ -110,7 +120,7 @@ Claude Code keeps a session's system prompt until the conversation is compacted,
 
 ## Drop it
 
-Ask Claude to drop a session (`session_drop`, by name, id or id prefix). It becomes `archived`: its open agents are closed, it leaves the lists and the default choice, and its journal stays. The current session can be dropped too.
+Ask Claude to drop a session (`session_drop`, by name, id or id prefix), or run `rucher sessions drop <session>`. It becomes `archived`: its open agents are closed, it leaves the lists and the default choice, and its journal stays. The current session can be dropped too. `--purge` also deletes the conversation transcript Claude Code keeps for it, and prints each deleted path; without `--purge` nothing is deleted.
 
 ## Repair a split session
 
@@ -124,6 +134,18 @@ rucher sessions merge <from> <into>   # moves agents, the table line and events 
 ## Housekeeping
 
 Each time a session starts, the hook purges sessions idle for more than 3 days that never held any work: temp sessions with no agents and no agent events, and archived sessions with no agent events. Session lifecycle events don't count as work and go with the session. Sessions with an agent journal are kept, and so is the session being started. Set `RUCHER_PURGE_DAYS` (a positive number of days) in the environment Claude Code runs in to change the delay.
+
+Temp sessions that did hold work are cleaned by hand:
+
+```bash
+rucher sessions clean --dry-run          # what would be archived
+rucher sessions clean --older-than 7d    # archive temp sessions idle for more than 7 days (30m, 12h also work)
+rucher sessions clean --purge            # and delete their transcripts
+```
+
+`clean` also sets back to `idle` the sessions still marked `running` whose Claude Code process is gone (a crash or a closed terminal ends a session without its `SessionEnd` hook).
+
+`rucher log --agents` shows the agent journal without the session starts and ends.
 
 ## A typical day
 

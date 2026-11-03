@@ -1,7 +1,8 @@
-import { type Carnet, formatClock, type Session } from '@rucher/carnet';
+import { rmSync } from 'node:fs';
+import { type Carnet, formatClock, hostById, type Session, shortId } from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
-import { findSession } from '../session.ts';
+import { CliError, findSession } from '../session.ts';
 import { sessionWhere } from './status.ts';
 
 export interface SessionsOptions {
@@ -80,4 +81,116 @@ export function sessionsMerge(
     `  table line moved: ${result.movedTable ? 'yes' : 'no'}`,
   ];
   io.stdout(`${lines.join('\n')}\n`);
+}
+
+function label(session: Session): string {
+  return session.name ?? shortId(session.id);
+}
+
+export function sessionsRename(carnet: Carnet, reference: string, name: string, io: Io): void {
+  const session = carnet.sessions.rename(findSession(carnet, reference).id, name);
+  io.stdout(
+    `renamed to ${session.name}; rucher resume ${session.name} gives Claude the same title\n`,
+  );
+}
+
+export function sessionsPromote(
+  carnet: Carnet,
+  reference: string,
+  name: string | undefined,
+  io: Io,
+): void {
+  const session = carnet.sessions.promote(findSession(carnet, reference).id, name);
+  io.stdout(`${label(session)} is now active\n`);
+}
+
+export function sessionsDemote(carnet: Carnet, reference: string, io: Io): void {
+  const session = carnet.sessions.demote(findSession(carnet, reference).id);
+  io.stdout(`${label(session)} is now temp, cleaned by rucher sessions clean once idle\n`);
+}
+
+function purgeTranscripts(session: Session, io: Io): void {
+  const files = hostById(session.host).transcriptFiles(session, io.env);
+  for (const file of files) {
+    rmSync(file, { recursive: true, force: true });
+    io.stdout(`  deleted ${file}\n`);
+  }
+  if (files.length === 0) io.stdout('  no transcript found\n');
+}
+
+export interface DropOptions {
+  purge?: boolean | undefined;
+}
+
+export function sessionsDrop(
+  carnet: Carnet,
+  reference: string,
+  io: Io,
+  options: DropOptions = {},
+): void {
+  const session = findSession(carnet, reference);
+  if (options.purge && session.status === 'running') {
+    throw new CliError(
+      `Session ${label(session)} is running`,
+      'drop it with --purge once it has ended',
+    );
+  }
+  carnet.sessions.drop(session.id);
+  io.stdout(`archived ${label(session)}\n`);
+  if (options.purge) purgeTranscripts(session, io);
+}
+
+const UNIT_MILLISECONDS: Readonly<Record<string, number>> = {
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
+
+export function parseDuration(value: string): number {
+  const match = /^(\d+(?:\.\d+)?)([mhd]?)$/.exec(value.trim());
+  if (!match)
+    throw new CliError(`Invalid duration "${value}"`, 'use a number of days, or 30m, 12h, 7d');
+  return Number(match[1]) * (UNIT_MILLISECONDS[match[2] || 'd'] ?? 0);
+}
+
+export function processIsAlive(processId: number): boolean {
+  try {
+    process.kill(processId, 0);
+    return true;
+  } catch (error) {
+    // EPERM: the process exists but belongs to another user.
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+export interface CleanOptions {
+  olderThan?: string | undefined;
+  purge?: boolean | undefined;
+  dryRun?: boolean | undefined;
+  isAlive?: ((processId: number) => boolean) | undefined;
+}
+
+export function sessionsClean(carnet: Carnet, io: Io, options: CleanOptions = {}): void {
+  const olderThan = parseDuration(options.olderThan ?? '7d');
+  if (!options.dryRun) {
+    for (const session of carnet.sessions.resetDead(options.isAlive ?? processIsAlive)) {
+      io.stdout(`${label(session)} was marked running but its process is gone: now idle\n`);
+    }
+  }
+  const stale = carnet.sessions.staleTemp(olderThan);
+  if (stale.length === 0) {
+    io.stdout(`no temp session idle for more than ${options.olderThan ?? '7d'}\n`);
+    return;
+  }
+  for (const session of stale) {
+    if (options.dryRun) {
+      io.stdout(
+        `would archive ${label(session)}${options.purge ? ' and delete its transcript' : ''}\n`,
+      );
+      continue;
+    }
+    carnet.sessions.drop(session.id);
+    io.stdout(`archived ${label(session)}\n`);
+    if (options.purge) purgeTranscripts(session, io);
+  }
 }

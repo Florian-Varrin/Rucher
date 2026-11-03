@@ -7,6 +7,7 @@ export interface LogOptions {
   session?: string | undefined;
   count: number;
   md?: boolean | undefined;
+  agents?: boolean | undefined;
 }
 
 export function formatEvents(events: CarnetEvent[], io: Io): string {
@@ -66,7 +67,7 @@ function sessionTitle(carnet: Carnet, session: Session): string {
 
 export function logOnce(carnet: Carnet, io: Io, options: LogOptions): void {
   const session = resolveSession(carnet, options.session);
-  const events = carnet.events.read(session.id, options.count);
+  const events = carnet.events.read(session.id, options.count, options.agents);
   io.stdout(
     `${options.md ? formatEventsMarkdown(events, sessionTitle(carnet, session)) : formatEvents(events, io)}\n`,
   );

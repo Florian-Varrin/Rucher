@@ -33,7 +33,15 @@ import {
 } from './commands/launch.ts';
 import { pickSession } from './commands/picker.ts';
 import { serve } from './commands/serve.ts';
-import { sessionsMerge, sessionsOnce } from './commands/sessions.ts';
+import {
+  sessionsClean,
+  sessionsDemote,
+  sessionsDrop,
+  sessionsMerge,
+  sessionsOnce,
+  sessionsPromote,
+  sessionsRename,
+} from './commands/sessions.ts';
 import { statusOnce, statusWatch } from './commands/status.ts';
 import { type Io, processIo, readStdin } from './io.ts';
 import { CliError } from './session.ts';
@@ -131,6 +139,11 @@ const logCommand = defineCommand({
     ...sessionArgument,
     count: { type: 'string', alias: 'n', default: '20', description: 'Number of events' },
     md: { type: 'boolean', default: false, description: 'Markdown output, for archiving' },
+    agents: {
+      type: 'boolean',
+      default: false,
+      description: 'Agent events only, without session starts and ends',
+    },
     ...colorArgument,
   },
   run({ args }) {
@@ -141,6 +154,7 @@ const logCommand = defineCommand({
         session: args.session,
         count: Number(args.count) || 20,
         md: args.md,
+        agents: args.agents,
       });
     } catch (error) {
       fail(io, error);
@@ -194,10 +208,92 @@ const sessionsMergeCommand = defineCommand({
   },
 });
 
+const sessionReference = {
+  type: 'positional',
+  description: 'Session name, id or id prefix',
+  required: true,
+} as const;
+
+const sessionsRenameCommand = defineCommand({
+  meta: { name: 'rename', description: 'Rename a session that is not running' },
+  args: {
+    session: sessionReference,
+    name: { type: 'positional', description: 'New name', required: true },
+  },
+  run({ args }) {
+    const io = processIo();
+    withCarnet(io, (carnet) => sessionsRename(carnet, args.session, args.name, io));
+  },
+});
+
+const sessionsPromoteCommand = defineCommand({
+  meta: { name: 'promote', description: 'Make a temp session active (a name is needed)' },
+  args: {
+    session: sessionReference,
+    name: { type: 'positional', description: 'Name, when the session has none', required: false },
+  },
+  run({ args }) {
+    const io = processIo();
+    withCarnet(io, (carnet) => sessionsPromote(carnet, args.session, args.name, io));
+  },
+});
+
+const sessionsDemoteCommand = defineCommand({
+  meta: { name: 'demote', description: 'Make an active session temp, keeping its name' },
+  args: { session: sessionReference },
+  run({ args }) {
+    const io = processIo();
+    withCarnet(io, (carnet) => sessionsDemote(carnet, args.session, io));
+  },
+});
+
+const purgeArgument = {
+  purge: { type: 'boolean', default: false, description: 'Also delete the host transcript' },
+} as const;
+
+const sessionsDropCommand = defineCommand({
+  meta: { name: 'drop', description: 'Archive a session and close its agents' },
+  args: { session: sessionReference, ...purgeArgument },
+  run({ args }) {
+    const io = processIo();
+    withCarnet(io, (carnet) => sessionsDrop(carnet, args.session, io, { purge: args.purge }));
+  },
+});
+
+const sessionsCleanCommand = defineCommand({
+  meta: {
+    name: 'clean',
+    description: 'Archive temp sessions idle for a while; reset running ones whose process is gone',
+  },
+  args: {
+    'older-than': { type: 'string', default: '7d', description: 'Idle time: 30m, 12h, 7d' },
+    ...purgeArgument,
+    'dry-run': { type: 'boolean', default: false, description: 'Show what would be archived' },
+  },
+  run({ args }) {
+    const io = processIo();
+    withCarnet(io, (carnet) =>
+      sessionsClean(carnet, io, {
+        olderThan: args['older-than'],
+        purge: args.purge,
+        dryRun: args['dry-run'],
+      }),
+    );
+  },
+});
+
 const sessionsCommand = defineCommand({
-  meta: { name: 'sessions', description: 'List or merge the sessions of the group' },
+  meta: { name: 'sessions', description: 'List and manage the sessions of the group' },
   default: 'list',
-  subCommands: { list: sessionsListCommand, merge: sessionsMergeCommand },
+  subCommands: {
+    list: sessionsListCommand,
+    merge: sessionsMergeCommand,
+    rename: sessionsRenameCommand,
+    promote: sessionsPromoteCommand,
+    demote: sessionsDemoteCommand,
+    drop: sessionsDropCommand,
+    clean: sessionsCleanCommand,
+  },
 });
 
 function withCarnet(io: Io, run: (carnet: ReturnType<typeof openCarnet>) => void): void {

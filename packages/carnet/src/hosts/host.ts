@@ -68,6 +68,7 @@ export interface Host {
   resumeCommand(session: Session, options?: LaunchOptions): ResumeCommand;
   forkCommand(parent: Session, options?: LaunchOptions): ResumeCommand;
   renameInstruction(name: string): string;
+  transcriptFiles(session: Session, env?: NodeJS.ProcessEnv): string[];
   contextFiles: readonly ContextFile[];
 }
 

@@ -8,6 +8,7 @@ import {
   readSync,
   writeFileSync,
 } from 'node:fs';
+import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import type { Group } from '../group/locate.ts';
 import type {
@@ -270,6 +271,15 @@ export const claudeCode: Host = {
       command: 'claude',
       args: ['--resume', parent.id, '--fork-session', ...launchArguments(options)],
     };
+  },
+  // Claude Code keeps each conversation under a project directory derived from its cwd.
+  transcriptFiles(session, env = process.env) {
+    if (!session.cwd) return [];
+    const root = env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
+    const project = join(root, 'projects', session.cwd.replace(/[^a-zA-Z0-9]/g, '-'));
+    return [join(project, `${session.id}.jsonl`), join(project, session.id)].filter((path) =>
+      existsSync(path),
+    );
   },
   renameInstruction(name) {
     return `Ask the human to run /rename ${name} in Claude Code so the titles match.`;

@@ -128,7 +128,15 @@ export const completionConfig = {
     init: { args: { directory: directories } },
     resume: { args: { session: sessions } },
     fork: { args: { session: sessions } },
-    sessions: { subCommands: { merge: { args: { from: sessions, into: sessions } } } },
+    sessions: {
+      subCommands: {
+        merge: { args: { from: sessions, into: sessions } },
+        rename: { args: { session: sessions } },
+        promote: { args: { session: sessions } },
+        demote: { args: { session: sessions } },
+        drop: { args: { session: sessions } },
+      },
+    },
     notes: {
       options: { kind: noteKinds, repo: repoNames },
       subCommands: {
@@ -155,6 +163,9 @@ export const uncompletedArguments = [
   'fork name',
   'notes add text',
   'notes drop --reason',
+  'sessions rename name',
+  'sessions promote name',
+  'sessions clean --older-than',
 ];
 
 export async function setupCompletion(main: CommandDef): Promise<void> {
