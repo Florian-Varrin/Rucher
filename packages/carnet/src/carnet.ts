@@ -92,8 +92,8 @@ export class Carnet {
     reorderQueue: (session: string, names: string[]) => reorderQueue(this.ctx, session, names),
     pairSubagent: (session: string, hostAgentId: string) =>
       pairSubagent(this.ctx, session, hostAgentId),
-    stopSubagent: (session: string, hostAgentId: string) =>
-      stopSubagent(this.ctx, session, hostAgentId),
+    stopSubagent: (session: string, hostAgentId: string, names?: string[]) =>
+      stopSubagent(this.ctx, session, hostAgentId, names),
   };
 
   readonly table = {

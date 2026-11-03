@@ -22,6 +22,8 @@ export interface HostSubagentPayload {
   agent_id: string;
   agent_type?: string | undefined;
   cwd?: string | undefined;
+  description?: string | undefined;
+  agent_transcript_path?: string | undefined;
 }
 
 export interface ResumeCommand {
@@ -45,6 +47,7 @@ export interface Host {
   parseSessionPayload(json: string): HostSessionPayload;
   parsePromptPayload(json: string): HostPromptPayload;
   parseSubagentPayload(json: string): HostSubagentPayload;
+  subagentNames(payload: HostSubagentPayload): string[];
   promptTitle(payload: HostPromptPayload): string | undefined;
   resumeCommand(session: Session): ResumeCommand;
   renameInstruction(name: string): string;

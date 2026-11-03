@@ -51,21 +51,22 @@ export function sessionStart(stdinText: string, io: Io): number {
   });
 }
 
-function subagentHook(action: 'pairSubagent' | 'stopSubagent', stdinText: string, io: Io): number {
+export function subagentStart(stdinText: string, io: Io): number {
   return runHook(io, () => {
     const payload = host.parseSubagentPayload(stdinText);
     withCarnet(payload.cwd, io, (carnet) => {
-      carnet.agents[action](payload.session_id, payload.agent_id);
+      carnet.agents.pairSubagent(payload.session_id, payload.agent_id);
     });
   });
 }
 
-export function subagentStart(stdinText: string, io: Io): number {
-  return subagentHook('pairSubagent', stdinText, io);
-}
-
 export function subagentStop(stdinText: string, io: Io): number {
-  return subagentHook('stopSubagent', stdinText, io);
+  return runHook(io, () => {
+    const payload = host.parseSubagentPayload(stdinText);
+    withCarnet(payload.cwd, io, (carnet) => {
+      carnet.agents.stopSubagent(payload.session_id, payload.agent_id, host.subagentNames(payload));
+    });
+  });
 }
 
 export function userPromptSubmit(stdinText: string, io: Io): number {

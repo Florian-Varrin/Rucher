@@ -144,3 +144,49 @@ test('the status view shows a reporting fork as running with its note', () => {
     `fork — ${REPORTING_NOTE}`,
   );
 });
+
+test('a stop repairs a crosswise start-order pairing by name before acting', () => {
+  const { carnet } = setup();
+  carnet.agents.start(SESSION, { name: 'memory', task: 't' });
+  carnet.agents.start(SESSION, { name: 'launch', task: 't' });
+  carnet.agents.pairSubagent(SESSION, 'id-launch');
+  carnet.agents.pairSubagent(SESSION, 'id-memory');
+  expect(carnet.agents.get(SESSION, 'memory')?.hostAgentId).toBe('id-launch');
+  expect(carnet.agents.stopSubagent(SESSION, 'id-memory', ['memory'])).toMatchObject({
+    name: 'memory',
+    status: 'review',
+    note: STOPPED_NOTE,
+  });
+  expect(carnet.agents.get(SESSION, 'launch')).toMatchObject({
+    status: 'running',
+    hostAgentId: 'id-launch',
+  });
+});
+
+test('a stop publishes the pending outcome of the fork it names', () => {
+  const { carnet } = setup();
+  carnet.agents.start(SESSION, { name: 'memory', task: 't' });
+  carnet.agents.start(SESSION, { name: 'launch', task: 't' });
+  carnet.agents.pairSubagent(SESSION, 'id-launch');
+  carnet.agents.pairSubagent(SESSION, 'id-memory');
+  carnet.agents.finish(SESSION, 'memory', { reportPath: '/r/memory.md', hasQuestions: true });
+  carnet.agents.stopSubagent(SESSION, 'id-memory', ['memory']);
+  expect(carnet.agents.get(SESSION, 'memory')?.status).toBe('answer');
+  expect(carnet.agents.get(SESSION, 'launch')?.status).toBe('running');
+});
+
+test('names that match no agent keep the start-order pairing', () => {
+  const { carnet } = setup();
+  carnet.agents.start(SESSION, { name: 'paths', task: 't' });
+  carnet.agents.pairSubagent(SESSION, 'id-paths');
+  expect(carnet.agents.stopSubagent(SESSION, 'id-paths', ['Fix release paths filter'])?.name).toBe(
+    'paths',
+  );
+});
+
+test('without names the stop uses the start-order pairing', () => {
+  const { carnet } = setup();
+  carnet.agents.start(SESSION, { name: 'solo', task: 't' });
+  carnet.agents.pairSubagent(SESSION, 'id-solo');
+  expect(carnet.agents.stopSubagent(SESSION, 'id-solo')?.name).toBe('solo');
+});

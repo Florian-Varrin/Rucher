@@ -128,3 +128,39 @@ test('the prompt hook names the session after a /rename and never fails', () => 
   expect(outside.errors).toEqual([]);
   expect(userPromptSubmit('{}', makeIo())).toBe(0);
 });
+
+test('a stop names its fork even when the starts arrived in the wrong order', () => {
+  const { root, env } = group();
+  const carnet = openCarnet({ cwd: root, env });
+  carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
+  carnet.agents.start(SESSION, { name: 'memory', task: 't' });
+  carnet.agents.start(SESSION, { name: 'launch', task: 't' });
+  carnet.close();
+  const io = makeIo({ env });
+  const event = (name: string, agentId: string, extra: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      session_id: SESSION,
+      cwd: root,
+      agent_id: agentId,
+      hook_event_name: name,
+      ...extra,
+    });
+  subagentStart(event('SubagentStart', 'id-launch'), io);
+  subagentStart(event('SubagentStart', 'id-memory'), io);
+  const tasks = [
+    { id: 'id-memory', description: 'memory' },
+    { id: 'id-launch', description: 'launch' },
+  ];
+  expect(subagentStop(event('SubagentStop', 'id-memory', { background_tasks: tasks }), io)).toBe(0);
+  expect(io.errors).toEqual([]);
+  const after = openCarnet({ cwd: root, env });
+  expect(after.agents.get(SESSION, 'memory')).toMatchObject({
+    status: 'review',
+    hostAgentId: 'id-memory',
+  });
+  expect(after.agents.get(SESSION, 'launch')).toMatchObject({
+    status: 'running',
+    hostAgentId: 'id-launch',
+  });
+  after.close();
+});

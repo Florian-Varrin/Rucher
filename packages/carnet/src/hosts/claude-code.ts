@@ -21,6 +21,7 @@ import type {
 
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
 const TITLE_PATTERN = /"type":"custom-title","customTitle":("(?:[^"\\]|\\.)*")/g;
+const FORK_NAME_PATTERN = /You are fork `([^`]+)`/;
 
 export const REPOS_START = '<!-- rucher:repos start -->';
 export const REPOS_END = '<!-- rucher:repos end -->';
@@ -36,6 +37,36 @@ function payloadObject(json: string): Record<string, unknown> {
 function text(data: Record<string, unknown>, key: string): string | undefined {
   const value = data[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+function ownTaskDescription(data: Record<string, unknown>, agentId: string): string | undefined {
+  const tasks = data.background_tasks;
+  if (!Array.isArray(tasks)) return undefined;
+  const own = tasks.find(
+    (task): task is Record<string, unknown> =>
+      typeof task === 'object' && task !== null && (task as Record<string, unknown>).id === agentId,
+  );
+  return own ? text(own, 'description') : undefined;
+}
+
+function subagentMetadataDescription(transcriptPath: string): string | undefined {
+  try {
+    const metadata = JSON.parse(
+      readFileSync(transcriptPath.replace(/\.jsonl$/, '.meta.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    return text(metadata, 'description');
+  } catch {
+    return undefined;
+  }
+}
+
+function subagentPromptName(transcriptPath: string): string | undefined {
+  try {
+    const firstLine = readFileSync(transcriptPath, 'utf8').split('\n', 1)[0] ?? '';
+    return FORK_NAME_PATTERN.exec(firstLine)?.[1];
+  } catch {
+    return undefined;
+  }
 }
 
 export function transcriptTitle(path: string): string | undefined {
@@ -178,7 +209,18 @@ export const claudeCode: Host = {
       agent_id: agentId,
       agent_type: text(data, 'agent_type'),
       cwd: text(data, 'cwd'),
+      description: ownTaskDescription(data, agentId),
+      agent_transcript_path: text(data, 'agent_transcript_path'),
     };
+  },
+  subagentNames(payload) {
+    const transcript = payload.agent_transcript_path;
+    const candidates = [
+      payload.description,
+      transcript && subagentMetadataDescription(transcript),
+      transcript && subagentPromptName(transcript),
+    ];
+    return [...new Set(candidates.filter((name): name is string => Boolean(name)))];
   },
   // `/rename` fires no hook of its own; the next prompt carries the new title.
   promptTitle(payload) {

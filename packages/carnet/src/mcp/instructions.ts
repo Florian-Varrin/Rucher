@@ -6,7 +6,7 @@ Rules:
 - Your session is resolved automatically. Pass \`session\` only to target another session.
 
 Main agent:
-- agent_start before dispatching a fork (name, task), in an earlier message than the launch; launch parallel forks in the same order. Names are short, no paths.
+- agent_start before dispatching a fork (name, task), in an earlier message than the launch. Launch it with the agent name as the Agent description and a prompt starting with "You are fork \`<name>\`." Names are short, no paths.
 - table_set with main_working=true before applying, testing or fixing yourself; table_set with a status (or table_clear) when done.
 - log_event when a step is answered, applied, tested, committed or dropped.
 - When a fork finishes: say one line "<name> finished, report ready", copy its report to the report destination agent_start gave (.rucher/reports/<name>.md in the group meta directory) and call agent_update with that report_path. Present the report only when asked.
