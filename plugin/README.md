@@ -28,6 +28,26 @@ Update: `npm install -g @rucher/cli@<version>` and `claude plugin update rucher`
 
 Uninstall: `claude plugin uninstall rucher`, then `claude plugin marketplace remove rucher`.
 
+## Beta
+
+The marketplace also lists `rucher-beta`: this plugin taken from the `staging` branch, whose version is the current beta. Keep it in step with `@rucher/cli@beta`, and never enable both entries: Claude Code would run every hook and the MCP server twice.
+
+```bash
+npm install -g @rucher/cli@beta
+claude plugin disable rucher@rucher
+claude plugin install rucher-beta@rucher            # restart Claude
+```
+
+Next beta: `npm install -g @rucher/cli@beta`, `claude plugin marketplace update rucher`, `claude plugin update rucher-beta@rucher`, restart. Back to stable:
+
+```bash
+npm install -g @rucher/cli@latest
+claude plugin uninstall rucher-beta@rucher
+claude plugin enable rucher@rucher                 # restart Claude
+```
+
+Under the beta entry the tools are named after it (`mcp__plugin_rucher-beta_carnet__<tool>`, not verified): a headless allowlist needs `--allowedTools mcp__plugin_rucher-beta_carnet`.
+
 ## Development
 
 Load the plugin from the working tree without installing it:
