@@ -2,22 +2,11 @@ name: Staging release
 
 # Every push to staging is a beta release (Changesets pre mode, npm dist-tag beta); the CI bump commit carries [skip ci].
 # It only ever pushes to staging and tags, never to develop or master.
-# Only pushes touching what ships, or adding a changeset, release (patterns apply in order).
+# No paths filter: a push creating the branch on an existing commit carries no changed files.
 on:
   push:
     branches:
       - staging
-    paths:
-      - 'packages/**'
-      - '!packages/**/*.md'
-      - 'plugin/**'
-      - '!plugin/README.md'
-      - '.claude-plugin/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.changeset/*.md'
-      - '!.changeset/README.md'
   workflow_dispatch:
 
 concurrency:

@@ -120,7 +120,7 @@ Releases go through [Changesets](https://github.com/changesets/changesets) and G
 - `@rucher/carnet` and `@rucher/cli` are versioned independently; a carnet release also releases the cli. The Claude Code plugin has no code of its own and takes the cli version.
 - pnpm is pinned by `devEngines` in `package.json`; `PNPM_VERSION` in the workflows must match (checked by CI).
 
-Betas go through the `staging` branch (`.github/workflows/staging.yml`), with the same paths filter:
+Betas go through the `staging` branch (`.github/workflows/staging.yml`); every push to it runs the beta release:
 
 - Cut a beta: merge `develop` into `staging` and push. The run enters Changesets pre mode (`.changeset/pre.json`) on its first beta, bumps to `<version>-beta.<n>`, commits `CI : beta version bump [skip ci]` to `staging` only, tags `carnet-v<version>` / `cli-v<version>` like a stable release, and publishes to npm under the `beta` dist-tag; `latest` never moves. Each beta needs a new changeset, as on `master`.
 - Ship the betas: merge `staging` into `master`. The production run leaves pre mode, releases every package still on a beta version at its stable version, and removes `.changeset/pre.json`. Before the next beta cycle, merge `master` back into `staging` (and `develop`) so `staging` starts from the stable versions.
