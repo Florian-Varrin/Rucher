@@ -48,7 +48,7 @@ Phase 1: the fork analyses, then writes numbered questions, each with a recommen
 ## When a fork finishes
 
 - The main agent says one line in the chat: `<name> finished, report ready`. Nothing more: no summary, no figures, no questions from the report, no action on it, even when the fork's final message carries results or when the human asks about something else. A report is presented only when the human asks for that fork's report; the reports of other forks stay held, also when several forks finish together.
-- `agent_done` copies the report to the report destination `agent_start` returned: `.rucher/reports/<name>.md` in the group's meta directory, outside the repos, never committed. One file per fork; the human's answers are appended there once given.
+- `agent_done` copies the report to the report destination `agent_start` returned: `<workspace>/reports/<name>.md`, in the group's workspace, outside the repos, never committed. One file per fork; the human's answers are appended there once given.
 - When the human asks for a report, the main agent reads the fork file instead of keeping reports in context.
 - Once the human has answered, `agent_step answered`: the agent moves to `apply`, or pass `next` (`running` if the fork resumes, `review` if the human will read the result).
 
@@ -118,7 +118,7 @@ decision auth stays in a cookie session: partner SSO requires cookies
 - **Skill:** the full workflow above is the plugin's `rucher` skill. It loads itself when you ask Claude for forks or parallel work, or with `/rucher`.
 - **Server instructions:** the Carnet MCP server tells every session which tool to use when; no workflow rules there. A session started without `rucher` gets the core rules from the `SessionStart` hook instead.
 
-`$RUCHER_HOME/prompt.md` replaces the core rules, and `<meta directory>/.rucher/prompt.md` adds rules for one group. Claude Code keeps a session's system prompt until the conversation is compacted, so new rules reach a running session only after its next compaction, or in a new session.
+`~/.config/rucher/prompt.md` replaces the core rules, and `prompt.md` in a group's source (`~/.config/rucher/groups/<name>/`) adds rules for that group. Claude Code keeps a session's system prompt until the conversation is compacted, so new rules reach a running session only after its next compaction, or in a new session.
 
 ### Core rules
 
@@ -135,5 +135,5 @@ decision auth stays in a cookie session: partner SSO requires cookies
 
 ## Groups on disk
 
-One meta directory per group of related repos (for example under `~/groups/`: `rucher/`, `shop/`, `blog/`). It holds context only: `CLAUDE.md`, `.claude/settings.json` with the repos as `additionalDirectories`, the Carnet database and the fork reports in `.rucher/`. The repos stay at their own paths. `rucher init --repos <paths>` creates it, `rucher group add <path>` extends it, Claude sessions start from it, and `rucher status --watch` works from the meta directory or from any of its repos.
+A group has a source and a workspace. The source, `~/.config/rucher/groups/<name>/`, is what you edit: `group.json` (the repos) and `CLAUDE.md` (the shared instructions). The workspace, `~/.local/share/rucher/workspaces/<name>/`, is the cwd of the group's sessions: a link to the instructions, the generated `.claude/settings.json` with the repos as `additionalDirectories`, and the fork reports in `reports/`. Every group shares one Carnet database, `~/.local/share/rucher/carnet.db`. The repos stay at their own paths. `rucher groups create <name> --repos <paths>` creates a group, `rucher group add <path>` extends it, `rucher new` starts its sessions in the workspace from anywhere, and every command takes `-g <name>` or finds the group from the workspace or repo you are in.
 <!-- skill:skip end -->

@@ -10,7 +10,7 @@ A Carnet session is one Claude Code conversation inside a group. It holds:
 - the "On the table" line: what the main agent is handling now;
 - the journal: started, finished, answered, applied, tested, committed, dropped.
 
-You never create a session by hand. The plugin's `SessionStart` hook records one each time Claude Code starts, resumes, clears or compacts a conversation in a group (the meta directory or any of its repos). The MCP server then writes every tool call of that conversation into it.
+You never create a session by hand. The plugin's `SessionStart` hook records one each time Claude Code starts, resumes, clears or compacts a conversation in a group (its workspace or any of its repos), or a conversation `rucher` launched outside any group. The MCP server then writes every tool call of that conversation into it.
 
 A session has a **kind**, which says whether it is worth keeping, and a **status**, which says what its process is doing. The two are independent.
 
@@ -31,10 +31,10 @@ The **default session** of a group is the most recently active one that is not a
 
 ## Start a session
 
-Start sessions with `rucher`, from anywhere in the group:
+Start sessions with `rucher`, from anywhere: `-g` names the group, otherwise it comes from the workspace or repo you are in.
 
 ```bash
-rucher new shop-auth          # a named, durable session
+rucher new shop-auth -g shop  # a named, durable session
 rucher tmp                    # a temporary one (a name is optional: rucher tmp shop-try)
 rucher new shop-auth -- --model opus   # arguments after -- go to Claude Code
 ```
@@ -57,7 +57,7 @@ Starting `claude` directly from a workspace or a repo of a group still works: th
 In a side pane, watch it:
 
 ```bash
-cd ~/groups/shop && rucher status --watch
+rucher status --watch -g shop
 ```
 
 ## Name it
@@ -120,7 +120,7 @@ Each fork the main agent dispatches is an agent of the session: `agent_start` re
 
 ## The rules a session runs with
 
-A session started with `rucher` gets the Rucher core rules appended to its system prompt (see [workflow.md](workflow.md#where-the-rules-live)), plus the group's own rules from `<meta>/.rucher/prompt.md` and one line naming the session. Forks inherit them; named sub-agents get short reporting rules from the `SubagentStart` hook.
+A session started with `rucher` gets the Rucher core rules appended to its system prompt (see [workflow.md](workflow.md#where-the-rules-live)), plus the group's own rules from `prompt.md` in its source (`~/.config/rucher/groups/<name>/`) and one line naming the session. Forks inherit them; named sub-agents get short reporting rules from the `SubagentStart` hook.
 
 Claude Code keeps a session's system prompt until the conversation is compacted, so:
 

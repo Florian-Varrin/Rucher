@@ -12,5 +12,5 @@ test('the skill leaves out the human-only sections', () => {
   expect(skill).not.toContain('skill:skip');
   expect(skill).not.toContain('## Groups on disk');
   expect(skill).toContain('## Dispatching a fork');
-  expect(skill).toContain('.rucher/reports/<name>.md');
+  expect(skill).toContain('<workspace>/reports/<name>.md');
 });

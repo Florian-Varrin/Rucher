@@ -3,8 +3,9 @@
 The `rucher` binary: status, journal and sessions of your Claude Code sub-agents, from the terminal. Built on [`@rucher/carnet`](https://www.npmjs.com/package/@rucher/carnet).
 
 ```bash
-rucher init --name shop --repos ~/code/shop-api,~/code/shop-web
-rucher status --watch     # the status pane
+rucher groups create shop --repos ~/code/shop-api,~/code/shop-web
+rucher new shop-auth -g shop   # Claude Code in the group's workspace
+rucher status --watch -g shop  # the status pane
 rucher log                # the journal
 rucher sessions           # named sessions
 rucher resume shop-auth   # back into a named session

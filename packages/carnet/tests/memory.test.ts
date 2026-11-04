@@ -69,7 +69,7 @@ test('startup brings the general notes and the notes of the session repo', () =>
   expect(text.indexOf('Decisions')).toBeLessThan(text.indexOf('Learnings'));
 });
 
-test('from the meta directory only the general notes come at startup', () => {
+test('from the workspace only the general notes come at startup', () => {
   const { carnet, root } = shop();
   seed(carnet);
   const text = start(carnet, root, 'startup').additionalContext ?? '';
