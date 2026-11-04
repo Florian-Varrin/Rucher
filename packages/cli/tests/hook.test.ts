@@ -277,8 +277,7 @@ test('the group named by the launcher wins over a shared repo', () => {
   inBlog.close();
 });
 
-// Needs sessions.group_name: the session id lookup has nothing to read before it.
-test.skip('a known session id keeps the session in its group', () => {
+test('a known session id keeps the session in its group', () => {
   const { api, shop, blog, env } = twoGroupsSharingApi();
   const pinned = makeIo({ env: { ...env, RUCHER_GROUP: 'blog' } });
   const start = JSON.stringify({ session_id: SESSION, cwd: api, source: 'startup' });
@@ -286,9 +285,9 @@ test.skip('a known session id keeps the session in its group', () => {
   const compacted = JSON.stringify({ session_id: SESSION, cwd: api, source: 'compact' });
   expect(sessionStart(compacted, makeIo({ env }))).toBe(0);
   const inBlog = openCarnet({ cwd: blog, env });
-  expect(inBlog.sessions.get(SESSION)).toBeDefined();
+  expect(inBlog.sessions.get(SESSION)?.groupName).toBe('blog');
   inBlog.close();
   const inShop = openCarnet({ cwd: shop, env });
-  expect(inShop.sessions.get(SESSION)).toBeUndefined();
+  expect(inShop.sessions.list({ includeTemp: true })).toEqual([]);
   inShop.close();
 });

@@ -14,6 +14,7 @@ export {
   openGroupCarnet,
 } from './carnet.ts';
 export { type MoveOptions, type MoveResult, moveSession } from './move.ts';
+export { archiveGroupSessions, renameGroupRows, sessionGroupName } from './group-rows.ts';
 export { MEMORY_DB, openDatabase } from './db/open.ts';
 export { migrate, migrations, schemaVersion } from './db/schema.ts';
 export { CarnetError, type CarnetErrorCode } from './errors.ts';
@@ -58,7 +59,6 @@ export {
   requireGroup,
   resolveGroup,
   type ResolveGroupOptions,
-  sessionGroupName,
 } from './group/locate.ts';
 export {
   corePromptPath,

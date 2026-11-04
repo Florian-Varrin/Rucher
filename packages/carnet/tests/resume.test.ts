@@ -34,7 +34,10 @@ test('resume context lists the last events by time', () => {
 test('a session started by rucher gets context only on resume', () => {
   const { carnet, root } = withSession();
   const base = { session_id: SESSION, cwd: root };
-  const env = { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: rulesVersion(carnet.group, {}) };
+  const env = {
+    RUCHER_SESSION_ID: SESSION,
+    RUCHER_PROMPT_VERSION: rulesVersion(carnet.requireGroup(), {}),
+  };
   expect(handleSessionStart(carnet, { ...base, source: 'startup' }, env).additionalContext).toBe(
     undefined,
   );

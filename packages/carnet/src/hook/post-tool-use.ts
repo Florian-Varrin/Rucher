@@ -12,7 +12,7 @@ export function handleToolUse(
 ): string | undefined {
   // session_repos tracks the main conversation; a subagent's context is not it.
   if (payload.agent_id) return undefined;
-  const repo = repoNameFor(carnet.group, payload.path);
+  const repo = repoNameFor(carnet.requireGroup(), payload.path);
   if (!repo) return undefined;
   const session = carnet.sessions.ensure(payload.session_id, payload.cwd);
   return carnet.memory.forRepo(session, repo, {

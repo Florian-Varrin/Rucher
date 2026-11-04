@@ -1,31 +1,19 @@
 import { join } from 'node:path';
+import type { DatabaseSync } from 'node:sqlite';
 import { expect, test } from 'vite-plus/test';
-import {
-  Carnet,
-  type CarnetError,
-  MEMORY_DB,
-  moveSession,
-  openDatabase,
-  requireGroup,
-} from '../src/index.ts';
+import { Carnet, type CarnetError, MEMORY_DB, moveSession, openDatabase } from '../src/index.ts';
 import { groupAt, makeClock, SESSION, tempDirectory } from './helpers.ts';
 
-function shopGroup(name: string): Carnet {
+function shopGroup(db: DatabaseSync, name: string): Carnet {
   const root = tempDirectory(`${name}-`);
-  return new Carnet(openDatabase(MEMORY_DB), groupAt(root, name, [join(root, 'shop-api')]), {
-    now: makeClock(),
-  });
+  return new Carnet(db, groupAt(root, name, [join(root, 'shop-api')]), { now: makeClock() });
 }
 
 function strayShopSession(): { source: Carnet; target: Carnet } {
-  const source = shopGroup('shop-mobile');
-  const target = shopGroup('shop');
-  source.sessions.create({
-    id: SESSION,
-    kind: 'active',
-    name: 'shop-auth',
-    cwd: requireGroup(source.group).workspace,
-  });
+  const db = openDatabase(MEMORY_DB);
+  const source = shopGroup(db, 'shop-mobile');
+  const target = shopGroup(db, 'shop');
+  source.sessions.create({ id: SESSION, kind: 'active', name: 'shop-auth', cwd: '/shop' });
   source.agents.start(SESSION, { name: 'login-form', task: 'Add the login form' });
   source.agents.start(SESSION, { name: 'cart-badge', task: 'Show the cart count' });
   source.events.log(SESSION, { type: 'answered', agent: 'login-form' });
@@ -47,72 +35,56 @@ function codeOf(run: () => unknown): string | undefined {
   }
 }
 
-test('moves a session with its agents, journal and table line, notes stay', () => {
+test('moves a session to another group with its agents, journal and table line, notes stay', () => {
   const { source, target } = strayShopSession();
-  const result = moveSession(source, SESSION, target);
+  const result = moveSession(source, SESSION, 'shop');
   expect(result).toMatchObject({
     into: null,
     movedAgents: ['login-form', 'cart-badge'],
     skippedAgents: [],
     movedTable: true,
-    unlinkedNotes: 1,
+    keptNotes: 1,
   });
-  expect(result.movedEvents).toBeGreaterThanOrEqual(3);
-  expect(target.sessions.require(SESSION)).toMatchObject({ name: 'shop-auth', kind: 'active' });
-  expect(
-    target.agents
-      .list(SESSION)
-      .map((agent) => agent.name)
-      .sort(),
-  ).toEqual(['cart-badge', 'login-form'].sort());
+  expect(result.movedEvents).toBeGreaterThanOrEqual(1);
+  expect(target.sessions.byName('shop-auth')?.id).toBe(SESSION);
+  expect(target.agents.list(SESSION)).toHaveLength(2);
   expect(target.events.read(SESSION).length).toBe(result.movedEvents);
   expect(target.table.get(SESSION)?.text).toBe('Review login-form');
-  expect(source.sessions.get(SESSION)).toBeUndefined();
-  expect(source.notes.list().map((note) => [note.text, note.session])).toEqual([
-    ['The cart api caches for a minute', null],
+  expect(source.sessions.list()).toEqual([]);
+  expect(source.notes.list().map((note) => note.text)).toEqual([
+    'The cart api caches for a minute',
   ]);
   expect(target.notes.list()).toEqual([]);
 });
 
 test('a dry run changes nothing', () => {
   const { source, target } = strayShopSession();
-  const result = moveSession(source, SESSION, target, { dryRun: true });
+  const result = moveSession(source, SESSION, 'shop', { dryRun: true });
   expect(result.movedAgents).toHaveLength(2);
-  expect(source.agents.list(SESSION)).toHaveLength(2);
-  expect(target.sessions.get(SESSION)).toBeUndefined();
+  expect(source.sessions.byName('shop-auth')?.id).toBe(SESSION);
+  expect(target.sessions.list()).toEqual([]);
 });
 
-test('a target that has the session refuses the move, --merge joins them', () => {
+test('a name taken in the target refuses the move, --merge joins them', () => {
   const { source, target } = strayShopSession();
-  target.sessions.create({
-    id: SESSION,
-    kind: 'active',
-    name: 'shop-auth',
-    cwd: requireGroup(target.group).workspace,
-  });
-  target.agents.start(SESSION, { name: 'login-form', task: 'Add the login form' });
-  target.table.set(SESSION, { text: 'Test cart-badge', mainWorking: false });
-  expect(codeOf(() => moveSession(source, SESSION, target))).toBe('SESSION_EXISTS');
-  const result = moveSession(source, SESSION, target, { merge: true });
+  const other = 'bb9b338a-c4a7-4b3a-82d0-fc16193a7749';
+  target.sessions.create({ id: other, kind: 'active', name: 'shop-auth', cwd: '/shop' });
+  target.agents.start(other, { name: 'login-form', task: 'Add the login form' });
+  target.table.set(other, { text: 'Test cart-badge', mainWorking: false });
+  expect(codeOf(() => moveSession(source, SESSION, 'shop'))).toBe('SESSION_NAME_TAKEN');
+  const result = moveSession(source, SESSION, 'shop', { merge: true });
   expect(result).toMatchObject({
     movedAgents: ['cart-badge'],
     skippedAgents: ['login-form'],
     movedTable: false,
   });
-  expect(result.into?.id).toBe(SESSION);
-  expect(target.agents.list(SESSION)).toHaveLength(2);
-  expect(target.table.get(SESSION)?.text).toBe('Test cart-badge');
-  expect(source.sessions.get(SESSION)).toBeUndefined();
+  expect(result.into?.id).toBe(other);
+  expect(target.agents.list(other)).toHaveLength(2);
+  expect(target.table.get(other)?.text).toBe('Test cart-badge');
+  expect(source.sessions.list({ includeArchived: true, includeTemp: true })).toEqual([]);
 });
 
-test('a name taken in the target refuses the move, and a group cannot move into itself', () => {
-  const { source, target } = strayShopSession();
-  target.sessions.create({
-    id: 'bb9b338a-c4a7-4b3a-82d0-fc16193a7749',
-    kind: 'active',
-    name: 'shop-auth',
-    cwd: requireGroup(target.group).workspace,
-  });
-  expect(codeOf(() => moveSession(source, SESSION, target))).toBe('SESSION_NAME_TAKEN');
-  expect(codeOf(() => moveSession(source, SESSION, source))).toBe('SESSION_MOVE_INVALID');
+test('a session cannot move into its own group', () => {
+  const { source } = strayShopSession();
+  expect(codeOf(() => moveSession(source, SESSION, 'shop-mobile'))).toBe('SESSION_MOVE_INVALID');
 });

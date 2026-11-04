@@ -95,10 +95,10 @@ export class Carnet {
     options: CarnetOptions = {},
   ) {
     this.db = db;
-    this.ctx = { db, now: options.now ?? (() => new Date()) };
+    this.ctx = { db, now: options.now ?? (() => new Date()), group: group?.name ?? null };
   }
 
-  private get scope(): Group {
+  requireGroup(): Group {
     return requireGroup(this.group);
   }
 
@@ -108,7 +108,7 @@ export class Carnet {
     require: (id: string) => requireSession(this.ctx, id),
     ensure: (id: string, cwd?: string) => ensureSession(this.ctx, id, cwd, this.group ?? undefined),
     upsertFromHook: (payload: HookSessionPayload, env?: HookEnv) =>
-      upsertFromHook(this.ctx, this.scope, payload, env),
+      upsertFromHook(this.ctx, this.group, payload, env),
     touch: (id: string) => touchSession(this.ctx, id),
     merge: (fromId: string, intoId: string) => mergeSessions(this.ctx, fromId, intoId),
     purge: (keepId: string, days: number) => purgeSessions(this.ctx, keepId, days),
@@ -166,7 +166,7 @@ export class Carnet {
   };
 
   readonly notes = {
-    add: (input: AddNoteInput) => addNote(this.ctx, this.scope, input),
+    add: (input: AddNoteInput) => addNote(this.ctx, this.group, input),
     get: (id: number) => getNote(this.ctx, id),
     show: (id: number, halfLifeDays?: number) => noteDetail(this.ctx, id, halfLifeDays),
     list: (options?: ListNotesOptions) => listNotes(this.ctx, options),
@@ -179,9 +179,9 @@ export class Carnet {
 
   readonly memory = {
     atStart: (session: Session, options?: MemoryOptions) =>
-      sessionStartMemory(this.ctx, this.scope, session, options),
+      sessionStartMemory(this.ctx, this.group, session, options),
     ofSession: (session: Session, options?: MemoryOptions) =>
-      sessionMemory(this.ctx, this.scope, session, options),
+      sessionMemory(this.ctx, this.group, session, options),
     forRepo: (session: Session, repo: string, options?: MemoryOptions) =>
       repoMemory(this.ctx, session, repo, options),
     copyRepos: (from: string, into: string) => copyInjectedRepos(this.ctx, from, into),
