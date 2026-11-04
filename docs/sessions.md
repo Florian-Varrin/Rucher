@@ -144,17 +144,19 @@ rucher sessions merge <from> <into>   # moves agents, the table line and events 
 
 ## Which group a session belongs to
 
-Carnet looks for the group in this order:
+A session belongs to the group Carnet recorded it in. Commands and hooks find the group in this order:
 
-1. `RUCHER_GROUP_ROOT`, set by `rucher new`, `tmp`, `resume` and `fork`;
-2. the meta directory containing the working directory, or Claude Code's project directory;
-3. the registered group that has the working directory among its repos. When several groups share that repo, the one whose Carnet already knows the session wins; otherwise Carnet records nothing, the session gets a warning, and the Carnet tools answer `GROUP_AMBIGUOUS`. Launch with `rucher`, or start from the meta directory.
+1. the session itself, by its id, for hooks and the Carnet server;
+2. `-g, --group <name>`;
+3. `RUCHER_GROUP`, set by `rucher new`, `tmp`, `resume` and `fork`;
+4. the workspace containing the working directory;
+5. the group whose repo contains the working directory (longest path). A repo of several groups is an error naming them: pass `-g`.
 
-`agent_start` names the group in its result.
+When the directory decided (4 or 5), a command you type says so on stderr: `group shop (from api)`. `agent_start` names the group in its result.
 
 ## Move a session to another group
 
-A session started in a shared repo by an older version can land in the wrong group. Run from the group that has it:
+A session started in a shared repo by an older version can land in the wrong group. Run from the group that has it, or with `-g`:
 
 ```bash
 rucher sessions move shop-auth --to shop --dry-run   # what would move
@@ -162,7 +164,7 @@ rucher sessions move shop-auth --to shop             # agents, table line, journ
 rucher sessions move shop-auth --to shop --merge     # when shop already has the session
 ```
 
-`--to` takes a group name or a meta directory path. The session row, its agents, its table line and its journal move; notes stay in their group, unlinked from the session. Without `--merge`, a target that already has the session, or a session with the same name, is refused. With `--merge`, the two are joined: agents whose name the target already uses stay out, and the target keeps its table line when it has one. Report files are not moved: copy them to the target's `.rucher/reports/` by hand.
+`--to` takes a group name. The session changes group; its agents, its table line and its journal follow it, and its notes stay in the group they were written in. Without `--merge`, a target with a session of the same name is refused. With `--merge`, the two are joined: agents whose name the target already uses stay out, and the target keeps its table line when it has one. Report files are not moved: copy them to the target's `reports/` by hand.
 
 ## Housekeeping
 

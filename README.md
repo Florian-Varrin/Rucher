@@ -47,10 +47,9 @@ npm install -g @rucher/cli
 claude plugin marketplace add Florian-Varrin/Rucher
 claude plugin install rucher@rucher
 
-mkdir -p ~/groups/shop && cd ~/groups/shop
-rucher init --name shop --repos ~/code/shop-api,~/code/shop-web
-rucher status --watch     # in a side pane
-rucher new shop-auth      # in another pane: starts Claude Code for the group
+rucher groups create shop --repos ~/code/shop-api,~/code/shop-web
+rucher status --watch -g shop   # in a side pane
+rucher new shop-auth -g shop    # in another pane: starts Claude Code in the group's workspace
 ```
 
 A group is a meta directory for a set of related repos. It holds context only (`CLAUDE.md`, `.claude/settings.json`, the Carnet database); the repos stay where they are and are referenced by path. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.
@@ -58,11 +57,14 @@ A group is a meta directory for a set of related repos. It holds context only (`
 ## Commands
 
 ```bash
+rucher groups list                     # the groups, with repo and session counts
 rucher group add ~/code/shop-infra     # add a repo to the group
 rucher group remove ~/code/shop-infra  # drop a repo
-rucher group sync                      # rewrite the hosts' context files (CLAUDE.md, settings) from group.json
-rucher groups list                     # every registered group, missing ones flagged
-rucher groups prune                    # forget groups whose meta directory is gone
+rucher group edit                      # the group's instructions in $EDITOR, then sync
+rucher group sync                      # render the workspace from the group's source
+cd "$(rucher group path -g shop)"      # the workspace
+rucher groups rename shop store        # the workspace keeps its path
+rucher groups drop store               # archive its sessions, keep its notes
 rucher status --watch                  # the status pane
 rucher log                             # the journal
 rucher log --md > journal.md           # the journal as markdown
@@ -88,7 +90,7 @@ source <(rucher complete bash)       # ~/.bashrc
 rucher complete fish | source        # ~/.config/fish/config.fish
 ```
 
-Commands and flags complete as you type; `--session`, `resume` and `sessions merge` offer session names, then short ids; `groups forget` offers group names, `group remove` the group's repos.
+Commands and flags complete as you type; `--session`, `resume` and `sessions merge` offer session names, then short ids; `-g`, `sessions move --to`, `groups rename` and `groups drop` offer group names, `group remove` the group's repos.
 
 ## Development
 
