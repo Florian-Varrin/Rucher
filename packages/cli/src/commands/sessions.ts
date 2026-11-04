@@ -9,7 +9,6 @@ import {
   loadGroup,
   type MoveOptions,
   moveSession,
-  openGroupCarnet,
   repoPathFor,
   type Session,
   shortId,
@@ -115,28 +114,22 @@ export function sessionsMove(
   options: MoveOptions = {},
 ): void {
   const session = findSession(carnet, reference);
-  const target = openGroupCarnet(groupNamed(groupReference, io), { env: io.env });
-  try {
-    const result = moveSession(carnet, session.id, target, options);
-    const into = result.into ? ` into ${label(result.into)}` : '';
-    const lines = [
-      `${options.dryRun ? 'would move' : 'moved'} ${label(session)} from ${groupLabel(carnet.group)} to ${groupLabel(target.group)}${into}`,
-      `  agents moved: ${result.movedAgents.join(', ') || 'none'}`,
-      ...(result.skippedAgents.length
-        ? [`  agents left out (name already used): ${result.skippedAgents.join(', ')}`]
-        : []),
-      `  events moved: ${result.movedEvents}`,
-      `  table line moved: ${result.movedTable ? 'yes' : 'no'}`,
-      ...(result.unlinkedNotes
-        ? [
-            `  notes kept in ${groupLabel(carnet.group)}, unlinked from the session: ${result.unlinkedNotes}`,
-          ]
-        : []),
-    ];
-    io.stdout(`${lines.join('\n')}\n`);
-  } finally {
-    target.close();
-  }
+  const target = groupNamed(groupReference, io).name;
+  const result = moveSession(carnet, session.id, target, options);
+  const into = result.into ? ` into ${label(result.into)}` : '';
+  const lines = [
+    `${options.dryRun ? 'would move' : 'moved'} ${label(session)} from ${groupLabel(carnet.group)} to ${target}${into}`,
+    `  agents moved: ${result.movedAgents.join(', ') || 'none'}`,
+    ...(result.skippedAgents.length
+      ? [`  agents left out (name already used): ${result.skippedAgents.join(', ')}`]
+      : []),
+    `  events moved: ${result.movedEvents}`,
+    `  table line moved: ${result.movedTable ? 'yes' : 'no'}`,
+    ...(result.keptNotes
+      ? [`  notes kept in ${groupLabel(carnet.group)}: ${result.keptNotes}`]
+      : []),
+  ];
+  io.stdout(`${lines.join('\n')}\n`);
 }
 
 export function sessionsRename(carnet: Carnet, reference: string, name: string, io: Io): void {

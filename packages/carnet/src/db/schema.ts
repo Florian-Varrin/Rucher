@@ -174,6 +174,58 @@ CREATE TABLE session_repos (
   PRIMARY KEY (session, repo)
 );
 `,
+  // Rows from before v9 get the placeholder group '' until the move to one database assigns them.
+  `
+CREATE TABLE sessions_new (
+  id TEXT PRIMARY KEY,
+  group_name TEXT,
+  name TEXT,
+  purpose TEXT,
+  kind TEXT NOT NULL DEFAULT 'temp' CHECK (kind IN ('active', 'temp')),
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('running', 'idle', 'archived')),
+  cwd TEXT,
+  repo TEXT,
+  host TEXT NOT NULL DEFAULT 'claude-code',
+  host_pid INTEGER,
+  hooked_at TEXT,
+  last_title TEXT,
+  parent_id TEXT REFERENCES sessions(id),
+  prompt_version TEXT,
+  created_at TEXT NOT NULL,
+  last_active_at TEXT NOT NULL,
+  ended_at TEXT,
+  CHECK (kind = 'temp' OR name IS NOT NULL)
+);
+INSERT INTO sessions_new (id, group_name, name, purpose, kind, status, cwd, repo, host, host_pid,
+  hooked_at, last_title, parent_id, prompt_version, created_at, last_active_at, ended_at)
+SELECT id, '', name, purpose, kind, status, cwd, repo, host, host_pid,
+  hooked_at, last_title, parent_id, prompt_version, created_at, last_active_at, ended_at
+FROM sessions;
+DROP TABLE sessions;
+ALTER TABLE sessions_new RENAME TO sessions;
+CREATE INDEX sessions_host_pid ON sessions(host, host_pid, hooked_at);
+CREATE INDEX sessions_group_status ON sessions(group_name, status, last_active_at);
+CREATE UNIQUE INDEX sessions_group_name ON sessions(group_name, name)
+  WHERE group_name IS NOT NULL AND name IS NOT NULL;
+CREATE UNIQUE INDEX sessions_free_name ON sessions(name)
+  WHERE group_name IS NULL AND name IS NOT NULL;
+
+ALTER TABLE notes ADD COLUMN group_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE notes ADD COLUMN number INTEGER NOT NULL DEFAULT 0;
+UPDATE notes SET number = id;
+DROP INDEX notes_active;
+CREATE INDEX notes_active ON notes(group_name, dropped_at, kind);
+CREATE UNIQUE INDEX notes_group_number ON notes(group_name, number);
+
+CREATE TABLE active_days_new (
+  group_name TEXT NOT NULL,
+  day TEXT NOT NULL,
+  PRIMARY KEY (group_name, day)
+);
+INSERT INTO active_days_new (group_name, day) SELECT '', day FROM active_days;
+DROP TABLE active_days;
+ALTER TABLE active_days_new RENAME TO active_days;
+`,
 ];
 
 export function schemaVersion(db: DatabaseSync): number {

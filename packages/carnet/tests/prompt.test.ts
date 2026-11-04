@@ -18,7 +18,7 @@ import { makeCarnet, SESSION, tempDirectory } from './helpers.ts';
 function setup() {
   const { carnet, root } = makeCarnet();
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  return { carnet, root, env, group: carnet.group };
+  return { carnet, root, env, group: carnet.requireGroup() };
 }
 
 function writeGroupPrompt(root: string, text: string): void {
@@ -87,7 +87,7 @@ function start(source: string, env: Record<string, string>) {
 
 test('a session started by rucher records its version and gets no warning', () => {
   const { carnet, home, run } = start('clear', { RUCHER_SESSION_ID: SESSION });
-  const current = rulesVersion(carnet.group, home);
+  const current = rulesVersion(carnet.requireGroup(), home);
   const launched = run('startup', { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: current });
   expect(launched.session.promptVersion).toBe(current);
   expect(launched.notices).toEqual([]);
@@ -96,7 +96,7 @@ test('a session started by rucher records its version and gets no warning', () =
 
 test('a session never started by rucher is warned once in context and on stderr', () => {
   const { first, carnet, home } = start('startup', {});
-  expect(first.additionalContext).toBe(outsideRucherContext(carnet.group, home));
+  expect(first.additionalContext).toBe(outsideRucherContext(carnet.requireGroup(), home));
   expect(first.additionalContext).toContain('Forks never commit');
   expect(first.notices).toEqual([OUTSIDE_RUCHER_NOTICE]);
 });
@@ -111,7 +111,7 @@ test('a resume keeps the recorded version and tells when the rules changed since
   expect(resumed.contextParts[0]).toContain('state when resumed');
   expect(resumed.additionalContext).not.toContain('started without rucher');
   expect(resumed.notices).toEqual([RULES_UPDATED_NOTICE]);
-  const current = rulesVersion(carnet.group, home);
+  const current = rulesVersion(carnet.requireGroup(), home);
   const relaunched = run('startup', { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: current });
   expect(relaunched.notices).toEqual([]);
 });
@@ -128,7 +128,7 @@ test('a compaction without the append re-injects the rules and clears the versio
 
 test('a compaction or a fork launched by rucher records the version in effect', () => {
   const { run, carnet, home } = start('startup', {});
-  const current = rulesVersion(carnet.group, home);
+  const current = rulesVersion(carnet.requireGroup(), home);
   const launched = { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: current };
   const compacted = run('compact', launched);
   expect(compacted.session.promptVersion).toBe(current);

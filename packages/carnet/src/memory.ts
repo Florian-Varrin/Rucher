@@ -87,13 +87,13 @@ function notesFor(ctx: Ctx, repos: string[], general: boolean, halfLifeDays: num
   return [...byId.values()].sort(compareNotes);
 }
 
-function groupTitle(group: Group): string {
-  return `Rucher memory of the ${group.name} group`;
+function groupTitle(group: Group | null): string {
+  return group ? `Rucher memory of the ${group.name} group` : 'Rucher memory';
 }
 
 export function sessionStartMemory(
   ctx: Ctx,
-  group: Group,
+  group: Group | null,
   session: { id: string; repo: string | null },
   options: MemoryOptions = {},
 ): string | undefined {
@@ -109,7 +109,7 @@ export function sessionStartMemory(
 
 export function sessionMemory(
   ctx: Ctx,
-  group: Group,
+  group: Group | null,
   session: { id: string },
   options: MemoryOptions = {},
 ): string | undefined {

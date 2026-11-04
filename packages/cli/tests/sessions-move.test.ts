@@ -14,8 +14,7 @@ function strayShopSession() {
   return { env, source };
 }
 
-// Both groups now share one database: moving becomes a group_name update.
-test.skip('sessions move previews with --dry-run, then moves to the named group', () => {
+test('sessions move previews with --dry-run, then moves to the named group', () => {
   const { env, source } = strayShopSession();
   const preview = makeIo({ env });
   sessionsMove(source, 'shop-auth', 'shop', preview, { dryRun: true });
@@ -26,6 +25,8 @@ test.skip('sessions move previews with --dry-run, then moves to the named group'
   expect(io.output.join('')).toMatch(
     /^moved shop-auth from shop-mobile to shop\n {2}agents moved: login-form\n/,
   );
+  expect(source.sessions.get(SESSION)?.groupName).toBe('shop');
+  expect(source.sessions.list()).toEqual([]);
   source.close();
   const target = openCarnet({ group: 'shop', env });
   expect(target.agents.list(SESSION).map((agent) => agent.name)).toEqual(['login-form']);

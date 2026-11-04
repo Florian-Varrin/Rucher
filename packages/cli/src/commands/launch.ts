@@ -70,7 +70,7 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
     repo: repoNameFor(carnet.group, io.cwd),
   });
   const host = hostById(session.host);
-  const prompt = appendPromptFile(carnet.group, session, io.env);
+  const prompt = appendPromptFile(carnet.requireGroup(), session, io.env);
   const command = host.launchCommand(session.id, {
     name: session.name,
     appendPromptFile: prompt.path,
@@ -97,7 +97,7 @@ export function planResume(
 ): LaunchPlan {
   const session = findSession(carnet, reference);
   if (session.status === 'archived') io.stderr(`warning: session ${reference} is archived\n`);
-  const prompt = appendPromptFile(carnet.group, session, io.env);
+  const prompt = appendPromptFile(carnet.requireGroup(), session, io.env);
   const command = hostById(session.host).resumeCommand(session, {
     appendPromptFile: prompt.path,
     passthrough,
@@ -132,7 +132,7 @@ export function planFork(
   const kind: SessionKind = options.active ? 'active' : 'temp';
   const command = hostById(parent.host).forkCommand(parent, {
     name: options.name,
-    appendPromptFile: appendPromptFile(carnet.group, parent, io.env).path,
+    appendPromptFile: appendPromptFile(carnet.requireGroup(), parent, io.env).path,
     passthrough: options.passthrough,
   });
   return {

@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { join, relative, resolve } from 'node:path';
 import { CarnetError } from '../errors.ts';
 import { allHosts } from '../hosts/host.ts';
+import { sessionGroupName } from '../group-rows.ts';
 import { type Group, type GroupRepo, groupExists, listGroups, loadGroup } from './group.ts';
 
 export type { Group, GroupRepo } from './group.ts';
@@ -45,21 +46,6 @@ export interface ResolveGroupOptions {
   group?: string | undefined;
   cwd?: string | undefined;
   env?: NodeJS.ProcessEnv | undefined;
-}
-
-function hasGroupColumn(db: DatabaseSync): boolean {
-  return (db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[]).some(
-    (column) => column.name === 'group_name',
-  );
-}
-
-// undefined: Carnet does not know the session; null: a session without a group.
-export function sessionGroupName(db: DatabaseSync, sessionId: string): string | null | undefined {
-  if (!hasGroupColumn(db)) return undefined;
-  const row = db
-    .prepare('SELECT group_name AS groupName FROM sessions WHERE id = ?')
-    .get(sessionId) as { groupName: string | null } | undefined;
-  return row ? row.groupName : undefined;
 }
 
 function namedGroup(name: string, env: NodeJS.ProcessEnv): Group {

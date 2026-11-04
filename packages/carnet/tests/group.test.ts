@@ -10,6 +10,7 @@ import {
   listGroups,
   loadGroup,
   openCarnet,
+  openGroupCarnet,
   removeGroupRepo,
   renameGroup,
   repoNameFor,
@@ -194,19 +195,14 @@ test('a known session id gives its group before anything else', () => {
   const { api, web, env } = setup();
   createGroup('shop', { env, repos: [api] });
   createGroup('cart', { env, repos: [web] });
-  const carnet = openCarnet({ cwd: api, env });
+  const carnet = openCarnet({ group: 'cart', env });
   carnet.sessions.create({ id: 'session-in-cart', kind: 'temp', cwd: api });
-  const columns = carnet.db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[];
-  if (!columns.some((column) => column.name === 'group_name')) {
-    carnet.db.exec('ALTER TABLE sessions ADD COLUMN group_name TEXT');
-  }
-  carnet.db.exec("UPDATE sessions SET group_name = 'cart'");
   expect(sessionGroupName(carnet.db, 'session-in-cart')).toBe('cart');
   expect(
     resolveGroup({ db: carnet.db, sessionId: 'session-in-cart', cwd: api, env, group: 'shop' }),
   ).toMatchObject({ origin: 'session', group: { name: 'cart' } });
-  carnet.db.exec('UPDATE sessions SET group_name = NULL');
-  expect(resolveGroup({ db: carnet.db, sessionId: 'session-in-cart', cwd: api, env })).toEqual({
+  openGroupCarnet(null, { env }).sessions.create({ id: 'loose', kind: 'temp', cwd: api });
+  expect(resolveGroup({ db: carnet.db, sessionId: 'loose', cwd: api, env })).toEqual({
     group: null,
     origin: 'session',
   });

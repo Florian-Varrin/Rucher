@@ -90,6 +90,7 @@ export interface CiteNoteInput {
 
 interface NoteRow {
   id: number;
+  number: number;
   kind: NoteKind;
   text: string;
   session: string | null;
@@ -99,8 +100,15 @@ interface NoteRow {
   dropped_at: string | null;
   dropped_reason: string | null;
   dropped_session: string | null;
-  replaced_by: number | null;
+  replaced_number: number | null;
 }
+
+// Notes are shown and referenced by their number in the group; the id stays internal.
+const NOTE_COLUMNS = `notes.id, notes.number, notes.kind, notes.text, notes.session, notes.agent,
+  notes.similar_notes, notes.created_at, notes.dropped_at, notes.dropped_reason,
+  notes.dropped_session,
+  (SELECT replaced.number FROM notes AS replaced WHERE replaced.id = notes.replaced_by)
+    AS replaced_number`;
 
 const MARKDOWN = /\*\*|__|\[[^\]]*\]\([^)]*\)|^#{1,6}\s|^[-*+]\s/;
 
@@ -156,13 +164,16 @@ export function localDay(date: Date): string {
 }
 
 export function recordActiveDay(ctx: Ctx): void {
-  ctx.db.prepare('INSERT OR IGNORE INTO active_days (day) VALUES (?)').run(localDay(ctx.now()));
+  if (ctx.group === null) return;
+  ctx.db
+    .prepare('INSERT OR IGNORE INTO active_days (group_name, day) VALUES (?, ?)')
+    .run(ctx.group, localDay(ctx.now()));
 }
 
 function activeDays(ctx: Ctx): string[] {
-  const rows = ctx.db.prepare('SELECT day FROM active_days ORDER BY day').all() as unknown as {
-    day: string;
-  }[];
+  const rows = ctx.db
+    .prepare('SELECT day FROM active_days WHERE group_name IS ? ORDER BY day')
+    .all(ctx.group) as unknown as { day: string }[];
   return rows.map((row) => row.day);
 }
 
@@ -171,16 +182,16 @@ function activeDaysSince(days: string[], at: string): number {
   return days.filter((day) => day > since).length;
 }
 
-function reposOf(ctx: Ctx, note: number): string[] {
+function reposOf(ctx: Ctx, noteId: number): string[] {
   const rows = ctx.db
     .prepare('SELECT repo FROM note_repos WHERE note = ? ORDER BY repo')
-    .all(note) as unknown as { repo: string }[];
+    .all(noteId) as unknown as { repo: string }[];
   return rows.map((row) => row.repo);
 }
 
 function toNote(ctx: Ctx, row: NoteRow): Note {
   return {
-    id: row.id,
+    id: row.number,
     kind: row.kind,
     text: row.text,
     repos: reposOf(ctx, row.id),
@@ -191,12 +202,24 @@ function toNote(ctx: Ctx, row: NoteRow): Note {
     droppedAt: row.dropped_at,
     droppedReason: row.dropped_reason,
     droppedSession: row.dropped_session,
-    replacedBy: row.replaced_by,
+    replacedBy: row.replaced_number,
   };
 }
 
+function noteRow(ctx: Ctx, number: number): NoteRow | undefined {
+  return ctx.db
+    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes WHERE group_name IS ? AND number = ?`)
+    .get(ctx.group, number) as NoteRow | undefined;
+}
+
+function noteId(ctx: Ctx, number: number): number {
+  const row = noteRow(ctx, number);
+  if (!row) throw new CarnetError('NOTE_NOT_FOUND', `Unknown note #${number}`);
+  return row.id;
+}
+
 export function getNote(ctx: Ctx, id: number): Note | null {
-  const row = ctx.db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow | undefined;
+  const row = noteRow(ctx, id);
   return row ? toNote(ctx, row) : null;
 }
 
@@ -212,12 +235,16 @@ function requireActiveNote(ctx: Ctx, id: number): Note {
   return note;
 }
 
-function citationsOf(ctx: Ctx, note: number): NoteCitation[] {
+const CITATION_COLUMNS = `note_citations.id, notes.number AS note, note_citations.session,
+  note_citations.agent, note_citations.why, note_citations.at`;
+
+function citationsOf(ctx: Ctx, number: number): NoteCitation[] {
   return ctx.db
     .prepare(
-      'SELECT id, note, session, agent, why, at FROM note_citations WHERE note = ? ORDER BY at',
+      `SELECT ${CITATION_COLUMNS} FROM note_citations JOIN notes ON notes.id = note_citations.note
+       WHERE notes.group_name IS ? AND notes.number = ? ORDER BY note_citations.at`,
     )
-    .all(note) as unknown as NoteCitation[];
+    .all(ctx.group, number) as unknown as NoteCitation[];
 }
 
 // Several citations in one session count once: the latest stands for that session.
@@ -251,12 +278,17 @@ export function compareNotes(first: WeightedNote, second: WeightedNote): number 
 
 function activeNotesOfKind(ctx: Ctx, kind: NoteKind): Note[] {
   const rows = ctx.db
-    .prepare('SELECT * FROM notes WHERE kind = ? AND dropped_at IS NULL')
-    .all(kind) as unknown as NoteRow[];
+    .prepare(
+      `SELECT ${NOTE_COLUMNS} FROM notes WHERE group_name IS ? AND kind = ? AND dropped_at IS NULL`,
+    )
+    .all(ctx.group, kind) as unknown as NoteRow[];
   return rows.map((row) => toNote(ctx, row));
 }
 
-export function addNote(ctx: Ctx, group: Group, input: AddNoteInput): AddNoteResult {
+export function addNote(ctx: Ctx, group: Group | null, input: AddNoteInput): AddNoteResult {
+  if (group === null || ctx.group === null) {
+    throw new CarnetError('NO_GROUP', 'Notes belong to a group: this session has none');
+  }
   if (!isNoteKind(input.kind)) {
     throw new CarnetError(
       'INVALID_NOTE',
@@ -274,11 +306,17 @@ export function addNote(ctx: Ctx, group: Group, input: AddNoteInput): AddNoteRes
     .map((candidate) => candidate.note);
   ctx.db.exec('BEGIN');
   try {
+    const next = ctx.db
+      .prepare('SELECT COALESCE(MAX(number), 0) + 1 AS number FROM notes WHERE group_name = ?')
+      .get(ctx.group) as { number: number };
     const result = ctx.db
       .prepare(
-        'INSERT INTO notes (kind, text, session, agent, similar_notes, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        `INSERT INTO notes (group_name, number, kind, text, session, agent, similar_notes, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
+        ctx.group,
+        next.number,
         kind,
         text,
         input.session ?? null,
@@ -290,7 +328,7 @@ export function addNote(ctx: Ctx, group: Group, input: AddNoteInput): AddNoteRes
     const addRepo = ctx.db.prepare('INSERT INTO note_repos (note, repo) VALUES (?, ?)');
     for (const repo of repos) addRepo.run(id, repo);
     ctx.db.exec('COMMIT');
-    return { note: requireNote(ctx, id), similar };
+    return { note: requireNote(ctx, next.number), similar };
   } catch (error) {
     ctx.db.exec('ROLLBACK');
     throw error;
@@ -301,8 +339,8 @@ export function listNotes(ctx: Ctx, options: ListNotesOptions = {}): WeightedNot
   if (options.kind !== undefined && !isNoteKind(options.kind)) {
     throw new CarnetError('INVALID_NOTE', `Invalid note kind "${options.kind}"`);
   }
-  const conditions: string[] = [];
-  const parameters: string[] = [];
+  const conditions: string[] = ['group_name IS ?'];
+  const parameters: (string | null)[] = [ctx.group];
   if (!options.includeDropped) conditions.push('dropped_at IS NULL');
   if (options.kind) {
     conditions.push('kind = ?');
@@ -317,9 +355,8 @@ export function listNotes(ctx: Ctx, options: ListNotesOptions = {}): WeightedNot
     conditions.push("LOWER(text) LIKE ? ESCAPE '\\'");
     parameters.push(`%${options.query.toLowerCase().replace(/[\\%_]/g, '\\$&')}%`);
   }
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const rows = ctx.db
-    .prepare(`SELECT * FROM notes ${where}`)
+    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes WHERE ${conditions.join(' AND ')}`)
     .all(...parameters) as unknown as NoteRow[];
   const days = activeDays(ctx);
   const halfLifeDays = options.halfLifeDays ?? DEFAULT_HALF_LIFE_DAYS;
@@ -359,11 +396,12 @@ export function dropNote(ctx: Ctx, id: number, input: DropNoteInput): Note {
     }
     requireActiveNote(ctx, input.replacedBy);
   }
+  const replacedBy = input.replacedBy === undefined ? null : noteId(ctx, input.replacedBy);
   ctx.db
     .prepare(
       'UPDATE notes SET dropped_at = ?, dropped_reason = ?, dropped_session = ?, replaced_by = ? WHERE id = ?',
     )
-    .run(nowIso(ctx), reason, input.session ?? null, input.replacedBy ?? null, id);
+    .run(nowIso(ctx), reason, input.session ?? null, replacedBy, noteId(ctx, id));
   return requireNote(ctx, id);
 }
 
@@ -372,9 +410,12 @@ export function citeNote(ctx: Ctx, id: number, input: CiteNoteInput): NoteCitati
   const why = cleanText(input.why, 'Citation reason');
   const result = ctx.db
     .prepare('INSERT INTO note_citations (note, session, agent, why, at) VALUES (?, ?, ?, ?, ?)')
-    .run(id, input.session ?? null, input.agent ?? null, why, nowIso(ctx));
+    .run(noteId(ctx, id), input.session ?? null, input.agent ?? null, why, nowIso(ctx));
   return ctx.db
-    .prepare('SELECT id, note, session, agent, why, at FROM note_citations WHERE id = ?')
+    .prepare(
+      `SELECT ${CITATION_COLUMNS} FROM note_citations JOIN notes ON notes.id = note_citations.note
+       WHERE note_citations.id = ?`,
+    )
     .get(Number(result.lastInsertRowid)) as unknown as NoteCitation;
 }
 
@@ -394,36 +435,43 @@ const ACTIVITY_ORDER: Record<NoteActivityKind, number> = { dropped: 0, cited: 1,
 
 function activeIds(ctx: Ctx, json: string | null): number[] {
   if (!json) return [];
-  const active = ctx.db.prepare('SELECT 1 FROM notes WHERE id = ? AND dropped_at IS NULL');
-  return (JSON.parse(json) as number[]).filter((id) => active.get(id) !== undefined);
+  const active = ctx.db.prepare(
+    'SELECT 1 FROM notes WHERE group_name IS ? AND number = ? AND dropped_at IS NULL',
+  );
+  return (JSON.parse(json) as number[]).filter(
+    (number) => active.get(ctx.group, number) !== undefined,
+  );
 }
 
 export function sessionNoteActivity(ctx: Ctx, session: string): NoteActivity[] {
   const added = ctx.db
-    .prepare('SELECT id, kind, text, similar_notes, created_at FROM notes WHERE session = ?')
-    .all(session) as unknown as Pick<
+    .prepare(
+      `SELECT number, kind, text, similar_notes, created_at FROM notes
+       WHERE group_name IS ? AND session = ?`,
+    )
+    .all(ctx.group, session) as unknown as Pick<
     NoteRow,
-    'id' | 'kind' | 'text' | 'similar_notes' | 'created_at'
+    'number' | 'kind' | 'text' | 'similar_notes' | 'created_at'
   >[];
   const cited = ctx.db
     .prepare(
-      `SELECT note_citations.note, notes.kind, note_citations.why, note_citations.at
+      `SELECT notes.number AS note, notes.kind, note_citations.why, note_citations.at
        FROM note_citations JOIN notes ON notes.id = note_citations.note
-       WHERE note_citations.session = ?`,
+       WHERE notes.group_name IS ? AND note_citations.session = ?`,
     )
-    .all(session) as unknown as { note: number; kind: NoteKind; why: string; at: string }[];
+    .all(ctx.group, session) as unknown as {
+    note: number;
+    kind: NoteKind;
+    why: string;
+    at: string;
+  }[];
   const dropped = ctx.db
-    .prepare(
-      'SELECT id, kind, dropped_reason, replaced_by, dropped_at FROM notes WHERE dropped_session = ?',
-    )
-    .all(session) as unknown as Pick<
-    NoteRow,
-    'id' | 'kind' | 'dropped_reason' | 'replaced_by' | 'dropped_at'
-  >[];
+    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes WHERE group_name IS ? AND dropped_session = ?`)
+    .all(ctx.group, session) as unknown as NoteRow[];
   const activity: NoteActivity[] = [
     ...added.map((row) => ({
       activity: 'added' as const,
-      note: row.id,
+      note: row.number,
       kind: row.kind,
       text: row.text,
       similarNotes: activeIds(ctx, row.similar_notes),
@@ -441,11 +489,11 @@ export function sessionNoteActivity(ctx: Ctx, session: string): NoteActivity[] {
     })),
     ...dropped.map((row) => ({
       activity: 'dropped' as const,
-      note: row.id,
+      note: row.number,
       kind: row.kind,
       text: row.dropped_reason ?? '',
       similarNotes: [],
-      replacedBy: row.replaced_by,
+      replacedBy: row.replaced_number,
       at: row.dropped_at ?? '',
     })),
   ];
