@@ -39,9 +39,20 @@ rucher tmp                    # a temporary one (a name is optional: rucher tmp 
 rucher new shop-auth -- --model opus   # arguments after -- go to Claude Code
 ```
 
-`rucher` creates the session in Carnet, then runs Claude Code from the group's meta directory, so the group `CLAUDE.md` loads and every repo is reachable. Run from inside a repo, it still starts in the meta directory and records that repo as the session's starting repo. Claude Code gets the session's id (`--session-id`) and its name as title (`--name`), and the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME`, `RUCHER_GROUP` and `RUCHER_GROUP_ROOT`. `RUCHER_GROUP_ROOT` pins the session to its group: Claude Code can move its working directory into a repo (a `cd`, a compaction), and a repo can belong to several groups, but the hooks and the Carnet server keep using the group the session was launched in. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
+`rucher` creates the session in Carnet, renders the group's workspace, then runs Claude Code from it, so the group instructions load and every repo is reachable. Run from inside a repo, it still starts in the workspace and records that repo as the session's starting repo; outside any group, it starts in the current directory. Claude Code gets the session's id (`--session-id`) and its name as title (`--name`), and the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME`, `RUCHER_GROUP` (when there is a group) and `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`, so the `CLAUDE.md` of each repo loads too. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
 
-Starting `claude` directly from the meta directory still works: the hooks record the session as `temp`.
+Rendering the workspace, at each `new`, `tmp`, `fork` and `resume` and with `rucher group sync`:
+
+- creates the workspace and its `reports/` folder;
+- links `CLAUDE.md` to the group source's `CLAUDE.md`, so editing the instructions edits the source;
+- writes `.claude/settings.json` from scratch: a `"//"` marker, `permissions.additionalDirectories` from the repos, then the group's `backends["claude-code"].settings` merged over them (lists joined without duplicates);
+- touches nothing else: reports, `.mcp.json`, skills, `settings.local.json` and any other file stay.
+
+A generated file carries the marker and is rewritten without asking; a hand-written `CLAUDE.md` or `settings.json` in the workspace is refused, never overwritten.
+
+A session keeps the directory it was launched in: Claude Code stores its transcript there, so hooks never change the recorded `cwd`, even after a `cd`. `resume` and `fork` start from it, and fail with `SESSION_CWD_MISSING` when it no longer exists.
+
+Starting `claude` directly from a workspace or a repo of a group still works: the hooks record the session as `temp`. Outside any group, a session started without `rucher` is not recorded.
 
 In a side pane, watch it:
 

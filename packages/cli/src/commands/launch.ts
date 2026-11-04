@@ -4,7 +4,12 @@ import { existsSync } from 'node:fs';
 import {
   appendPromptFile,
   type Carnet,
+  CarnetError,
+  type Group,
   hostById,
+  isGroupName,
+  loadGroup,
+  renderWorkspace,
   repoNameFor,
   type Session,
   type SessionKind,
@@ -38,7 +43,7 @@ export function positionals(own: readonly string[]): string[] {
 }
 
 function launchEnv(
-  carnet: Carnet,
+  group: Group | null,
   session: Pick<Session, 'id' | 'name'>,
   promptVersion: string,
   kind?: SessionKind,
@@ -47,7 +52,9 @@ function launchEnv(
     RUCHER_SESSION_ID: session.id,
     RUCHER_PROMPT_VERSION: promptVersion,
     RUCHER_SESSION_NAME: session.name ?? '',
-    ...(carnet.group ? { RUCHER_GROUP: carnet.group.name } : {}),
+    // Repos are added directories: without it Claude Code skips their CLAUDE.md.
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+    ...(group ? { RUCHER_GROUP: group.name } : {}),
     ...(kind ? { RUCHER_SESSION_KIND: kind } : {}),
   };
 }
@@ -70,7 +77,8 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
     repo: repoNameFor(carnet.group, io.cwd),
   });
   const host = hostById(session.host);
-  const prompt = appendPromptFile(carnet.requireGroup(), session, io.env);
+  if (carnet.group) renderWorkspace(carnet.group, { env: io.env, host: session.host });
+  const prompt = appendPromptFile(carnet.group, session, io.env);
   const command = host.launchCommand(session.id, {
     name: session.name,
     appendPromptFile: prompt.path,
@@ -79,14 +87,32 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
   return {
     ...command,
     cwd: carnet.group?.workspace ?? io.cwd,
-    env: launchEnv(carnet, session, prompt.version),
+    env: launchEnv(carnet.group, session, prompt.version),
     sessionId: session.id,
   };
 }
 
-// Hosts store conversations per project directory, so a session reopens from its original cwd.
-function sessionDirectory(session: Session, io: Io): string {
-  return session.cwd && existsSync(session.cwd) ? session.cwd : io.cwd;
+function sessionGroup(carnet: Carnet, session: Session, env: NodeJS.ProcessEnv): Group | null {
+  if (!session.groupName || !isGroupName(session.groupName)) return null;
+  return carnet.group?.name === session.groupName
+    ? carnet.group
+    : loadGroup(session.groupName, env);
+}
+
+// Rendering first recreates a missing workspace, the usual cwd of a group session.
+function prepareSession(carnet: Carnet, session: Session, env: NodeJS.ProcessEnv): Group | null {
+  const group = sessionGroup(carnet, session, env);
+  if (group) renderWorkspace(group, { env, host: session.host });
+  return group;
+}
+
+// Hosts store conversations per project directory, so a session only reopens from its original cwd.
+function sessionDirectory(session: Session): string {
+  if (session.cwd && existsSync(session.cwd)) return session.cwd;
+  throw new CarnetError(
+    'SESSION_CWD_MISSING',
+    `The directory of session ${session.name ?? session.id.slice(0, 8)} no longer exists: ${session.cwd ?? 'none recorded'}`,
+  );
 }
 
 export function planResume(
@@ -97,15 +123,17 @@ export function planResume(
 ): LaunchPlan {
   const session = findSession(carnet, reference);
   if (session.status === 'archived') io.stderr(`warning: session ${reference} is archived\n`);
-  const prompt = appendPromptFile(carnet.requireGroup(), session, io.env);
+  const group = prepareSession(carnet, session, io.env);
+  const cwd = sessionDirectory(session);
+  const prompt = appendPromptFile(group, session, io.env);
   const command = hostById(session.host).resumeCommand(session, {
     appendPromptFile: prompt.path,
     passthrough,
   });
   return {
     ...command,
-    cwd: sessionDirectory(session, io),
-    env: launchEnv(carnet, session, prompt.version),
+    cwd,
+    env: launchEnv(group, session, prompt.version),
     sessionId: session.id,
   };
 }
@@ -129,18 +157,20 @@ export function planFork(
     throw new CliError(`A session named "${options.name}" already exists`);
   }
   const parent = findSession(carnet, reference);
+  const group = prepareSession(carnet, parent, io.env);
+  const cwd = sessionDirectory(parent);
   const kind: SessionKind = options.active ? 'active' : 'temp';
   const command = hostById(parent.host).forkCommand(parent, {
     name: options.name,
-    appendPromptFile: appendPromptFile(carnet.requireGroup(), parent, io.env).path,
+    appendPromptFile: appendPromptFile(group, parent, io.env).path,
     passthrough: options.passthrough,
   });
   return {
     ...command,
-    cwd: sessionDirectory(parent, io),
+    cwd,
     // A fork keeps its parent's system prompt snapshot, so the parent's rules are the ones in effect.
     env: {
-      ...launchEnv(carnet, parent, parent.promptVersion ?? '', kind),
+      ...launchEnv(group, parent, parent.promptVersion ?? '', kind),
       RUCHER_SESSION_NAME: options.name ?? '',
     },
     parentId: parent.id,

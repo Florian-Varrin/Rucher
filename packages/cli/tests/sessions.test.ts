@@ -64,7 +64,7 @@ test('resume targets claude --resume with the session id from its original cwd',
   expect(io.errors).toEqual([]);
 });
 
-test('resume falls back to the current directory, warns on archived, refuses unknown', () => {
+test('resume refuses a session whose directory is gone, warns on archived, refuses unknown', () => {
   const { carnet, root } = makeCarnet();
   const gone = join(root, 'gone');
   mkdirSync(gone);
@@ -72,7 +72,7 @@ test('resume falls back to the current directory, warns on archived, refuses unk
   carnet.sessions.name('s2', 'shop-old');
   carnet.sessions.drop('s2');
   const io = makeIo();
-  expect(planResume(carnet, io, 'shop-old').cwd).toBe(io.cwd);
+  expect(() => planResume(carnet, io, 'shop-old')).toThrowError(/no longer exists/);
   expect(io.errors.join('')).toBe('warning: session shop-old is archived\n');
   expect(() => planResume(carnet, io, 'nope')).toThrowError(CliError);
 });

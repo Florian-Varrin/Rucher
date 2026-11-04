@@ -3,7 +3,6 @@ import { resolve } from 'node:path';
 import * as z from 'zod/v4';
 import type { Carnet } from '../carnet.ts';
 import { EVENT_TYPES } from '../events.ts';
-import { requireGroup } from '../group/locate.ts';
 import { reportPath, reportsDirectory } from '../paths.ts';
 import { hostById } from '../hosts/host.ts';
 import { memoryHalfLife, type Note, NOTE_KINDS } from '../notes.ts';
@@ -48,17 +47,21 @@ const agentStart = defineTool({
     session,
   }),
   run: (carnet, sessionId, args) => {
-    const group = requireGroup(carnet.group);
+    const group = carnet.group;
     const agent = carnet.agents.start(sessionId, {
       name: args.name,
       task: args.task,
       baseCommit: args.base_commit,
       worktree: args.worktree,
     });
+    if (!group) {
+      return {
+        text: `${EMOJI.running} ${agent.name} started outside any group\nNo report destination: the report stays where the fork writes it`,
+      };
+    }
     mkdirSync(reportsDirectory(group), { recursive: true });
-    const reportDestination = reportPath(group, agent.name);
     return {
-      text: `${EMOJI.running} ${agent.name} started in group ${group.name}\nReport destination: ${reportDestination}`,
+      text: `${EMOJI.running} ${agent.name} started in group ${group.name}\nReport destination: ${reportPath(group, agent.name)}`,
     };
   },
 });

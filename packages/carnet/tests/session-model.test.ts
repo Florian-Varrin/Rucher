@@ -154,3 +154,18 @@ test('status, parent and prompt version setters', () => {
   const idle = carnet.sessions.setStatus('child', 'idle');
   expect(idle.endedAt).not.toBeNull();
 });
+
+test('hooks keep the cwd the session was launched in, whatever cwd they report later', () => {
+  const { carnet, root } = withSession();
+  const launched = carnet.sessions.get(SESSION)?.cwd;
+  const repo = join(root, 'deep', 'src');
+  for (const source of ['resume', 'compact']) {
+    handleSessionStart(carnet, { session_id: SESSION, cwd: repo, source }, {});
+  }
+  carnet.sessions.ensure(SESSION, repo);
+  expect(carnet.sessions.get(SESSION)?.cwd).toBe(launched);
+
+  carnet.sessions.ensure('late');
+  carnet.sessions.upsertFromHook({ session_id: 'late', cwd: repo });
+  expect(carnet.sessions.get('late')?.cwd).toBe(repo);
+});

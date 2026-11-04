@@ -3,9 +3,9 @@ import { dirname, join } from 'node:path';
 import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { beforeAll, expect, test } from 'vite-plus/test';
-import { type Carnet, CarnetError } from '../src/index.ts';
+import { type Carnet, CarnetError, openCarnet } from '../src/index.ts';
 import { createCarnetServer, INSTRUCTIONS, TOOLS } from '../src/mcp/index.ts';
-import { makeCarnet, SESSION } from './helpers.ts';
+import { makeCarnet, SESSION, tempDirectory, testHome } from './helpers.ts';
 
 let carnet: Carnet;
 let made: ReturnType<typeof makeCarnet>;
@@ -249,4 +249,16 @@ test('agent_step next overrides the status, dropped closes with the reason', asy
   expect((await call('agent_step', { name: 'ghost', step: 'tested' })).text).toContain(
     'AGENT_NOT_FOUND',
   );
+});
+
+test('agent_start works outside any group, with no report destination', () => {
+  const free = openCarnet({ env: testHome(), cwd: tempDirectory('free-') });
+  free.sessions.ensure(SESSION);
+  const start = TOOLS.find((tool) => tool.name === 'agent_start');
+  const result = start?.run(free, SESSION, { name: 'banner', task: 'Add banner' }) as {
+    text: string;
+  };
+  expect(result.text).toContain('banner started outside any group');
+  expect(free.agents.get(SESSION, 'banner')?.status).toBe('running');
+  free.close();
 });

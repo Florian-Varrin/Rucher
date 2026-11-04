@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { createGroup, openCarnet } from '@rucher/carnet';
 import { expect, test } from 'vite-plus/test';
@@ -53,6 +53,7 @@ test('rucher new starts a named active session from the group workspace', () => 
   expect(plan.cwd).toBe(root);
   expect(plan.env).toEqual({
     RUCHER_SESSION_ID: plan.sessionId,
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
     RUCHER_PROMPT_VERSION: expect.stringMatching(/^[0-9a-f]{12}$/),
     RUCHER_SESSION_NAME: 'shop-auth',
     RUCHER_GROUP: 'shop',
@@ -180,4 +181,42 @@ test('the picker lists named sessions first, then temp ones by short id', () => 
   const lines = pickerLines(sessions, new Date());
   expect(lines[0]).toMatch(/^1 {2}shop-auth {2}active {2}running {2}\d{2}:\d{2} {2}[0-9a-f]{8}$/);
   expect(lines[1]).toMatch(/^2 {2}[0-9a-f]{8} +temp +running/);
+});
+
+test('rucher new renders the workspace before launching, and stays in place without a group', () => {
+  const { root, carnet } = shopGroup();
+  rmSync(root, { recursive: true });
+  const plan = planNew(carnet, makeIo(), { kind: 'temp' });
+  expect(plan.cwd).toBe(root);
+  expect(lstatSync(join(root, 'CLAUDE.md')).isSymbolicLink()).toBe(true);
+  expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(true);
+
+  const env = { RUCHER_HOME: tempDirectory('home-') };
+  const free = openCarnet({ env, cwd: tempDirectory('free-') });
+  const here = tempDirectory('here-');
+  const solo = planNew(free, makeIo({ cwd: here, env }), { kind: 'temp' });
+  expect(solo.cwd).toBe(here);
+  expect(solo.env.RUCHER_GROUP).toBeUndefined();
+  expect(solo.env.CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD).toBe('1');
+});
+
+test('resume and fork re-render the group of the session and keep its directory', () => {
+  const { root, carnet, env } = shopGroup();
+  const plan = planNew(carnet, makeIo({ env }), { kind: 'active', name: 'shop-auth' });
+  rmSync(join(root, '.claude'), { recursive: true });
+  const resumed = planResume(carnet, makeIo({ env }), 'shop-auth');
+  expect(resumed.cwd).toBe(root);
+  expect(resumed.env.RUCHER_GROUP).toBe('shop');
+  expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(true);
+  expect(planFork(carnet, makeIo({ env }), 'shop-auth').cwd).toBe(root);
+  expect(plan.sessionId).toBeDefined();
+});
+
+test('resume fails clearly when the recorded directory is gone', () => {
+  const { carnet, env } = shopGroup();
+  const gone = join(tempDirectory('gone-'), 'repo');
+  mkdirSync(gone);
+  carnet.sessions.create({ id: 'shop-gone-id', kind: 'active', name: 'shop-gone', cwd: gone });
+  rmSync(gone, { recursive: true });
+  expect(() => planResume(carnet, makeIo({ env }), 'shop-gone')).toThrowError(/no longer exists/);
 });

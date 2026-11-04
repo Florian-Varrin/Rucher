@@ -1,20 +1,11 @@
-import {
-  closeSync,
-  existsSync,
-  fstatSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  readSync,
-  writeFileSync,
-} from 'node:fs';
+import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import type { Group } from '../group/locate.ts';
+import { join } from 'node:path';
+import { type Group, INSTRUCTIONS_FILE } from '../group/group.ts';
+import { ensureLink, GENERATED_MARKER, mergeSettings, writeGenerated } from '../workspace-files.ts';
 import type {
-  ContextFile,
-  ContextFileResult,
   Host,
+  HostRender,
   HostPromptPayload,
   HostSessionEndPayload,
   HostToolPayload,
@@ -26,9 +17,6 @@ import type {
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
 const TITLE_PATTERN = /"type":"custom-title","customTitle":("(?:[^"\\]|\\.)*")/g;
 const FORK_NAME_PATTERN = /You are fork `([^`]+)`/;
-
-export const REPOS_START = '<!-- rucher:repos start -->';
-export const REPOS_END = '<!-- rucher:repos end -->';
 
 function payloadObject(json: string): Record<string, unknown> {
   const data = JSON.parse(json) as Record<string, unknown>;
@@ -107,90 +95,29 @@ export function transcriptTitle(path: string): string | undefined {
   }
 }
 
-export function reposBlock(group: Group): string {
-  const repos = group.repos.length
-    ? group.repos.map((repo) => `- \`${repo.name}\`: ${repo.path}`).join('\n')
-    : '- (none yet: `rucher group add <path>`)';
-  return `${REPOS_START}\n## Repos\n\n${repos}\n${REPOS_END}`;
+const SETTINGS_FILE = join('.claude', 'settings.json');
+
+export function groupSettings(group: Group): Record<string, unknown> {
+  return mergeSettings(
+    {
+      '//': GENERATED_MARKER,
+      permissions: { additionalDirectories: group.repos.map((repo) => repo.path) },
+    },
+    group.backends['claude-code']?.settings ?? {},
+  );
 }
 
-export function replaceReposBlock(content: string, group: Group): string | null {
-  const start = content.indexOf(REPOS_START);
-  const end = content.indexOf(REPOS_END);
-  if (start === -1 || end === -1 || end < start) return null;
-  return content.slice(0, start) + reposBlock(group) + content.slice(end + REPOS_END.length);
+function renderClaudeWorkspace(group: Group): HostRender {
+  const rendered: HostRender = { written: [], linked: [] };
+  if (ensureLink(join(group.workspace, INSTRUCTIONS_FILE), join(group.source, INSTRUCTIONS_FILE))) {
+    rendered.linked.push(INSTRUCTIONS_FILE);
+  }
+  const settings = `${JSON.stringify(groupSettings(group), null, 2)}\n`;
+  if (writeGenerated(join(group.workspace, SETTINGS_FILE), settings)) {
+    rendered.written.push(SETTINGS_FILE);
+  }
+  return rendered;
 }
-
-export function groupInstructions(group: Group): string {
-  return `# ${group.name}
-
-Meta directory of the ${group.name} group: context only, the repos live at their own paths below and are reachable through \`.claude/settings.json\`. Start Claude Code sessions here.
-
-${reposBlock(group)}
-
-## Multi-agent work
-
-Use the rucher tools (Carnet) for agent statuses and the journal, and the rucher skill for the workflow.
-
-## Shared instructions
-
-(what every session of this group should know)
-`;
-}
-
-function repoPaths(group: Group): string[] {
-  return group.repos.map((repo) => repo.path);
-}
-
-export function groupSettings(group: Group): string {
-  return `${JSON.stringify({ permissions: { additionalDirectories: repoPaths(group) } }, null, 2)}\n`;
-}
-
-interface Settings {
-  permissions?: { additionalDirectories?: string[] } & Record<string, unknown>;
-  [key: string]: unknown;
-}
-
-const instructionsFile: ContextFile = {
-  path: 'CLAUDE.md',
-  sync(group): ContextFileResult {
-    const path = join(group.workspace, 'CLAUDE.md');
-    if (!existsSync(path)) {
-      writeFileSync(path, groupInstructions(group));
-      return 'written';
-    }
-    const content = readFileSync(path, 'utf8');
-    const next = replaceReposBlock(content, group);
-    if (next === null) return 'no-markers';
-    if (next === content) return 'unchanged';
-    writeFileSync(path, next);
-    return 'updated';
-  },
-};
-
-const settingsFile: ContextFile = {
-  path: '.claude/settings.json',
-  sync(group, mode): ContextFileResult {
-    const path = join(group.workspace, '.claude', 'settings.json');
-    if (!existsSync(path)) {
-      if (group.repos.length === 0) return 'unchanged';
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, groupSettings(group));
-      return 'written';
-    }
-    const settings = JSON.parse(readFileSync(path, 'utf8')) as Settings;
-    const current = settings.permissions?.additionalDirectories ?? [];
-    const repos = repoPaths(group);
-    const next =
-      mode === 'exact' ? repos : [...current, ...repos.filter((repo) => !current.includes(repo))];
-    if (next.length === current.length && next.every((repo, index) => repo === current[index])) {
-      return 'unchanged';
-    }
-    settings.permissions = { ...settings.permissions, additionalDirectories: next };
-    writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`);
-    return 'updated';
-  },
-};
 
 function launchArguments(options: LaunchOptions = {}): string[] {
   return [
@@ -316,5 +243,5 @@ export const claudeCode: Host = {
   renameInstruction(name) {
     return `Ask the human to run /rename ${name} in Claude Code so the titles match.`;
   },
-  contextFiles: [settingsFile, instructionsFile],
+  renderWorkspace: renderClaudeWorkspace,
 };

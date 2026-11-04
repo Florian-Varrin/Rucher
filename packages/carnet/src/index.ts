@@ -100,22 +100,12 @@ export {
   memoryMaxCharacters,
   renderMemory,
 } from './memory.ts';
-export {
-  claudeCode,
-  groupInstructions,
-  groupSettings,
-  REPOS_END,
-  REPOS_START,
-  replaceReposBlock,
-  reposBlock,
-  transcriptTitle,
-} from './hosts/claude-code.ts';
+export { claudeCode, groupSettings, transcriptTitle } from './hosts/claude-code.ts';
 export {
   allHosts,
-  type ContextFile,
-  type ContextFileResult,
   DEFAULT_HOST,
   type Host,
+  type HostRender,
   hostById,
   type HostPromptPayload,
   type HostSessionEndPayload,
@@ -201,3 +191,5 @@ export {
 export { buildStatusView, formatClock, type StatusLine, type StatusView } from './status/view.ts';
 export type { SetTableInput, TableItem } from './table.ts';
 export { AGENT_STEPS, type AgentStep, stepAgent, type StepAgentInput } from './steps.ts';
+export { type RenderResult, renderWorkspace, type WorkspaceRenderOptions } from './render.ts';
+export { ensureLink, GENERATED_MARKER, mergeSettings, writeGenerated } from './workspace-files.ts';

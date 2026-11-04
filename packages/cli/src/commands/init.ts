@@ -1,12 +1,10 @@
 import { basename, resolve } from 'node:path';
 import {
   CarnetError,
-  type ContextFileResult,
   createGroup,
   databasePath,
   type Group,
-  groupHosts,
-  hostById,
+  renderWorkspace,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
@@ -18,13 +16,15 @@ export interface InitOptions {
 
 export interface ContextFileSync {
   path: string;
-  result: ContextFileResult;
+  result: 'written' | 'updated' | 'unchanged' | 'no-markers';
 }
 
-export function syncContextFiles(group: Group, mode: 'merge' | 'exact'): ContextFileSync[] {
-  return groupHosts(group).flatMap((id) =>
-    hostById(id).contextFiles.map((file) => ({ path: file.path, result: file.sync(group, mode) })),
-  );
+export function syncContextFiles(group: Group, _mode?: 'merge' | 'exact'): ContextFileSync[] {
+  const rendered = renderWorkspace(group);
+  return [
+    ...rendered.linked.map((path) => ({ path, result: 'updated' as const })),
+    ...rendered.written.map((path) => ({ path, result: 'written' as const })),
+  ];
 }
 
 export function init(options: InitOptions, io: Io): number {
