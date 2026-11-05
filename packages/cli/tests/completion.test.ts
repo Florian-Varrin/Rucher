@@ -6,8 +6,11 @@ import { expect, test } from 'vite-plus/test';
 import {
   type CompletionContext,
   completionConfig,
+  splitInlineValues,
   suggestDirectories,
   suggestGroups,
+  suggestNotes,
+  suggestRepoNames,
   suggestRepos,
   suggestSessions,
   uncompletedArguments,
@@ -67,6 +70,78 @@ test('outside a group nothing is suggested and nothing throws', () => {
   expect(collect((complete) => suggestSessions(context(outside, env), complete))).toEqual([]);
   expect(collect((complete) => suggestRepos(context(outside, env), complete))).toEqual([]);
   expect(collect((complete) => suggestGroups(context(outside, env), complete))).toEqual([]);
+});
+
+function twoGroups() {
+  const { env, meta, api } = shopGroup();
+  const blogRepo = tempDirectory('blog-api-');
+  const blog = createGroup('blog', { env, repos: [blogRepo] }).workspace;
+  const carnet = openCarnet({ cwd: blog, env });
+  const id = 'd4e5f6a7-0000-4000-8000-000000000000';
+  carnet.sessions.upsertFromHook({ session_id: id, cwd: blog, source: 'startup' });
+  carnet.sessions.name(id, 'blog', 'Same name as its group');
+  carnet.notes.add({ kind: 'learning', text: 'Feeds are cached' });
+  carnet.close();
+  return { env, meta, api, blog, blogRepo };
+}
+
+test.each([
+  [['resume', '-g', 'blog', ''], ['blog']],
+  [['resume', '--group', 'blog', ''], ['blog']],
+  [['sessions', 'merge', 'blog', '-g', 'blog', ''], []],
+])('-g picks the group of the suggested sessions: %j', (typedWords, expected) => {
+  const { env } = twoGroups();
+  const outside = tempDirectory('outside-');
+  expect(
+    collect((complete) => suggestSessions(context(outside, env, typedWords), complete)),
+  ).toEqual(expected);
+});
+
+test('-g wins over the workspace, and over the group a cursor word hints at', () => {
+  const { env, meta, blogRepo } = twoGroups();
+  const words = ['group', 'remove', '-g', 'blog', ''];
+  expect(collect((complete) => suggestRepos(context(meta, env, words), complete))).toEqual([
+    blogRepo,
+  ]);
+  const cursorOnGroup = ['resume', '-g', 'blog'];
+  expect(
+    collect((complete) => suggestSessions(context(meta, env, cursorOnGroup), complete)),
+  ).toEqual(['shop-auth', 'b7d2e9c4']);
+});
+
+test('-g also scopes notes and repo names, and stops at the passthrough', () => {
+  const { env, meta } = twoGroups();
+  const outside = tempDirectory('outside-');
+  const words = ['notes', 'show', '-g', 'blog', ''];
+  expect(collect((complete) => suggestNotes(context(outside, env, words), complete))).toEqual([
+    '1',
+  ]);
+  expect(collect((complete) => suggestRepoNames(context(outside, env, words), complete))).toEqual(
+    expect.arrayContaining([expect.stringMatching(/^blog-api-/)]),
+  );
+  const passthrough = ['resume', '--', '-g', 'blog', ''];
+  expect(collect((complete) => suggestSessions(context(meta, env, passthrough), complete))).toEqual(
+    ['shop-auth', 'b7d2e9c4'],
+  );
+});
+
+test('an unknown -g suggests nothing and throws nothing', () => {
+  const { env, meta } = twoGroups();
+  const words = ['resume', '-g', 'nope', ''];
+  expect(collect((complete) => suggestSessions(context(meta, env, words), complete))).toEqual([]);
+  expect(collect((complete) => suggestRepos(context(meta, env, words), complete))).toEqual([]);
+  expect(collect((complete) => suggestNotes(context(meta, env, words), complete))).toEqual([]);
+});
+
+test('inline values split, except the word under the cursor', () => {
+  expect(splitInlineValues(['resume', '--group=shop', ''])).toEqual([
+    'resume',
+    '--group',
+    'shop',
+    '',
+  ]);
+  expect(splitInlineValues(['resume', '-g=shop', 'x'])).toEqual(['resume', '-g', 'shop', 'x']);
+  expect(splitInlineValues(['resume', '--group=sh'])).toEqual(['resume', '--group=sh']);
 });
 
 type ConfigNode = {
