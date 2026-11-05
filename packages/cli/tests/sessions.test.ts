@@ -50,6 +50,8 @@ test('resume targets claude --resume with the session id from its original cwd',
       'shop-auth',
       '--append-system-prompt-file',
       expect.any(String),
+      '--add-dir',
+      join(root, 'api'),
     ],
     cwd: join(root, 'api'),
   });
@@ -60,6 +62,8 @@ test('resume targets claude --resume with the session id from its original cwd',
     'shop-auth',
     '--append-system-prompt-file',
     expect.any(String),
+    '--add-dir',
+    join(root, 'api'),
   ]);
   expect(io.errors).toEqual([]);
 });
@@ -91,7 +95,7 @@ test('sessions merge moves everything into the target and reports it', () => {
 });
 
 test('sessions merge and resume accept the short ids shown by rucher sessions', () => {
-  const { carnet } = makeCarnet();
+  const { carnet, root } = makeCarnet();
   const split = '8c2fce7d-d378-4abf-a791-cbe8a499d65c';
   carnet.sessions.ensure(split);
   carnet.agents.start(split, { name: 'lost', task: 'task' });
@@ -102,6 +106,8 @@ test('sessions merge and resume accept the short ids shown by rucher sessions', 
     SESSION,
     '--append-system-prompt-file',
     expect.any(String),
+    '--add-dir',
+    join(root, 'api'),
   ]);
   expect(() => planResume(carnet, makeIo(), '036')).toThrowError(/at least 4 characters/);
 });

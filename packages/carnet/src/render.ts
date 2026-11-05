@@ -6,7 +6,7 @@ import { reportsDirectory } from './paths.ts';
 export interface RenderResult {
   workspace: string;
   written: string[];
-  linked: string[];
+  removed: string[];
 }
 
 export interface WorkspaceRenderOptions {
@@ -17,11 +17,11 @@ export interface WorkspaceRenderOptions {
 export function renderWorkspace(group: Group, options: WorkspaceRenderOptions = {}): RenderResult {
   mkdirSync(group.workspace, { recursive: true });
   mkdirSync(reportsDirectory(group), { recursive: true });
-  const result: RenderResult = { workspace: group.workspace, written: [], linked: [] };
+  const result: RenderResult = { workspace: group.workspace, written: [], removed: [] };
   for (const id of options.host ? [options.host] : groupHosts(group)) {
     const rendered = hostById(id).renderWorkspace(group);
     result.written.push(...rendered.written);
-    result.linked.push(...rendered.linked);
+    result.removed.push(...rendered.removed);
   }
   return result;
 }

@@ -82,6 +82,7 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
   const command = host.launchCommand(session.id, {
     name: session.name,
     appendPromptFile: prompt.path,
+    directories: repoDirectories(carnet.group),
     passthrough: options.passthrough,
   });
   return {
@@ -90,6 +91,11 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
     env: launchEnv(carnet.group, session, prompt.version),
     sessionId: session.id,
   };
+}
+
+// Settings directories apply only once the workspace is trusted, and never load the repos' CLAUDE.md.
+function repoDirectories(group: Group | null): string[] {
+  return (group?.repos ?? []).map((repo) => repo.path).filter((path) => existsSync(path));
 }
 
 function sessionGroup(carnet: Carnet, session: Session, env: NodeJS.ProcessEnv): Group | null {
@@ -128,6 +134,7 @@ export function planResume(
   const prompt = appendPromptFile(group, session, io.env);
   const command = hostById(session.host).resumeCommand(session, {
     appendPromptFile: prompt.path,
+    directories: repoDirectories(group),
     passthrough,
   });
   return {
@@ -163,6 +170,7 @@ export function planFork(
   const command = hostById(parent.host).forkCommand(parent, {
     name: options.name,
     appendPromptFile: appendPromptFile(group, parent, io.env).path,
+    directories: repoDirectories(group),
     passthrough: options.passthrough,
   });
   return {

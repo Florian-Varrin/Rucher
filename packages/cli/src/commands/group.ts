@@ -35,7 +35,7 @@ function rendered(group: Group, io: Io): string[] {
   const result = renderWorkspace(group, { env: io.env });
   return [
     ...result.written.map((path) => `written ${path}`),
-    ...result.linked.map((path) => `linked ${path}`),
+    ...result.removed.map((path) => `removed ${path}`),
   ];
 }
 

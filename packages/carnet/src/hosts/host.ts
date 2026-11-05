@@ -49,11 +49,12 @@ export interface LaunchOptions {
   name?: string | null | undefined;
   appendPromptFile?: string | undefined;
   passthrough?: readonly string[] | undefined;
+  directories?: readonly string[] | undefined;
 }
 
 export interface HostRender {
   written: string[];
-  linked: string[];
+  removed: string[];
 }
 
 export interface Host {

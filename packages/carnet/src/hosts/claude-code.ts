@@ -1,8 +1,23 @@
-import { closeSync, existsSync, fstatSync, openSync, readFileSync, readSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  fstatSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  readSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { type Group, INSTRUCTIONS_FILE } from '../group/group.ts';
-import { ensureLink, GENERATED_MARKER, mergeSettings, writeGenerated } from '../workspace-files.ts';
+import type { Group } from '../group/group.ts';
+import { PROMPT_FILE } from '../prompt/prompt.ts';
+import {
+  GENERATED_MARKER,
+  markdownCopy,
+  mergeSettings,
+  removeStaleCopies,
+  writeGenerated,
+} from '../workspace-files.ts';
 import type {
   Host,
   HostRender,
@@ -97,21 +112,38 @@ export function transcriptTitle(path: string): string | undefined {
 
 const SETTINGS_FILE = join('.claude', 'settings.json');
 
+// Instruction files are copied, not linked: an @ import inside a link resolves next to its target,
+// outside the workspace, where Claude Code skips it without approval.
+export function instructionFiles(group: Group): string[] {
+  if (!existsSync(group.source)) return [];
+  return readdirSync(group.source, { withFileTypes: true })
+    .filter((item) => item.isFile() && item.name.endsWith('.md') && item.name !== PROMPT_FILE)
+    .map((item) => item.name)
+    .sort();
+}
+
 export function groupSettings(group: Group): Record<string, unknown> {
   return mergeSettings(
     {
       '//': GENERATED_MARKER,
-      permissions: { additionalDirectories: group.repos.map((repo) => repo.path) },
+      permissions: {
+        additionalDirectories: group.repos.map((repo) => repo.path),
+        // The copies are rewritten on every render: instructions are edited in the source.
+        deny: instructionFiles(group).map((name) => `Edit(/${name})`),
+      },
     },
     group.backends['claude-code']?.settings ?? {},
   );
 }
 
 function renderClaudeWorkspace(group: Group): HostRender {
-  const rendered: HostRender = { written: [], linked: [] };
-  if (ensureLink(join(group.workspace, INSTRUCTIONS_FILE), join(group.source, INSTRUCTIONS_FILE))) {
-    rendered.linked.push(INSTRUCTIONS_FILE);
+  const rendered: HostRender = { written: [], removed: [] };
+  const names = instructionFiles(group);
+  for (const name of names) {
+    const content = markdownCopy(readFileSync(join(group.source, name), 'utf8'));
+    if (writeGenerated(join(group.workspace, name), content)) rendered.written.push(name);
   }
+  rendered.removed.push(...removeStaleCopies(group.workspace, new Set(names)));
   const settings = `${JSON.stringify(groupSettings(group), null, 2)}\n`;
   if (writeGenerated(join(group.workspace, SETTINGS_FILE), settings)) {
     rendered.written.push(SETTINGS_FILE);
@@ -123,6 +155,7 @@ function launchArguments(options: LaunchOptions = {}): string[] {
   return [
     ...(options.name ? ['--name', options.name] : []),
     ...(options.appendPromptFile ? ['--append-system-prompt-file', options.appendPromptFile] : []),
+    ...(options.directories ?? []).flatMap((directory) => ['--add-dir', directory]),
     ...(options.passthrough ?? []),
   ];
 }

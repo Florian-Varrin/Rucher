@@ -61,8 +61,8 @@ export function groupsCreate(name: string, io: Io, options: GroupsCreateOptions 
     `  workspace: ${group.workspace}`,
     `  repos: ${group.repos.length ? group.repos.map((repo) => repo.path).join(', ') : 'none yet, add them with `rucher group add <path> -g ' + group.name + '`'}`,
     ...result.written.map((path) => `  written ${path}`),
-    ...result.linked.map((path) => `  linked ${path}`),
     '',
+    'Accept the Claude Code trust prompt in its first session: until then the workspace settings are ignored, and rucher passes the repos with --add-dir.',
     `Next: \`rucher group edit -g ${group.name}\` for its instructions, then \`rucher new <session> -g ${group.name}\`.`,
   ];
   io.stdout(`${lines.join('\n')}\n`);

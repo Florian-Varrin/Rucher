@@ -200,4 +200,11 @@ export { buildStatusView, formatClock, type StatusLine, type StatusView } from '
 export type { SetTableInput, TableItem } from './table.ts';
 export { AGENT_STEPS, type AgentStep, stepAgent, type StepAgentInput } from './steps.ts';
 export { type RenderResult, renderWorkspace, type WorkspaceRenderOptions } from './render.ts';
-export { ensureLink, GENERATED_MARKER, mergeSettings, writeGenerated } from './workspace-files.ts';
+export {
+  GENERATED_MARKER,
+  MARKDOWN_MARKER,
+  markdownCopy,
+  mergeSettings,
+  removeStaleCopies,
+  writeGenerated,
+} from './workspace-files.ts';

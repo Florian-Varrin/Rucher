@@ -47,6 +47,8 @@ test('rucher new starts a named active session from the group workspace', () => 
     'shop-auth',
     '--append-system-prompt-file',
     expect.stringMatching(/state\/prompts\/.+\.md$/),
+    '--add-dir',
+    api,
     '--model',
     'opus',
   ]);
@@ -73,13 +75,15 @@ test('rucher new starts a named active session from the group workspace', () => 
 });
 
 test('rucher tmp starts a temp session, named or not', () => {
-  const { carnet } = shopGroup();
+  const { api, carnet } = shopGroup();
   const unnamed = planNew(carnet, makeIo(), { kind: 'temp' });
   expect(unnamed.args).toEqual([
     '--session-id',
     unnamed.sessionId,
     '--append-system-prompt-file',
     expect.stringMatching(/state\/prompts\/.+\.md$/),
+    '--add-dir',
+    api,
   ]);
   expect(carnet.sessions.require(unnamed.sessionId ?? '')).toMatchObject({
     kind: 'temp',
@@ -90,7 +94,7 @@ test('rucher tmp starts a temp session, named or not', () => {
 });
 
 test('a launch runs the session, and its exit ends it once', () => {
-  const { carnet } = shopGroup();
+  const { api, carnet } = shopGroup();
   const plan = planNew(carnet, makeIo(), { kind: 'active', name: 'shop-auth' });
   finishLaunch(carnet, plan);
   const id = plan.sessionId ?? '';
@@ -106,6 +110,8 @@ test('a launch runs the session, and its exit ends it once', () => {
     'shop-auth',
     '--append-system-prompt-file',
     expect.stringMatching(/state\/prompts\/.+\.md$/),
+    '--add-dir',
+    api,
     '-p',
     'hi',
   ]);
@@ -114,7 +120,7 @@ test('a launch runs the session, and its exit ends it once', () => {
 });
 
 test('rucher fork branches a session; the hook records the child with its parent', () => {
-  const { root, env, carnet } = shopGroup();
+  const { root, api, env, carnet } = shopGroup();
   const parent = planNew(carnet, makeIo(), { kind: 'active', name: 'shop-auth' });
   carnet.sessions.recordPromptVersion(parent.sessionId ?? '', 'abcdef012345');
   const fork = planFork(carnet, makeIo(), 'shop-auth', { name: 'shop-auth-alt' });
@@ -126,6 +132,8 @@ test('rucher fork branches a session; the hook records the child with its parent
     'shop-auth-alt',
     '--append-system-prompt-file',
     expect.stringMatching(/state\/prompts\/.+\.md$/),
+    '--add-dir',
+    api,
   ]);
   expect(fork.env).toMatchObject({
     RUCHER_SESSION_ID: parent.sessionId,
@@ -188,7 +196,7 @@ test('rucher new renders the workspace before launching, and stays in place with
   rmSync(root, { recursive: true });
   const plan = planNew(carnet, makeIo(), { kind: 'temp' });
   expect(plan.cwd).toBe(root);
-  expect(lstatSync(join(root, 'CLAUDE.md')).isSymbolicLink()).toBe(true);
+  expect(lstatSync(join(root, 'CLAUDE.md')).isFile()).toBe(true);
   expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(true);
 
   const env = { RUCHER_HOME: tempDirectory('home-') };
@@ -196,6 +204,7 @@ test('rucher new renders the workspace before launching, and stays in place with
   const here = tempDirectory('here-');
   const solo = planNew(free, makeIo({ cwd: here, env }), { kind: 'temp' });
   expect(solo.cwd).toBe(here);
+  expect(solo.args).not.toContain('--add-dir');
   expect(solo.env.RUCHER_GROUP).toBeUndefined();
   expect(solo.env.CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD).toBe('1');
 });
