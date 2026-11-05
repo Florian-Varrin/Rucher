@@ -39,16 +39,17 @@ rucher tmp                    # a temporary one (a name is optional: rucher tmp 
 rucher new shop-auth -- --model opus   # arguments after -- go to Claude Code
 ```
 
-`rucher` creates the session in Carnet, renders the group's workspace, then runs Claude Code from it, so the group instructions load and every repo is reachable. Run from inside a repo, it still starts in the workspace and records that repo as the session's starting repo; outside any group, it starts in the current directory. Claude Code gets the session's id (`--session-id`), its name as title (`--name`) and each repo of the group with `--add-dir`; the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME`, `RUCHER_GROUP` (when there is a group) and `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`, so the `CLAUDE.md` of each repo loads too. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
+`rucher` creates the session in Carnet, renders the group's workspace, then runs Claude Code from it, so the group instructions load and every repo is reachable. Run from inside a repo, it still starts in the workspace and records that repo as the session's starting repo; outside any group, it starts in the current directory. Claude Code gets the session's id (`--session-id`), its name as title (`--name`) and each repo of the group with `--add-dir`; the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME`, `RUCHER_GROUP` (when there is a group) and `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`, so the `CLAUDE.md` of each repo loads too; a repo's `AGENTS.md` loads through an import in the generated `CLAUDE.md` of a group using `AGENTS.md`, once Claude Code's external imports prompt is approved. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
 
 Rendering the workspace, at each `new`, `tmp`, `fork` and `resume` and with `rucher group sync`:
 
 - creates the workspace and its `reports/` folder;
-- copies every `.md` file at the top of the group source except `prompt.md` (`CLAUDE.md` and the files it imports), each with a marker comment, so their relative `@` imports resolve inside the workspace; a copy whose source file is gone is removed;
+- copies every `.md` file at the top of the group source except `prompt.md` (the instructions and the files they import), each with a marker comment, so their relative `@` imports resolve inside the workspace; a copy whose source file is gone is removed;
+- when the source holds `AGENTS.md` instead of `CLAUDE.md`, generates a `CLAUDE.md` importing `@AGENTS.md`, `@backends/claude.md` when the source has that file (copied too, for instructions meant for Claude Code only), and the `AGENTS.md` of each repo that has no `CLAUDE.md`;
 - writes `.claude/settings.json` from scratch: a `"//"` marker, `permissions.additionalDirectories` from the repos, a `permissions.deny` `Edit(/<file>)` rule for each copy, then the group's `backends["claude-code"].settings` merged over them (lists joined without duplicates);
 - touches nothing else: reports, `.mcp.json`, skills, `settings.local.json` and any other file stay.
 
-A generated file carries the marker and is rewritten without asking; a hand-written file of the same name in the workspace is refused, never overwritten. The instructions are edited in the source, with `rucher group edit`; sessions are denied edits of the copies.
+A group's source holds `AGENTS.md` or `CLAUDE.md`, not both: rendering fails with `GROUP_INSTRUCTIONS_CONFLICT` and names the file to remove. A generated file carries the marker and is rewritten without asking; a hand-written file of the same name in the workspace is refused, never overwritten. The instructions are edited in the source, with `rucher group edit`; sessions are denied edits of the copies.
 
 Claude Code applies a workspace's `.claude/settings.json` only once the workspace is trusted: accept the trust prompt in the first session of a new group. Until then, `--add-dir` still gives the session its repos.
 

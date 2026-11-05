@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createGroup, loadGroup } from '@rucher/carnet';
 import { expect, test } from 'vite-plus/test';
@@ -91,6 +91,24 @@ test('group edit opens the instructions, then syncs', async () => {
   expect(code).toBe(0);
   expect(opened).toEqual([join(group.source, 'CLAUDE.md')]);
   expect(readFileSync(join(group.source, 'CLAUDE.md'), 'utf8')).toBe('# shop\n');
+});
+
+test('group edit opens AGENTS.md when the source uses it, and reports both files', async () => {
+  const { env, group } = setup();
+  rmSync(join(group.source, 'CLAUDE.md'));
+  writeFileSync(join(group.source, 'AGENTS.md'), '# shop\n');
+  const opened: string[] = [];
+  const openEditor = (file: string) => {
+    opened.push(file);
+    return 0;
+  };
+  expect(await groupEdit(makeIo({ env }), { group: 'shop', openEditor })).toBe(0);
+  expect(opened).toEqual([join(group.source, 'AGENTS.md')]);
+  writeFileSync(join(group.source, 'CLAUDE.md'), '# shop\n');
+  const io = makeIo({ env });
+  expect(await groupEdit(io, { group: 'shop', openEditor })).toBe(1);
+  expect(io.errors.join('')).toContain('remove CLAUDE.md');
+  expect(opened).toHaveLength(1);
 });
 
 test('group edit --json restores an invalid group.json unless asked to edit again', async () => {

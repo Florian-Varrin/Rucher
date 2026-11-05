@@ -602,7 +602,7 @@ const groupCommand = defineCommand({
     sync: defineCommand({
       meta: {
         name: 'sync',
-        description: "Render the group's workspace (instructions link, generated settings)",
+        description: "Render the group's workspace (instruction copies, generated settings)",
       },
       args: { ...groupArgument, ...colorArgument },
       run({ args }) {

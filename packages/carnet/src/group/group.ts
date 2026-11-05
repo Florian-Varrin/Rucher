@@ -35,6 +35,7 @@ export interface GroupFile {
 
 export const GROUP_FILE = 'group.json';
 export const INSTRUCTIONS_FILE = 'CLAUDE.md';
+export const AGENTS_FILE = 'AGENTS.md';
 const GROUP_NAME = /^[a-z0-9-]+$/;
 
 export function isGroupName(name: string): boolean {
@@ -141,6 +142,17 @@ export function createGroup(name: string, options: CreateGroupOptions = {}): Gro
   const instructions = join(source, INSTRUCTIONS_FILE);
   if (!existsSync(instructions)) writeFileSync(instructions, '');
   return loadGroup(name, env);
+}
+
+export function sourceInstructions(group: Group): string {
+  const agents = existsSync(join(group.source, AGENTS_FILE));
+  if (agents && existsSync(join(group.source, INSTRUCTIONS_FILE))) {
+    throw new CarnetError(
+      'GROUP_INSTRUCTIONS_CONFLICT',
+      `Group ${group.name} has both ${AGENTS_FILE} and ${INSTRUCTIONS_FILE} in ${group.source}: remove ${INSTRUCTIONS_FILE}`,
+    );
+  }
+  return agents ? AGENTS_FILE : INSTRUCTIONS_FILE;
 }
 
 export function addGroupRepo(name: string, repo: string, env?: NodeJS.ProcessEnv): Group {

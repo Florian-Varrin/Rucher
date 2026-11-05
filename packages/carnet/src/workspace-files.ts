@@ -35,6 +35,7 @@ function isMarkdownCopy(path: string): boolean {
 // Copies whose source is gone, at the top level of the directory; hand-written files stay.
 export function removeStaleCopies(directory: string, keep: ReadonlySet<string>): string[] {
   const removed: string[] = [];
+  if (!entry(directory)) return removed;
   for (const name of readdirSync(directory)) {
     if (!name.endsWith('.md') || keep.has(name)) continue;
     const path = join(directory, name);
