@@ -42,6 +42,7 @@ export {
   type CreateGroupOptions,
   dropGroup,
   type DropGroupOptions,
+  AGENTS_FILE,
   expandHome,
   type Group,
   GROUP_FILE,
@@ -55,6 +56,7 @@ export {
   loadGroup,
   removeGroupRepo,
   renameGroup,
+  sourceInstructions,
 } from './group/group.ts';
 export {
   ambiguousGroupContext,

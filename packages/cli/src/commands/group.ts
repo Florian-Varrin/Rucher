@@ -6,10 +6,10 @@ import {
   CarnetError,
   GROUP_FILE,
   type Group,
-  INSTRUCTIONS_FILE,
   loadGroup,
   removeGroupRepo,
   renderWorkspace,
+  sourceInstructions,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
 import { currentGroup } from '../group-option.ts';
@@ -133,8 +133,10 @@ function invalidGroupFile(name: string, io: Io): string | null {
 
 export async function groupEdit(io: Io, options: GroupEditOptions = {}): Promise<number> {
   let group: Group;
+  let file: string;
   try {
     group = currentGroup(io, options.group);
+    file = join(group.source, options.json ? GROUP_FILE : sourceInstructions(group));
   } catch (error) {
     if (error instanceof CarnetError) {
       io.stderr(`error: ${error.message}\n`);
@@ -142,7 +144,6 @@ export async function groupEdit(io: Io, options: GroupEditOptions = {}): Promise
     }
     throw error;
   }
-  const file = join(group.source, options.json ? GROUP_FILE : INSTRUCTIONS_FILE);
   const original = readFileSync(file, 'utf8');
   const openEditor = options.openEditor ?? openEditorFor(io);
   for (;;) {

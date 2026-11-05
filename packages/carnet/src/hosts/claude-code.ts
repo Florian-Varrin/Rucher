@@ -6,10 +6,11 @@ import {
   readdirSync,
   readFileSync,
   readSync,
+  rmdirSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
-import type { Group } from '../group/group.ts';
+import { basename, dirname, join } from 'node:path';
+import { AGENTS_FILE, type Group, INSTRUCTIONS_FILE, sourceInstructions } from '../group/group.ts';
 import { PROMPT_FILE } from '../prompt/prompt.ts';
 import {
   GENERATED_MARKER,
@@ -111,6 +112,7 @@ export function transcriptTitle(path: string): string | undefined {
 }
 
 const SETTINGS_FILE = join('.claude', 'settings.json');
+const BACKEND_NOTES = 'backends/claude.md';
 
 // Instruction files are copied, not linked: an @ import inside a link resolves next to its target,
 // outside the workspace, where Claude Code skips it without approval.
@@ -122,6 +124,33 @@ export function instructionFiles(group: Group): string[] {
     .sort();
 }
 
+function repoAgentsImports(group: Group): string[] {
+  return group.repos
+    .filter(
+      (repo) =>
+        existsSync(join(repo.path, AGENTS_FILE)) &&
+        !existsSync(join(repo.path, INSTRUCTIONS_FILE)) &&
+        !existsSync(join(repo.path, '.claude', INSTRUCTIONS_FILE)),
+    )
+    .map((repo) => `@${join(repo.path, AGENTS_FILE)}`);
+}
+
+// Claude Code has no reliable native AGENTS.md loading, so a generated CLAUDE.md imports it.
+function workspaceCopies(group: Group): Map<string, string> {
+  const agents = sourceInstructions(group) === AGENTS_FILE;
+  const read = (name: string) => readFileSync(join(group.source, name), 'utf8');
+  const copies = new Map(instructionFiles(group).map((name) => [name, markdownCopy(read(name))]));
+  if (!agents) return copies;
+  const imports = [`@${AGENTS_FILE}`];
+  if (existsSync(join(group.source, BACKEND_NOTES))) {
+    copies.set(BACKEND_NOTES, markdownCopy(read(BACKEND_NOTES)));
+    imports.push(`@${BACKEND_NOTES}`);
+  }
+  imports.push(...repoAgentsImports(group));
+  copies.set(INSTRUCTIONS_FILE, markdownCopy(`${imports.join('\n')}\n`));
+  return copies;
+}
+
 export function groupSettings(group: Group): Record<string, unknown> {
   return mergeSettings(
     {
@@ -129,21 +158,36 @@ export function groupSettings(group: Group): Record<string, unknown> {
       permissions: {
         additionalDirectories: group.repos.map((repo) => repo.path),
         // The copies are rewritten on every render: instructions are edited in the source.
-        deny: instructionFiles(group).map((name) => `Edit(/${name})`),
+        deny: [...workspaceCopies(group).keys()].sort().map((name) => `Edit(/${name})`),
       },
     },
     group.backends['claude-code']?.settings ?? {},
   );
 }
 
+function removeStaleBackendNotes(group: Group, keep: ReadonlySet<string>): string[] {
+  const directory = join(group.workspace, dirname(BACKEND_NOTES));
+  const removed = removeStaleCopies(
+    directory,
+    new Set(
+      [...keep]
+        .filter((name) => dirname(name) === dirname(BACKEND_NOTES))
+        .map((name) => basename(name)),
+    ),
+  );
+  if (existsSync(directory) && readdirSync(directory).length === 0) rmdirSync(directory);
+  return removed.map((name) => join(dirname(BACKEND_NOTES), name));
+}
+
 function renderClaudeWorkspace(group: Group): HostRender {
   const rendered: HostRender = { written: [], removed: [] };
-  const names = instructionFiles(group);
-  for (const name of names) {
-    const content = markdownCopy(readFileSync(join(group.source, name), 'utf8'));
+  const copies = workspaceCopies(group);
+  for (const [name, content] of [...copies].sort(([a], [b]) => a.localeCompare(b))) {
     if (writeGenerated(join(group.workspace, name), content)) rendered.written.push(name);
   }
-  rendered.removed.push(...removeStaleCopies(group.workspace, new Set(names)));
+  const names = new Set(copies.keys());
+  rendered.removed.push(...removeStaleCopies(group.workspace, names));
+  rendered.removed.push(...removeStaleBackendNotes(group, names));
   const settings = `${JSON.stringify(groupSettings(group), null, 2)}\n`;
   if (writeGenerated(join(group.workspace, SETTINGS_FILE), settings)) {
     rendered.written.push(SETTINGS_FILE);
