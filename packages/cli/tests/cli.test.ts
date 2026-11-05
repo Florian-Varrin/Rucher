@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
@@ -35,4 +35,15 @@ test.skipIf(!existsSync(bin))('built binary runs help, groups create, hook and s
   expect(run(['complete', '--', 'sessions', 'move', 's1', '--to', ''])).toContain('demo');
   expect(run(['complete', '--', 'resume', '-g', 'demo', ''])).toContain('s1');
   expect(run(['complete', '--', 'resume', '--group=demo', ''])).toContain('s1');
+});
+
+test.skipIf(!existsSync(bin))('sessions list outside a group exits 0 with a stderr hint', () => {
+  const result = spawnSync('node', [bin, 'sessions', 'list'], {
+    cwd: tempDirectory('outside-'),
+    env: { ...withoutRucher(process.env), RUCHER_HOME: tempDirectory('home-'), NO_COLOR: '1' },
+    encoding: 'utf8',
+  });
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe('');
+  expect(result.stderr).toContain('no group here: pass -g after the subcommand\n');
 });

@@ -22,6 +22,13 @@ function shop() {
   return carnet;
 }
 
+test('notes list without a group hints on stderr, not an empty list', () => {
+  const io = makeIo();
+  notesList(new Carnet(openDatabase(MEMORY_DB), null), io);
+  expect(io.output).toEqual([]);
+  expect(io.errors).toEqual(['no group here: pass -g after the subcommand\n']);
+});
+
 test('repeated or comma-separated --repo flags are all kept', () => {
   expect(repoList(['dead_end', 'x', '--repo', 'shop-api', '--repo=shop-web,shop-api'])).toEqual([
     'shop-api',
