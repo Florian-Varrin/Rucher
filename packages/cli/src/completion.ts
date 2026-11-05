@@ -118,40 +118,58 @@ const repoNames: Handler = (complete) => suggestRepoNames(processContext(), comp
 const noteKinds: Handler = (complete) => suggestNoteKinds(complete);
 const notes: Handler = (complete) => suggestNotes(processContext(), complete);
 
+const group = { group: groups } as const;
+
 export const completionConfig = {
   subCommands: {
-    status: { options: { session: sessions } },
-    log: { options: { session: sessions } },
-    resume: { args: { session: sessions } },
-    fork: { args: { session: sessions } },
+    status: { options: { session: sessions, ...group } },
+    log: { options: { session: sessions, ...group } },
+    new: { options: group },
+    tmp: { options: group },
+    resume: { args: { session: sessions }, options: group },
+    fork: { args: { session: sessions }, options: group },
     sessions: {
+      options: group,
       subCommands: {
-        merge: { args: { from: sessions, into: sessions } },
-        move: { args: { session: sessions }, options: { to: groups } },
-        rename: { args: { session: sessions } },
-        promote: { args: { session: sessions } },
-        demote: { args: { session: sessions } },
-        drop: { args: { session: sessions } },
+        list: { options: group },
+        merge: { args: { from: sessions, into: sessions }, options: group },
+        move: { args: { session: sessions }, options: { to: groups, ...group } },
+        rename: { args: { session: sessions }, options: group },
+        promote: { args: { session: sessions }, options: group },
+        demote: { args: { session: sessions }, options: group },
+        drop: { args: { session: sessions }, options: group },
+        clean: { options: group },
       },
     },
     notes: {
-      options: { kind: noteKinds, repo: repoNames },
+      options: { kind: noteKinds, repo: repoNames, ...group },
       subCommands: {
-        list: { options: { kind: noteKinds, repo: repoNames } },
-        show: { args: { id: notes } },
-        add: { args: { kind: noteKinds }, options: { repo: repoNames } },
-        drop: { args: { id: notes }, options: { 'replaced-by': notes } },
+        list: { options: { kind: noteKinds, repo: repoNames, ...group } },
+        show: { args: { id: notes }, options: group },
+        add: { args: { kind: noteKinds }, options: { repo: repoNames, ...group } },
+        drop: { args: { id: notes }, options: { 'replaced-by': notes, ...group } },
       },
     },
     group: {
-      subCommands: { add: { args: { path: directories } }, remove: { args: { path: repos } } },
+      subCommands: {
+        show: { options: group },
+        add: { args: { path: directories }, options: group },
+        remove: { args: { path: repos }, options: group },
+        sync: { options: group },
+        edit: { options: group },
+        path: { options: group },
+      },
+    },
+    groups: {
+      subCommands: {
+        rename: { args: { from: groups } },
+        drop: { args: { name: groups } },
+      },
     },
   },
 };
 
 export const uncompletedArguments = [
-  'init --name',
-  'init --repos',
   'status --interval',
   'log --count',
   'new name',
@@ -162,6 +180,9 @@ export const uncompletedArguments = [
   'sessions rename name',
   'sessions promote name',
   'sessions clean --older-than',
+  'groups create name',
+  'groups create --repos',
+  'groups rename to',
 ];
 
 export async function setupCompletion(main: CommandDef): Promise<void> {

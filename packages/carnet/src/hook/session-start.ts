@@ -80,13 +80,13 @@ export function handleSessionStart(
   const memory = startMemory(carnet, session, source, env);
   if (memory) contextParts.push(memory);
   if (source === 'compact' && !launchedVersion) {
-    contextParts.push(compactReminder(carnet.requireGroup(), promptEnv));
+    contextParts.push(compactReminder(carnet.group, promptEnv));
   } else if (!env.RUCHER_SESSION_ID && !session.promptVersion) {
-    contextParts.push(outsideRucherContext(carnet.requireGroup(), promptEnv));
+    contextParts.push(outsideRucherContext(carnet.group, promptEnv));
     notices.push(OUTSIDE_RUCHER_NOTICE);
   } else if (
     session.promptVersion &&
-    session.promptVersion !== rulesVersion(carnet.requireGroup(), promptEnv)
+    session.promptVersion !== rulesVersion(carnet.group, promptEnv)
   ) {
     notices.push(RULES_UPDATED_NOTICE);
   }

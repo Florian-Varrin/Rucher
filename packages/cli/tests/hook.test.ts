@@ -59,6 +59,17 @@ test('outside any group it stays silent and succeeds', () => {
   expect(io.errors).toEqual([]);
 });
 
+test('a session launched by rucher outside any group is recorded without a group', () => {
+  const env = { RUCHER_HOME: tempDirectory('home-'), RUCHER_SESSION_ID: SESSION };
+  const io = makeIo({ env });
+  const payload = JSON.stringify({ session_id: SESSION, cwd: tempDirectory('nogroup-') });
+  expect(sessionStart(payload, io)).toBe(0);
+  const carnet = openCarnet({ env, sessionId: SESSION });
+  expect(carnet.group).toBeNull();
+  expect(carnet.sessions.get(SESSION)?.groupName).toBeNull();
+  carnet.close();
+});
+
 test('malformed input never fails the hook', () => {
   const io = makeIo();
   expect(sessionStart('not json', io)).toBe(0);

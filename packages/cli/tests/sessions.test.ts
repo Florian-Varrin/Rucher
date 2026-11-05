@@ -50,6 +50,8 @@ test('resume targets claude --resume with the session id from its original cwd',
       'shop-auth',
       '--append-system-prompt-file',
       expect.any(String),
+      '--add-dir',
+      join(root, 'api'),
     ],
     cwd: join(root, 'api'),
   });
@@ -60,11 +62,13 @@ test('resume targets claude --resume with the session id from its original cwd',
     'shop-auth',
     '--append-system-prompt-file',
     expect.any(String),
+    '--add-dir',
+    join(root, 'api'),
   ]);
   expect(io.errors).toEqual([]);
 });
 
-test('resume falls back to the current directory, warns on archived, refuses unknown', () => {
+test('resume refuses a session whose directory is gone, warns on archived, refuses unknown', () => {
   const { carnet, root } = makeCarnet();
   const gone = join(root, 'gone');
   mkdirSync(gone);
@@ -72,7 +76,7 @@ test('resume falls back to the current directory, warns on archived, refuses unk
   carnet.sessions.name('s2', 'shop-old');
   carnet.sessions.drop('s2');
   const io = makeIo();
-  expect(planResume(carnet, io, 'shop-old').cwd).toBe(io.cwd);
+  expect(() => planResume(carnet, io, 'shop-old')).toThrowError(/no longer exists/);
   expect(io.errors.join('')).toBe('warning: session shop-old is archived\n');
   expect(() => planResume(carnet, io, 'nope')).toThrowError(CliError);
 });
@@ -91,7 +95,7 @@ test('sessions merge moves everything into the target and reports it', () => {
 });
 
 test('sessions merge and resume accept the short ids shown by rucher sessions', () => {
-  const { carnet } = makeCarnet();
+  const { carnet, root } = makeCarnet();
   const split = '8c2fce7d-d378-4abf-a791-cbe8a499d65c';
   carnet.sessions.ensure(split);
   carnet.agents.start(split, { name: 'lost', task: 'task' });
@@ -102,6 +106,8 @@ test('sessions merge and resume accept the short ids shown by rucher sessions', 
     SESSION,
     '--append-system-prompt-file',
     expect.any(String),
+    '--add-dir',
+    join(root, 'api'),
   ]);
   expect(() => planResume(carnet, makeIo(), '036')).toThrowError(/at least 4 characters/);
 });

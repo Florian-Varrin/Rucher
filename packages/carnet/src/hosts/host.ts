@@ -49,14 +49,13 @@ export interface LaunchOptions {
   name?: string | null | undefined;
   appendPromptFile?: string | undefined;
   passthrough?: readonly string[] | undefined;
+  directories?: readonly string[] | undefined;
 }
 
-export interface ContextFile {
-  path: string;
-  sync(group: Group, mode: 'merge' | 'exact'): ContextFileResult;
+export interface HostRender {
+  written: string[];
+  removed: string[];
 }
-
-export type ContextFileResult = 'written' | 'updated' | 'unchanged' | 'no-markers';
 
 export interface Host {
   id: string;
@@ -78,7 +77,7 @@ export interface Host {
   forkCommand(parent: Session, options?: LaunchOptions): ResumeCommand;
   renameInstruction(name: string): string;
   transcriptFiles(session: Session, env?: NodeJS.ProcessEnv): string[];
-  contextFiles: readonly ContextFile[];
+  renderWorkspace(group: Group): HostRender;
 }
 
 export const DEFAULT_HOST = 'claude-code';

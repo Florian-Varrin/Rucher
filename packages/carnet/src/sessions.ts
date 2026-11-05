@@ -245,8 +245,9 @@ export function upsertFromHook(
       .run(
         at,
         at,
-        payload.cwd ?? existing.cwd,
-        repo ?? existing.repo,
+        // Claude Code keeps transcripts under the launch cwd; the hook's cwd follows every `cd`.
+        existing.cwd ?? payload.cwd ?? null,
+        existing.cwd ? existing.repo : (repo ?? existing.repo),
         host,
         hostPid ?? existing.hostPid,
         payload.session_id,

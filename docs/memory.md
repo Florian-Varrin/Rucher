@@ -26,7 +26,9 @@ A journal event is a fact at a date. A note is a living claim: it stays true unt
 
 Rules for the text: one claim per note, under 200 characters, readable without context, with its reason. No backticks, no markdown, one line.
 
-A note is **general** (no repo) or tied to **one or more repos** of the group, by their directory name. Two repos of a group cannot share a directory name, so `rucher group add` refuses a second `shop-api`.
+A note is **general** (no repo) or tied to **one or more repos** of the group, by their name in `group.json` (the directory name unless set). Two repos of a group cannot share a name, so `rucher group add` refuses a second `shop-api`.
+
+Notes are numbered per group: each group starts at `#1`, and a number always means a note of the current group.
 
 Adding a note very close to an active one of the same kind (same words, mostly) still adds it, and flags the likely duplicate: in the result, and in `rucher notes` (`similar to #1`). Drop one of them, or drop the old one with `replaced_by`.
 
@@ -79,7 +81,7 @@ At start (`rucher hook session-start`):
 | `resume`           | after the resume context, the notes the session already had                  |
 | `compact`          | the notes the session already had                                            |
 
-A session started from the meta directory has no repo yet. A repo's notes come in the first time a tool touches a file of that repo (`rucher hook post-tool-use`, on `Read`, `Edit`, `Write`, `Grep`, `Glob` and `Bash`): the file path, the search path, or the shell's working directory for `Bash` (commands are not parsed). Once per repo and per session; a note shared with a repo already brought in is not repeated. Forks run in their parent's context, so they get nothing of their own.
+A session started in its group's workspace has no repo yet. A repo's notes come in the first time a tool touches a file of that repo (`rucher hook post-tool-use`, on `Read`, `Edit`, `Write`, `Grep`, `Glob` and `Bash`): the file path, the search path, or the shell's working directory for `Bash` (commands are not parsed). Once per repo and per session; a note shared with a repo already brought in is not repeated. Forks run in their parent's context, so they get nothing of their own.
 
 ```text
 Rucher memory, repo shop-web (2 notes, note_list for details):

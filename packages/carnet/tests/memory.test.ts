@@ -69,7 +69,7 @@ test('startup brings the general notes and the notes of the session repo', () =>
   expect(text.indexOf('Decisions')).toBeLessThan(text.indexOf('Learnings'));
 });
 
-test('from the meta directory only the general notes come at startup', () => {
+test('from the workspace only the general notes come at startup', () => {
   const { carnet, root } = shop();
   seed(carnet);
   const text = start(carnet, root, 'startup').additionalContext ?? '';
@@ -116,8 +116,13 @@ test('each tool points at a path: file_path, path, else the cwd', () => {
 
 test('nothing to inject: outside the repos, no notes, a subagent, a repo already in', () => {
   const { carnet, root, api } = shop();
+  const other = shop();
   expect(
-    toolUse(carnet, { cwd: root, tool_name: 'Read', tool_input: { file_path: join(api, 'a.ts') } }),
+    toolUse(other.carnet, {
+      cwd: other.root,
+      tool_name: 'Read',
+      tool_input: { file_path: join(other.api, 'a.ts') },
+    }),
   ).toBeUndefined();
   seed(carnet);
   expect(

@@ -46,6 +46,10 @@ function withCarnet(
     sessionId: payload.session_id,
   });
   try {
+    // The plugin's hooks run in every Claude Code session: only group sessions and those
+    // launched by rucher are Rucher's.
+    const known = payload.session_id ? carnet.sessions.get(payload.session_id) : undefined;
+    if (!carnet.group && !io.env.RUCHER_SESSION_ID && !known) return;
     use(carnet);
   } finally {
     carnet.close();

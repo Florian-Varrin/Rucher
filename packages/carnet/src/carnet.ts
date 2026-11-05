@@ -18,7 +18,7 @@ import type { Ctx } from './context.ts';
 import { MEMORY_DB, openDatabase } from './db/open.ts';
 import { databasePath } from './paths.ts';
 import { logEvent, type LogEventInput, readEvents } from './events.ts';
-import { type Group, requireGroup, resolveGroup } from './group/locate.ts';
+import { type Group, type GroupResolution, requireGroup, resolveGroup } from './group/locate.ts';
 import {
   copyInjectedRepos,
   type MemoryOptions,
@@ -214,9 +214,19 @@ function openStore(options: OpenCarnetOptions): DatabaseSync {
 }
 
 export function openCarnet(options: OpenCarnetOptions = {}): Carnet {
+  return openResolvedCarnet(options).carnet;
+}
+
+export interface ResolvedCarnet {
+  carnet: Carnet;
+  resolution: GroupResolution;
+}
+
+export function openResolvedCarnet(options: OpenCarnetOptions = {}): ResolvedCarnet {
   const db = openStore(options);
   try {
-    return new Carnet(db, resolveGroup({ ...options, db }).group, options);
+    const resolution = resolveGroup({ ...options, db });
+    return { carnet: new Carnet(db, resolution.group, options), resolution };
   } catch (error) {
     db.close();
     throw error;

@@ -44,3 +44,17 @@ export function archiveGroupSessions(db: DatabaseSync, name: string, at: string)
     );
   });
 }
+
+export function deleteGroupNotes(db: DatabaseSync, name: string): number {
+  return Number(db.prepare('DELETE FROM notes WHERE group_name = ?').run(name).changes);
+}
+
+export function groupSessionCounts(db: DatabaseSync): Map<string, number> {
+  const rows = db
+    .prepare(
+      `SELECT group_name, COUNT(*) AS count FROM sessions
+       WHERE group_name IS NOT NULL AND status != 'archived' GROUP BY group_name`,
+    )
+    .all() as { group_name: string; count: number }[];
+  return new Map(rows.map((row) => [row.group_name, Number(row.count)]));
+}

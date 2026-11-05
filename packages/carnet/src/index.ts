@@ -12,9 +12,17 @@ export {
   type OpenCarnetOptions,
   openCarnet,
   openGroupCarnet,
+  openResolvedCarnet,
+  type ResolvedCarnet,
 } from './carnet.ts';
 export { type MoveOptions, type MoveResult, moveSession } from './move.ts';
-export { archiveGroupSessions, renameGroupRows, sessionGroupName } from './group-rows.ts';
+export {
+  archiveGroupSessions,
+  deleteGroupNotes,
+  groupSessionCounts,
+  renameGroupRows,
+  sessionGroupName,
+} from './group-rows.ts';
 export { MEMORY_DB, openDatabase } from './db/open.ts';
 export { migrate, migrations, schemaVersion } from './db/schema.ts';
 export { CarnetError, type CarnetErrorCode } from './errors.ts';
@@ -100,22 +108,12 @@ export {
   memoryMaxCharacters,
   renderMemory,
 } from './memory.ts';
-export {
-  claudeCode,
-  groupInstructions,
-  groupSettings,
-  REPOS_END,
-  REPOS_START,
-  replaceReposBlock,
-  reposBlock,
-  transcriptTitle,
-} from './hosts/claude-code.ts';
+export { claudeCode, groupSettings, transcriptTitle } from './hosts/claude-code.ts';
 export {
   allHosts,
-  type ContextFile,
-  type ContextFileResult,
   DEFAULT_HOST,
   type Host,
+  type HostRender,
   hostById,
   type HostPromptPayload,
   type HostSessionEndPayload,
@@ -201,3 +199,12 @@ export {
 export { buildStatusView, formatClock, type StatusLine, type StatusView } from './status/view.ts';
 export type { SetTableInput, TableItem } from './table.ts';
 export { AGENT_STEPS, type AgentStep, stepAgent, type StepAgentInput } from './steps.ts';
+export { type RenderResult, renderWorkspace, type WorkspaceRenderOptions } from './render.ts';
+export {
+  GENERATED_MARKER,
+  MARKDOWN_MARKER,
+  markdownCopy,
+  mergeSettings,
+  removeStaleCopies,
+  writeGenerated,
+} from './workspace-files.ts';
