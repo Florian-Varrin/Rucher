@@ -33,4 +33,6 @@ test.skipIf(!existsSync(bin))('built binary runs help, groups create, hook and s
   expect(run(['log'])).toBe('no events yet\n');
   expect(run(['complete', 'zsh'])).toContain('#compdef rucher');
   expect(run(['complete', '--', 'sessions', 'move', 's1', '--to', ''])).toContain('demo');
+  expect(run(['complete', '--', 'resume', '-g', 'demo', ''])).toContain('s1');
+  expect(run(['complete', '--', 'resume', '--group=demo', ''])).toContain('s1');
 });

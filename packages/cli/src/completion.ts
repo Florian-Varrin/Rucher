@@ -29,10 +29,37 @@ function quietly(suggest: () => void): void {
   } catch {}
 }
 
+// tab's parser takes `--group=shop` for a flag expecting its value in the next word, so it never
+// reaches the positional. The word under the cursor stays whole: tab completes `--group=sh` itself.
+export function splitInlineValues(words: string[]): string[] {
+  return words.flatMap((word, index) => {
+    const inline = index < words.length - 1 ? /^(--?[\w-]+)=(.*)$/.exec(word) : null;
+    return inline ? [inline[1] as string, inline[2] as string] : [word];
+  });
+}
+
+// The word under the cursor is left out: it is being completed, not chosen yet.
+function readTypedWords({ typedWords }: CompletionContext) {
+  const typed = typedWords.slice(0, -1);
+  const passthrough = typed.indexOf('--');
+  const own = passthrough === -1 ? typed : typed.slice(0, passthrough);
+  const flag = own.findLastIndex((word) => word === '-g' || word === '--group');
+  const group = flag === -1 ? undefined : own[flag + 1];
+  const words = own.filter(
+    (_, index) => !(index > 0 && (own[index - 1] === '-g' || own[index - 1] === '--group')),
+  );
+  return { group, words };
+}
+
+function inGroup(context: CompletionContext) {
+  return { cwd: context.cwd, env: context.env, group: readTypedWords(context).group };
+}
+
 export function suggestSessions(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    const carnet = openCarnet(context);
+    const carnet = openCarnet(inGroup(context));
     try {
+      const typed = readTypedWords(context).words;
       const sessions = carnet.sessions.list({ includeTemp: true });
       const suggestions = [
         ...sessions.flatMap((session) =>
@@ -45,7 +72,7 @@ export function suggestSessions(context: CompletionContext, complete: Complete):
         ),
       ];
       for (const suggestion of suggestions) {
-        if (!context.typedWords.slice(0, -1).includes(suggestion.value)) {
+        if (!typed.includes(suggestion.value)) {
           complete(suggestion.value, suggestion.description);
         }
       }
@@ -63,13 +90,15 @@ export function suggestGroups(context: CompletionContext, complete: Complete): v
 
 export function suggestRepos(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    for (const repo of resolveGroup(context).group?.repos ?? []) complete(repo.path, repo.name);
+    for (const repo of resolveGroup(inGroup(context)).group?.repos ?? []) {
+      complete(repo.path, repo.name);
+    }
   });
 }
 
 export function suggestRepoNames(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    const { group } = resolveGroup(context);
+    const { group } = resolveGroup(inGroup(context));
     for (const repo of group ? groupRepoNames(group) : []) complete(repo, '');
   });
 }
@@ -80,7 +109,7 @@ export function suggestNoteKinds(complete: Complete): void {
 
 export function suggestNotes(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    const carnet = openCarnet(context);
+    const carnet = openCarnet(inGroup(context));
     try {
       for (const note of carnet.notes.list()) complete(String(note.id), note.text.slice(0, 60));
     } finally {
@@ -106,7 +135,7 @@ export function suggestDirectories(context: CompletionContext, complete: Complet
 
 function processContext(): CompletionContext {
   const separator = process.argv.indexOf('--');
-  const typedWords = separator === -1 ? [] : process.argv.slice(separator + 1);
+  const typedWords = separator === -1 ? [] : splitInlineValues(process.argv.slice(separator + 1));
   return { cwd: process.cwd(), env: process.env, typedWords };
 }
 
@@ -194,6 +223,17 @@ export async function setupCompletion(main: CommandDef): Promise<void> {
   );
   // tab adds its `complete` command to the tree it walks; the walked copy hides internal commands.
   await tab({ ...main, subCommands: visible }, completionConfig);
-  const complete = visible['complete'];
-  if (complete) main.subCommands = { ...subCommands, complete };
+  const complete = visible['complete'] as CommandDef | undefined;
+  if (complete) {
+    main.subCommands = {
+      ...subCommands,
+      complete: {
+        ...complete,
+        run: (context) => {
+          context.rawArgs = splitInlineValues(context.rawArgs);
+          return complete.run?.(context);
+        },
+      },
+    };
+  }
 }
