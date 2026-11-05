@@ -1,5 +1,18 @@
 # @rucher/cli
 
+## 0.2.0-beta.4
+
+### Minor Changes
+
+- f00dce0: Support `AGENTS.md` as a group's instructions, rendered into the workspace with a generated `CLAUDE.md`.
+
+### Patch Changes
+
+- 5524301: Complete sessions, repos and notes from the group given by `-g`.
+- 455ceb6: Say when no group resolved instead of showing an empty list
+- Updated dependencies [f00dce0]
+  - @rucher/carnet@0.2.0-beta.4
+
 ## 0.2.0-beta.3
 
 ### Minor Changes

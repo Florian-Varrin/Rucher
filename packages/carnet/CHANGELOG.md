@@ -1,5 +1,11 @@
 # @rucher/carnet
 
+## 0.2.0-beta.4
+
+### Minor Changes
+
+- f00dce0: Support `AGENTS.md` as a group's instructions, rendered into the workspace with a generated `CLAUDE.md`.
+
 ## 0.2.0-beta.3
 
 ### Minor Changes
