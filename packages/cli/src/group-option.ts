@@ -26,6 +26,11 @@ export function announceGroup(io: Io, resolution: GroupResolution): void {
   }
 }
 
+// An empty list without a group would read as lost data.
+export function warnNoGroup(carnet: Carnet, io: Io): void {
+  if (!carnet.group) io.stderr('no group here: pass -g after the subcommand\n');
+}
+
 export function openCliCarnet(io: Io, group?: string): Carnet {
   const { carnet, resolution } = openResolvedCarnet({ cwd: io.cwd, env: io.env, group });
   announceGroup(io, resolution);

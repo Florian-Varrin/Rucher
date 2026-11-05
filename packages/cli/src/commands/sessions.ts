@@ -14,6 +14,7 @@ import {
   shortId,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
+import { warnNoGroup } from '../group-option.ts';
 import type { Io } from '../io.ts';
 import { CliError, findSession } from '../session.ts';
 
@@ -48,9 +49,10 @@ export function sessionsOnce(carnet: Carnet, io: Io, options: SessionsOptions = 
     includeTemp: options.all,
     includeArchived: options.all,
   });
+  warnNoGroup(carnet, io);
   if (sessions.length === 0) {
     const hint = options.all ? '' : ' (temp and archived ones are hidden, use --all)';
-    io.stdout(`${colors.dim(`no active session yet${hint}`)}\n`);
+    if (carnet.group) io.stdout(`${colors.dim(`no active session yet${hint}`)}\n`);
     return;
   }
   const now = options.now ?? new Date();

@@ -1,10 +1,26 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { Carnet, MEMORY_DB, openDatabase } from '@rucher/carnet';
 import { expect, test } from 'vite-plus/test';
 import { planResume } from '../src/commands/launch.ts';
 import { sessionsMerge, sessionsOnce } from '../src/commands/sessions.ts';
 import { CliError } from '../src/session.ts';
 import { makeCarnet, makeIo, SESSION } from './helpers.ts';
+
+test('sessions without a group hints on stderr and keeps stdout for group-less sessions', () => {
+  const carnet = new Carnet(openDatabase(MEMORY_DB), null);
+  const empty = makeIo();
+  sessionsOnce(carnet, empty);
+  expect(empty.output).toEqual([]);
+  expect(empty.errors).toEqual(['no group here: pass -g after the subcommand\n']);
+
+  carnet.sessions.ensure('loose');
+  carnet.sessions.name('loose', 'loose-one');
+  const listed = makeIo();
+  sessionsOnce(carnet, listed);
+  expect(listed.output.join('')).toContain('loose-one');
+  expect(listed.errors).toEqual(['no group here: pass -g after the subcommand\n']);
+});
 
 test('sessions lists active sessions, --all adds temp and archived ones', () => {
   const { carnet } = makeCarnet();

@@ -10,6 +10,7 @@ import {
   type WeightedNote,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
+import { warnNoGroup } from '../group-option.ts';
 import type { Io } from '../io.ts';
 import { CliError } from '../session.ts';
 
@@ -107,8 +108,11 @@ export function notesList(carnet: Carnet, io: Io, options: NotesListOptions = {}
     return;
   }
   const colors = paint(io);
+  warnNoGroup(carnet, io);
   if (notes.length === 0) {
-    io.stdout(`${colors.dim(options.stale ? 'no note to review' : 'no notes')}\n`);
+    if (carnet.group) {
+      io.stdout(`${colors.dim(options.stale ? 'no note to review' : 'no notes')}\n`);
+    }
     return;
   }
   const blocks = grouped(notes).map(
