@@ -1,6 +1,6 @@
 {
   "name": "@rucher/cli",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.3",
   "description": "rucher: status, journal and sessions of your Claude Code sub-agents, from the terminal",
   "keywords": [
     "agents",
