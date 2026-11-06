@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
-import type { Group } from './group/group.ts';
+import type { Workspace } from './workspace/workspace.ts';
 
 export interface RucherPaths {
   config: string;
@@ -41,15 +41,15 @@ export function databasePath(env?: NodeJS.ProcessEnv): string {
   return join(rucherPaths(env).data, 'carnet.db');
 }
 
-export function groupsDirectory(env?: NodeJS.ProcessEnv): string {
-  return join(rucherPaths(env).config, 'groups');
+export function workspacesDirectory(env?: NodeJS.ProcessEnv): string {
+  return join(rucherPaths(env).config, 'workspaces');
 }
 
-export function groupSource(name: string, env?: NodeJS.ProcessEnv): string {
-  return join(groupsDirectory(env), name);
+export function workspaceDefinition(name: string, env?: NodeJS.ProcessEnv): string {
+  return join(workspacesDirectory(env), name);
 }
 
-export function defaultWorkspace(name: string, env?: NodeJS.ProcessEnv): string {
+export function defaultRunDirectory(name: string, env?: NodeJS.ProcessEnv): string {
   return join(rucherPaths(env).data, 'workspaces', name);
 }
 
@@ -61,10 +61,10 @@ export function corePromptPath(env?: NodeJS.ProcessEnv): string {
   return join(rucherPaths(env).config, 'prompt.md');
 }
 
-export function reportsDirectory(group: Group): string {
-  return join(group.workspace, 'reports');
+export function reportsDirectory(workspace: Workspace): string {
+  return join(workspace.runDirectory, 'reports');
 }
 
-export function reportPath(group: Group, agentName: string): string {
-  return join(reportsDirectory(group), `${agentName}.md`);
+export function reportPath(workspace: Workspace, agentName: string): string {
+  return join(reportsDirectory(workspace), `${agentName}.md`);
 }

@@ -226,6 +226,18 @@ INSERT INTO active_days_new (group_name, day) SELECT '', day FROM active_days;
 DROP TABLE active_days;
 ALTER TABLE active_days_new RENAME TO active_days;
 `,
+  `
+ALTER TABLE sessions RENAME COLUMN group_name TO workspace;
+ALTER TABLE notes RENAME COLUMN group_name TO workspace;
+ALTER TABLE active_days RENAME COLUMN group_name TO workspace;
+DROP INDEX sessions_group_status;
+DROP INDEX sessions_group_name;
+DROP INDEX notes_group_number;
+CREATE INDEX sessions_workspace_status ON sessions(workspace, status, last_active_at);
+CREATE UNIQUE INDEX sessions_workspace_name ON sessions(workspace, name)
+  WHERE workspace IS NOT NULL AND name IS NOT NULL;
+CREATE UNIQUE INDEX notes_workspace_number ON notes(workspace, number);
+`,
 ];
 
 export function schemaVersion(db: DatabaseSync): number {

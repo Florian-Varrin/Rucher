@@ -5,11 +5,11 @@ import {
   appendPromptFile,
   type Carnet,
   CarnetError,
-  type Group,
+  type Workspace,
   hostById,
-  isGroupName,
-  loadGroup,
-  renderWorkspace,
+  isWorkspaceName,
+  loadWorkspace,
+  renderRunDirectory,
   repoNameFor,
   type Session,
   type SessionKind,
@@ -43,7 +43,7 @@ export function positionals(own: readonly string[]): string[] {
 }
 
 function launchEnv(
-  group: Group | null,
+  workspace: Workspace | null,
   session: Pick<Session, 'id' | 'name'>,
   promptVersion: string,
   kind?: SessionKind,
@@ -54,7 +54,7 @@ function launchEnv(
     RUCHER_SESSION_NAME: session.name ?? '',
     // Repos are added directories: without it Claude Code skips their CLAUDE.md.
     CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
-    ...(group ? { RUCHER_GROUP: group.name } : {}),
+    ...(workspace ? { RUCHER_WS: workspace.name } : {}),
     ...(kind ? { RUCHER_SESSION_KIND: kind } : {}),
   };
 }
@@ -73,43 +73,51 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
     id: randomUUID(),
     kind: options.kind,
     name: options.name,
-    cwd: carnet.group?.workspace ?? io.cwd,
-    repo: repoNameFor(carnet.group, io.cwd),
+    cwd: carnet.workspace?.runDirectory ?? io.cwd,
+    repo: repoNameFor(carnet.workspace, io.cwd),
   });
   const host = hostById(session.host);
-  if (carnet.group) renderWorkspace(carnet.group, { env: io.env, host: session.host });
-  const prompt = appendPromptFile(carnet.group, session, io.env);
+  if (carnet.workspace) renderRunDirectory(carnet.workspace, { env: io.env, host: session.host });
+  const prompt = appendPromptFile(carnet.workspace, session, io.env);
   const command = host.launchCommand(session.id, {
     name: session.name,
     appendPromptFile: prompt.path,
-    directories: repoDirectories(carnet.group),
+    directories: repoDirectories(carnet.workspace),
     passthrough: options.passthrough,
   });
   return {
     ...command,
-    cwd: carnet.group?.workspace ?? io.cwd,
-    env: launchEnv(carnet.group, session, prompt.version),
+    cwd: carnet.workspace?.runDirectory ?? io.cwd,
+    env: launchEnv(carnet.workspace, session, prompt.version),
     sessionId: session.id,
   };
 }
 
-// Settings directories apply only once the workspace is trusted, and never load the repos' CLAUDE.md.
-function repoDirectories(group: Group | null): string[] {
-  return (group?.repos ?? []).map((repo) => repo.path).filter((path) => existsSync(path));
+// Settings directories apply only once the run directory is trusted, and never load the repos' CLAUDE.md.
+function repoDirectories(workspace: Workspace | null): string[] {
+  return (workspace?.repos ?? []).map((repo) => repo.path).filter((path) => existsSync(path));
 }
 
-function sessionGroup(carnet: Carnet, session: Session, env: NodeJS.ProcessEnv): Group | null {
-  if (!session.groupName || !isGroupName(session.groupName)) return null;
-  return carnet.group?.name === session.groupName
-    ? carnet.group
-    : loadGroup(session.groupName, env);
+function sessionWorkspace(
+  carnet: Carnet,
+  session: Session,
+  env: NodeJS.ProcessEnv,
+): Workspace | null {
+  if (!session.workspace || !isWorkspaceName(session.workspace)) return null;
+  return carnet.workspace?.name === session.workspace
+    ? carnet.workspace
+    : loadWorkspace(session.workspace, env);
 }
 
-// Rendering first recreates a missing workspace, the usual cwd of a group session.
-function prepareSession(carnet: Carnet, session: Session, env: NodeJS.ProcessEnv): Group | null {
-  const group = sessionGroup(carnet, session, env);
-  if (group) renderWorkspace(group, { env, host: session.host });
-  return group;
+// Rendering first recreates a missing run directory, the usual cwd of a workspace session.
+function prepareSession(
+  carnet: Carnet,
+  session: Session,
+  env: NodeJS.ProcessEnv,
+): Workspace | null {
+  const workspace = sessionWorkspace(carnet, session, env);
+  if (workspace) renderRunDirectory(workspace, { env, host: session.host });
+  return workspace;
 }
 
 // Hosts store conversations per project directory, so a session only reopens from its original cwd.
@@ -129,18 +137,18 @@ export function planResume(
 ): LaunchPlan {
   const session = findSession(carnet, reference);
   if (session.status === 'archived') io.stderr(`warning: session ${reference} is archived\n`);
-  const group = prepareSession(carnet, session, io.env);
+  const workspace = prepareSession(carnet, session, io.env);
   const cwd = sessionDirectory(session);
-  const prompt = appendPromptFile(group, session, io.env);
+  const prompt = appendPromptFile(workspace, session, io.env);
   const command = hostById(session.host).resumeCommand(session, {
     appendPromptFile: prompt.path,
-    directories: repoDirectories(group),
+    directories: repoDirectories(workspace),
     passthrough,
   });
   return {
     ...command,
     cwd,
-    env: launchEnv(group, session, prompt.version),
+    env: launchEnv(workspace, session, prompt.version),
     sessionId: session.id,
   };
 }
@@ -164,13 +172,13 @@ export function planFork(
     throw new CliError(`A session named "${options.name}" already exists`);
   }
   const parent = findSession(carnet, reference);
-  const group = prepareSession(carnet, parent, io.env);
+  const workspace = prepareSession(carnet, parent, io.env);
   const cwd = sessionDirectory(parent);
   const kind: SessionKind = options.active ? 'active' : 'temp';
   const command = hostById(parent.host).forkCommand(parent, {
     name: options.name,
-    appendPromptFile: appendPromptFile(group, parent, io.env).path,
-    directories: repoDirectories(group),
+    appendPromptFile: appendPromptFile(workspace, parent, io.env).path,
+    directories: repoDirectories(workspace),
     passthrough: options.passthrough,
   });
   return {
@@ -178,7 +186,7 @@ export function planFork(
     cwd,
     // A fork keeps its parent's system prompt snapshot, so the parent's rules are the ones in effect.
     env: {
-      ...launchEnv(group, parent, parent.promptVersion ?? '', kind),
+      ...launchEnv(workspace, parent, parent.promptVersion ?? '', kind),
       RUCHER_SESSION_NAME: options.name ?? '',
     },
     parentId: parent.id,

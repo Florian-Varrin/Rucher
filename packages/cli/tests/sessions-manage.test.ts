@@ -11,15 +11,17 @@ import {
   sessionsPromote,
   sessionsRename,
 } from '../src/commands/sessions.ts';
-import { makeIo, tempDirectory, groupAt } from './helpers.ts';
+import { makeIo, tempDirectory, workspaceAt } from './helpers.ts';
 
 const DAY = 86_400_000;
 
 function shop() {
   const root = tempDirectory();
   const clock = { time: Date.parse('2026-11-01T10:00:00.000Z') };
-  const group = groupAt(root, 'shop', [join(root, 'shop-api')]);
-  const carnet = new Carnet(openDatabase(MEMORY_DB), group, { now: () => new Date(clock.time) });
+  const workspace = workspaceAt(root, 'shop', [join(root, 'shop-api')]);
+  const carnet = new Carnet(openDatabase(MEMORY_DB), workspace, {
+    now: () => new Date(clock.time),
+  });
   const session = (id: string, kind: 'active' | 'temp', name?: string) =>
     carnet.sessions.create({ id, kind, name, cwd: root });
   return { root, clock, carnet, session };

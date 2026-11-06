@@ -38,7 +38,7 @@ const agentName = z.string().min(1).describe('Short agent name, no paths');
 const agentStart = defineTool({
   name: 'agent_start',
   description:
-    'Main agent only. Register a fork before dispatching it (launch it in a later message). Logs `started`. The result gives the report destination in the group, where agent_done copies the report.',
+    'Main agent only. Register a fork before dispatching it (launch it in a later message). Logs `started`. The result gives the report destination in the workspace, where agent_done copies the report.',
   schema: z.object({
     name: agentName,
     task: z.string().min(1).describe('One-line task given to the fork'),
@@ -47,21 +47,21 @@ const agentStart = defineTool({
     session,
   }),
   run: (carnet, sessionId, args) => {
-    const group = carnet.group;
+    const workspace = carnet.workspace;
     const agent = carnet.agents.start(sessionId, {
       name: args.name,
       task: args.task,
       baseCommit: args.base_commit,
       worktree: args.worktree,
     });
-    if (!group) {
+    if (!workspace) {
       return {
-        text: `${EMOJI.running} ${agent.name} started outside any group\nNo report destination: the report stays where the fork writes it`,
+        text: `${EMOJI.running} ${agent.name} started outside any workspace\nNo report destination: the report stays where the fork writes it`,
       };
     }
-    mkdirSync(reportsDirectory(group), { recursive: true });
+    mkdirSync(reportsDirectory(workspace), { recursive: true });
     return {
-      text: `${EMOJI.running} ${agent.name} started in group ${group.name}\nReport destination: ${reportPath(group, agent.name)}`,
+      text: `${EMOJI.running} ${agent.name} started in workspace ${workspace.name}\nReport destination: ${reportPath(workspace, agent.name)}`,
     };
   },
 });
@@ -94,10 +94,10 @@ const agentUpdate = defineTool({
 });
 
 function copyReport(carnet: Carnet, name: string, reportFile: string): string {
-  if (!carnet.group) return reportFile;
-  const destination = reportPath(carnet.group, name);
+  if (!carnet.workspace) return reportFile;
+  const destination = reportPath(carnet.workspace, name);
   if (resolve(reportFile) === destination || !existsSync(reportFile)) return reportFile;
-  mkdirSync(reportsDirectory(carnet.group), { recursive: true });
+  mkdirSync(reportsDirectory(carnet.workspace), { recursive: true });
   copyFileSync(reportFile, destination);
   return destination;
 }
@@ -105,7 +105,7 @@ function copyReport(carnet: Carnet, name: string, reportFile: string): string {
 const agentDone = defineTool({
   name: 'agent_done',
   description:
-    'Forks call this as their LAST tool action, then reply with one line that carries no results. Copies the report to the group report destination and marks the agent ❓ answer (has_questions) or 👀 review once the fork stops.',
+    'Forks call this as their LAST tool action, then reply with one line that carries no results. Copies the report to the workspace report destination and marks the agent ❓ answer (has_questions) or 👀 review once the fork stops.',
   schema: z.object({
     name: agentName,
     report_path: z.string().min(1).describe('Absolute path of the markdown report'),
@@ -278,7 +278,7 @@ const sessionNew = defineTool({
 const sessionList = defineTool({
   name: 'session_list',
   description:
-    "List the group's sessions, most recently active first. Temp and archived ones are hidden unless asked.",
+    "List the workspace's sessions, most recently active first. Temp and archived ones are hidden unless asked.",
   schema: z.object({
     include_temp: z.boolean().optional(),
     include_archived: z.boolean().optional(),
@@ -353,14 +353,14 @@ export function noteLine(note: Note): string {
 const noteAdd = defineTool({
   name: 'note_add',
   description:
-    "Main agent only. Record what the group learned (learning), decided (decision) or tried and gave up (dead_end), at the end of a step. One claim under 200 characters with its reason, no markdown. `repos` only when it applies to some of the group's repos; omit it for a general note. A result listing similar notes means a likely duplicate: drop or replace instead of piling up.",
+    "Main agent only. Record what the workspace learned (learning), decided (decision) or tried and gave up (dead_end), at the end of a step. One claim under 200 characters with its reason, no markdown. `repos` only when it applies to some of the workspace's repos; omit it for a general note. A result listing similar notes means a likely duplicate: drop or replace instead of piling up.",
   schema: z.object({
     kind: z.enum(NOTE_KINDS),
     text: z.string().min(1).describe('One claim with its reason, under 200 characters'),
     repos: z
       .array(z.string().min(1))
       .optional()
-      .describe('Repo names of the group; omit for a general note'),
+      .describe('Repo names of the workspace; omit for a general note'),
     agent: z.string().optional().describe('Fork the note comes from'),
     session,
   }),
@@ -382,7 +382,7 @@ const noteAdd = defineTool({
 const noteList = defineTool({
   name: 'note_list',
   description:
-    "The group's active notes, dead ends first, then decisions, then learnings, most cited first. Filter by kind, repo, general (notes without repo) or a substring query. Check it before trying an approach.",
+    "The workspace's active notes, dead ends first, then decisions, then learnings, most cited first. Filter by kind, repo, general (notes without repo) or a substring query. Check it before trying an approach.",
   schema: z.object({
     kind: z.enum(NOTE_KINDS).optional(),
     repo: z.string().optional().describe('Notes of this repo'),

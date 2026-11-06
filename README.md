@@ -18,11 +18,11 @@ Early (0.x), used daily by its author. Commands, APIs and the database schema ma
 | Component    | Role                                                                                            | State                                |
 | ------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------ |
 | Workflow     | Rules for multi-agent work: two-phase forks, parallel work, sequential review, reports in files | [docs/workflow.md](docs/workflow.md) |
-| Groups       | One group per set of related repos: repo map, shared instructions, directory access             | done                                 |
+| Workspaces   | One workspace per set of related repos: repo map, shared instructions, directory access         | done                                 |
 | Carnet       | Shared state: agent statuses, "On the table", sessions, journal. Library + SQLite + MCP server  | [reference](docs/reference.md)       |
 | CLI `rucher` | Human entry point: `status`, `log`, `sessions`, `resume`                                        | [reference](docs/reference.md)       |
 | Sessions     | Named, resumable sessions; temporary ones purged                                                | [docs/sessions.md](docs/sessions.md) |
-| Memory       | Notes the group learned, decided or ruled out, shared by its sessions                           | [docs/memory.md](docs/memory.md)     |
+| Memory       | Notes the workspace learned, decided or ruled out, shared by its sessions                       | [docs/memory.md](docs/memory.md)     |
 | Plugin       | Claude Code wiring: MCP server, hooks, `rucher` skill                                           | [plugin/README.md](plugin/README.md) |
 | Core + TUI   | SDK wrapper, agents, forks, permissions; one-window terminal UI                                 | later                                |
 
@@ -47,34 +47,33 @@ npm install -g @rucher/cli
 claude plugin marketplace add Florian-Varrin/Rucher
 claude plugin install rucher@rucher
 
-rucher groups create shop --repos ~/code/shop-api,~/code/shop-web
-rucher status --watch -g shop   # in a side pane
-rucher new shop-auth -g shop    # in another pane: starts Claude Code in the group's workspace
+rucher ws create shop --repos ~/code/shop-api,~/code/shop-web
+rucher status --watch --ws shop   # in a side pane
+rucher new shop-auth --ws shop    # in another pane: starts Claude Code in the workspace's run directory
 ```
 
-A group is a set of related repos, managed by `rucher`. Its source, `~/.config/rucher/groups/<name>/` (`group.json`, `CLAUDE.md`), is what you edit and can keep in your dotfiles. Its workspace, `~/.local/share/rucher/workspaces/<name>/`, is the cwd of its sessions: a link to the instructions, a generated `.claude/settings.json` giving access to the repos, and the fork reports. All groups share one Carnet database, `~/.local/share/rucher/carnet.db`. The repos stay where they are and are referenced by path; nothing is written inside them. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.
+A workspace is a set of related repos, managed by `rucher`. Its definition, `~/.config/rucher/workspaces/<name>/` (`workspace.json`, `CLAUDE.md`), is what you edit and can keep in your dotfiles. Its run directory, `~/.local/share/rucher/workspaces/<name>/`, is the cwd of its sessions: copies of the instructions, a generated `.claude/settings.json` giving access to the repos, and the fork reports. All workspaces share one Carnet database, `~/.local/share/rucher/carnet.db`. The repos stay where they are and are referenced by path; nothing is written inside them. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.
 
 ## Commands
 
 ```bash
-rucher groups list                     # the groups, with repo and session counts
-rucher group add ~/code/shop-infra     # add a repo to the group
-rucher group remove ~/code/shop-infra  # drop a repo
-rucher group edit                      # the group's instructions in $EDITOR, then sync
-rucher group sync                      # render the workspace from the group's source
-cd "$(rucher group path -g shop)"      # the workspace
-rucher groups rename shop store        # the workspace keeps its path
-rucher groups drop store               # archive its sessions, keep its notes
+rucher ws list                     # the workspaces, with repo and session counts
+rucher ws add ~/code/shop-infra     # add a repo to the workspace
+rucher ws remove ~/code/shop-infra  # drop a repo
+rucher ws edit                      # the workspace's instructions in $EDITOR, then sync
+rucher ws sync                      # render the run directory from the workspace's definition
+cd "$(rucher ws path --ws shop)"      # the run directory
+rucher ws drop store               # archive its sessions, keep its notes
 rucher status --watch                  # the status pane
 rucher log                             # the journal
 rucher log --md > journal.md           # the journal as markdown
 rucher sessions                        # named sessions
 rucher resume shop-auth                # back into a named session
 rucher sessions merge <from> <into>    # join a session split by a resume
-rucher sessions move <session> --to <group>  # move a session to its right group
+rucher sessions move <session> --to <workspace>  # move a session to its right workspace
 ```
 
-Run `rucher` from anywhere: `-g <name>` picks the group, otherwise the workspace or the repo you are in does (longest path; a repo shared by several groups needs `-g`). `rucher new` and `rucher tmp` start Claude Code in the workspace, so the group's instructions load and every repo is reachable; a session keeps its group and its launch directory, whatever it does with `cd`.
+Run `rucher` from anywhere: `--ws <name>` picks the workspace, otherwise the run directory or the repo you are in does (longest path; a repo shared by several workspaces needs `--ws`). `rucher new` and `rucher tmp` start Claude Code in the run directory, so the workspace's instructions load and every repo is reachable; a session keeps its workspace and its launch directory, whatever it does with `cd`.
 
 Naming, watching, resuming and dropping sessions: [docs/sessions.md](docs/sessions.md).
 
@@ -90,7 +89,7 @@ source <(rucher complete bash)       # ~/.bashrc
 rucher complete fish | source        # ~/.config/fish/config.fish
 ```
 
-Commands and flags complete as you type; `--session`, `resume` and `sessions merge` offer session names, then short ids; `-g`, `sessions move --to`, `groups rename` and `groups drop` offer group names, `group remove` the group's repos.
+Commands and flags complete as you type; `--session`, `resume` and `sessions merge` offer session names, then short ids; `--ws`, `sessions move --to` and `ws drop` offer workspace names, `ws remove` the workspace's repos.
 
 ## Development
 
@@ -105,7 +104,7 @@ pnpm run build       # the rucher binary in packages/cli/dist
 pnpm run ready       # build, check, test
 ```
 
-Inside the workspace, `@rucher/carnet` resolves to its sources through the `development` export condition, so type checks and tests need no prior build. Published packages use `dist`.
+Inside the pnpm workspace, `@rucher/carnet` resolves to its sources through the `development` export condition, so type checks and tests need no prior build. Published packages use `dist`.
 
 The toolchain is [Vite+](https://viteplus.dev). The `vite-plus` dev dependency is the source of truth; a global `vp` is optional.
 

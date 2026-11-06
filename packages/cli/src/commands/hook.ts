@@ -1,5 +1,5 @@
 import {
-  ambiguousGroupContext,
+  ambiguousWorkspaceContext,
   CarnetError,
   claudeCode,
   handleSessionEnd,
@@ -19,11 +19,11 @@ function runHook(io: Io, run: () => void, hookEventName?: string): number {
   try {
     run();
   } catch (error) {
-    if (error instanceof CarnetError && error.code === 'NO_GROUP') return 0;
-    if (error instanceof CarnetError && error.code === 'GROUP_AMBIGUOUS') {
+    if (error instanceof CarnetError && error.code === 'NO_WORKSPACE') return 0;
+    if (error instanceof CarnetError && error.code === 'WORKSPACE_AMBIGUOUS') {
       if (hookEventName) {
         io.stderr(`rucher: ${error.message}\n`);
-        const additionalContext = ambiguousGroupContext(error.message);
+        const additionalContext = ambiguousWorkspaceContext(error.message);
         io.stdout(
           `${JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext } })}\n`,
         );
@@ -46,10 +46,10 @@ function withCarnet(
     sessionId: payload.session_id,
   });
   try {
-    // The plugin's hooks run in every Claude Code session: only group sessions and those
+    // The plugin's hooks run in every Claude Code session: only workspace sessions and those
     // launched by rucher are Rucher's.
     const known = payload.session_id ? carnet.sessions.get(payload.session_id) : undefined;
-    if (!carnet.group && !io.env.RUCHER_SESSION_ID && !known) return;
+    if (!carnet.workspace && !io.env.RUCHER_SESSION_ID && !known) return;
     use(carnet);
   } finally {
     carnet.close();

@@ -1,18 +1,18 @@
 # Memory
 
-What a group has learned, shared by every session of the group. For the journal see [sessions.md](sessions.md); for commands, tools and files see [reference.md](reference.md).
+What a workspace has learned, shared by every session of the workspace. For the journal see [sessions.md](sessions.md); for commands, tools and files see [reference.md](reference.md).
 
 ## Why
 
-Sessions start blind. The journal records what happened in one session; a new session of the same group does not know that an approach was already tried and failed, that a decision was made, or that a repo hides a trap. Memory is a small set of notes, written through tools, and brought into the group's sessions when they concern the work.
+Sessions start blind. The journal records what happened in one session; a new session of the same workspace does not know that an approach was already tried and failed, that a decision was made, or that a repo hides a trap. Memory is a small set of notes, written through tools, and brought into the workspace's sessions when they concern the work.
 
 ## Three kinds of information
 
-| Kind    | Holds                                | Lifecycle                            | Where                  |
-| ------- | ------------------------------------ | ------------------------------------ | ---------------------- |
-| State   | where things stand now               | overwritten                          | agents, the table line |
-| Journal | what happened, dated                 | append-only                          | events, per session    |
-| Memory  | what was learned, decided, ruled out | distilled, short, dropped when wrong | notes, per **group**   |
+| Kind    | Holds                                | Lifecycle                            | Where                    |
+| ------- | ------------------------------------ | ------------------------------------ | ------------------------ |
+| State   | where things stand now               | overwritten                          | agents, the table line   |
+| Journal | what happened, dated                 | append-only                          | events, per session      |
+| Memory  | what was learned, decided, ruled out | distilled, short, dropped when wrong | notes, per **workspace** |
 
 A journal event is a fact at a date. A note is a living claim: it stays true until someone drops it.
 
@@ -26,9 +26,9 @@ A journal event is a fact at a date. A note is a living claim: it stays true unt
 
 Rules for the text: one claim per note, under 200 characters, readable without context, with its reason. No backticks, no markdown, one line.
 
-A note is **general** (no repo) or tied to **one or more repos** of the group, by their name in `group.json` (the directory name unless set). Two repos of a group cannot share a name, so `rucher group add` refuses a second `shop-api`.
+A note is **general** (no repo) or tied to **one or more repos** of the workspace, by their name in `workspace.json` (the directory name unless set). Two repos of a workspace cannot share a name, so `rucher ws add` refuses a second `shop-api`.
 
-Notes are numbered per group: each group starts at `#1`, and a number always means a note of the current group.
+Notes are numbered per workspace: each workspace starts at `#1`, and a number always means a note of the current workspace.
 
 Adding a note very close to an active one of the same kind (same words, mostly) still adds it, and flags the likely duplicate: in the result, and in `rucher notes` (`similar to #1`). Drop one of them, or drop the old one with `replaced_by`.
 
@@ -40,7 +40,7 @@ Forks never call `note_add`: their report ends with a `## Learnings` section, on
 
 ## Citations and weight
 
-An agent cites a note with `note_cite` when the note changed what it did ("avoided the Workers migration thanks to #14"), never for a plain read. The weight of a note is the sum of its citations, one per session, each halved every `RUCHER_MEMORY_HALF_LIFE_DAYS` active days (default 20). An active day is a day at least one session of the group worked, so a group paused for two months keeps its memory intact.
+An agent cites a note with `note_cite` when the note changed what it did ("avoided the Workers migration thanks to #14"), never for a plain read. The weight of a note is the sum of its citations, one per session, each halved every `RUCHER_MEMORY_HALF_LIFE_DAYS` active days (default 20). An active day is a day at least one session of the workspace worked, so a workspace paused for two months keeps its memory intact.
 
 The weight only orders notes inside a kind and feeds `rucher notes --stale`: notes older than 40 active days that were never cited, or whose weight fell close to zero, for you to review. Nothing is ever dropped automatically.
 
@@ -81,7 +81,7 @@ At start (`rucher hook session-start`):
 | `resume`           | after the resume context, the notes the session already had                  |
 | `compact`          | the notes the session already had                                            |
 
-A session started in its group's workspace has no repo yet. A repo's notes come in the first time a tool touches a file of that repo (`rucher hook post-tool-use`, on `Read`, `Edit`, `Write`, `Grep`, `Glob` and `Bash`): the file path, the search path, or the shell's working directory for `Bash` (commands are not parsed). Once per repo and per session; a note shared with a repo already brought in is not repeated. Forks run in their parent's context, so they get nothing of their own.
+A session started in its workspace's run directory has no repo yet. A repo's notes come in the first time a tool touches a file of that repo (`rucher hook post-tool-use`, on `Read`, `Edit`, `Write`, `Grep`, `Glob` and `Bash`): the file path, the search path, or the shell's working directory for `Bash` (commands are not parsed). Once per repo and per session; a note shared with a repo already brought in is not repeated. Forks run in their parent's context, so they get nothing of their own.
 
 ```text
 Rucher memory, repo shop-web (2 notes, note_list for details):

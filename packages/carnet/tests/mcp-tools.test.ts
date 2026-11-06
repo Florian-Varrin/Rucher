@@ -46,7 +46,7 @@ test('main and fork lifecycle through the protocol', async () => {
   const started = await call('agent_start', { name: 'banner', task: 'Add banner' });
   const destination = join(made.root, 'reports', 'banner.md');
   expect(started.text).toBe(
-    `⏳ banner started in group ${carnet.group?.name}\nReport destination: ${destination}`,
+    `⏳ banner started in workspace ${carnet.workspace?.name}\nReport destination: ${destination}`,
   );
   expect(started.structured).toBeUndefined();
   expect(existsSync(dirname(destination))).toBe(true);
@@ -126,10 +126,10 @@ test('an explicit session targets another session by full id or id prefix', asyn
   expect(typo.text).toContain('SESSION_NOT_FOUND');
 });
 
-test('a lazy carnet that has no group answers NO_GROUP instead of failing to start', async () => {
+test('a lazy carnet that has no workspace answers NO_WORKSPACE instead of failing to start', async () => {
   const server = createCarnetServer({
     carnet: () => {
-      throw new CarnetError('NO_GROUP', 'no group here');
+      throw new CarnetError('NO_WORKSPACE', 'no workspace here');
     },
     env: {},
     ppid: 1,
@@ -140,7 +140,7 @@ test('a lazy carnet that has no group answers NO_GROUP instead of failing to sta
   await lazyClient.connect(clientTransport);
   const result = await lazyClient.callTool({ name: 'agent_list', arguments: {} });
   expect(result.isError).toBe(true);
-  expect(JSON.stringify(result.content)).toContain('NO_GROUP');
+  expect(JSON.stringify(result.content)).toContain('NO_WORKSPACE');
 });
 
 test('notes through the protocol: add, duplicate warning, list, cite, drop', async () => {
@@ -178,7 +178,7 @@ test('notes through the protocol: add, duplicate warning, list, cite, drop', asy
   expect((await call('note_cite', { id: 9, why: 'nothing' })).isError).toBe(true);
 });
 
-test('agent_done copies the report to the group destination', async () => {
+test('agent_done copies the report to the workspace destination', async () => {
   await call('agent_start', { name: 'copied', task: 't' });
   const source = join(made.root, 'copied-scratch.md');
   writeFileSync(source, '# copied report');
@@ -251,14 +251,14 @@ test('agent_step next overrides the status, dropped closes with the reason', asy
   );
 });
 
-test('agent_start works outside any group, with no report destination', () => {
+test('agent_start works outside any workspace, with no report destination', () => {
   const free = openCarnet({ env: testHome(), cwd: tempDirectory('free-') });
   free.sessions.ensure(SESSION);
   const start = TOOLS.find((tool) => tool.name === 'agent_start');
   const result = start?.run(free, SESSION, { name: 'banner', task: 'Add banner' }) as {
     text: string;
   };
-  expect(result.text).toContain('banner started outside any group');
+  expect(result.text).toContain('banner started outside any workspace');
   expect(free.agents.get(SESSION, 'banner')?.status).toBe('running');
   free.close();
 });

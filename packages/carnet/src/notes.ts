@@ -1,6 +1,6 @@
 import { type Ctx, nowIso } from './context.ts';
 import { CarnetError } from './errors.ts';
-import type { Group } from './group/locate.ts';
+import type { Workspace } from './workspace/locate.ts';
 
 export const NOTE_KINDS = ['dead_end', 'decision', 'learning'] as const;
 export type NoteKind = (typeof NOTE_KINDS)[number];
@@ -103,7 +103,7 @@ interface NoteRow {
   replaced_number: number | null;
 }
 
-// Notes are shown and referenced by their number in the group; the id stays internal.
+// Notes are shown and referenced by their number in the workspace; the id stays internal.
 const NOTE_COLUMNS = `notes.id, notes.number, notes.kind, notes.text, notes.session, notes.agent,
   notes.similar_notes, notes.created_at, notes.dropped_at, notes.dropped_reason,
   notes.dropped_session,
@@ -127,18 +127,18 @@ function cleanText(value: string, label: string): string {
   return text;
 }
 
-export function groupRepoNames(group: Group): string[] {
-  return group.repos.map((repo) => repo.name);
+export function workspaceRepoNames(workspace: Workspace): string[] {
+  return workspace.repos.map((repo) => repo.name);
 }
 
-function cleanRepos(group: Group, repos: string[] | undefined): string[] {
-  const known = groupRepoNames(group);
+function cleanRepos(workspace: Workspace, repos: string[] | undefined): string[] {
+  const known = workspaceRepoNames(workspace);
   const unique = [...new Set((repos ?? []).map((repo) => repo.trim()).filter(Boolean))];
   const unknown = unique.filter((repo) => !known.includes(repo));
   if (unknown.length) {
     throw new CarnetError(
       'INVALID_NOTE',
-      `Unknown repo ${unknown.join(', ')} (group repos: ${known.join(', ') || 'none'})`,
+      `Unknown repo ${unknown.join(', ')} (workspace repos: ${known.join(', ') || 'none'})`,
     );
   }
   return unique;
@@ -164,16 +164,16 @@ export function localDay(date: Date): string {
 }
 
 export function recordActiveDay(ctx: Ctx): void {
-  if (ctx.group === null) return;
+  if (ctx.workspace === null) return;
   ctx.db
-    .prepare('INSERT OR IGNORE INTO active_days (group_name, day) VALUES (?, ?)')
-    .run(ctx.group, localDay(ctx.now()));
+    .prepare('INSERT OR IGNORE INTO active_days (workspace, day) VALUES (?, ?)')
+    .run(ctx.workspace, localDay(ctx.now()));
 }
 
 function activeDays(ctx: Ctx): string[] {
   const rows = ctx.db
-    .prepare('SELECT day FROM active_days WHERE group_name IS ? ORDER BY day')
-    .all(ctx.group) as unknown as { day: string }[];
+    .prepare('SELECT day FROM active_days WHERE workspace IS ? ORDER BY day')
+    .all(ctx.workspace) as unknown as { day: string }[];
   return rows.map((row) => row.day);
 }
 
@@ -208,8 +208,8 @@ function toNote(ctx: Ctx, row: NoteRow): Note {
 
 function noteRow(ctx: Ctx, number: number): NoteRow | undefined {
   return ctx.db
-    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes WHERE group_name IS ? AND number = ?`)
-    .get(ctx.group, number) as NoteRow | undefined;
+    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes WHERE workspace IS ? AND number = ?`)
+    .get(ctx.workspace, number) as NoteRow | undefined;
 }
 
 function noteId(ctx: Ctx, number: number): number {
@@ -242,9 +242,9 @@ function citationsOf(ctx: Ctx, number: number): NoteCitation[] {
   return ctx.db
     .prepare(
       `SELECT ${CITATION_COLUMNS} FROM note_citations JOIN notes ON notes.id = note_citations.note
-       WHERE notes.group_name IS ? AND notes.number = ? ORDER BY note_citations.at`,
+       WHERE notes.workspace IS ? AND notes.number = ? ORDER BY note_citations.at`,
     )
-    .all(ctx.group, number) as unknown as NoteCitation[];
+    .all(ctx.workspace, number) as unknown as NoteCitation[];
 }
 
 // Several citations in one session count once: the latest stands for that session.
@@ -279,15 +279,15 @@ export function compareNotes(first: WeightedNote, second: WeightedNote): number 
 function activeNotesOfKind(ctx: Ctx, kind: NoteKind): Note[] {
   const rows = ctx.db
     .prepare(
-      `SELECT ${NOTE_COLUMNS} FROM notes WHERE group_name IS ? AND kind = ? AND dropped_at IS NULL`,
+      `SELECT ${NOTE_COLUMNS} FROM notes WHERE workspace IS ? AND kind = ? AND dropped_at IS NULL`,
     )
-    .all(ctx.group, kind) as unknown as NoteRow[];
+    .all(ctx.workspace, kind) as unknown as NoteRow[];
   return rows.map((row) => toNote(ctx, row));
 }
 
-export function addNote(ctx: Ctx, group: Group | null, input: AddNoteInput): AddNoteResult {
-  if (group === null || ctx.group === null) {
-    throw new CarnetError('NO_GROUP', 'Notes belong to a group: this session has none');
+export function addNote(ctx: Ctx, workspace: Workspace | null, input: AddNoteInput): AddNoteResult {
+  if (workspace === null || ctx.workspace === null) {
+    throw new CarnetError('NO_WORKSPACE', 'Notes belong to a workspace: this session has none');
   }
   if (!isNoteKind(input.kind)) {
     throw new CarnetError(
@@ -297,7 +297,7 @@ export function addNote(ctx: Ctx, group: Group | null, input: AddNoteInput): Add
   }
   const kind = input.kind;
   const text = cleanText(input.text, 'Note text');
-  const repos = cleanRepos(group, input.repos);
+  const repos = cleanRepos(workspace, input.repos);
   const similar = activeNotesOfKind(ctx, kind)
     .map((note) => ({ note, score: similarity(text, note.text) }))
     .filter((candidate) => candidate.score >= DUPLICATE_SIMILARITY)
@@ -307,15 +307,15 @@ export function addNote(ctx: Ctx, group: Group | null, input: AddNoteInput): Add
   ctx.db.exec('BEGIN');
   try {
     const next = ctx.db
-      .prepare('SELECT COALESCE(MAX(number), 0) + 1 AS number FROM notes WHERE group_name = ?')
-      .get(ctx.group) as { number: number };
+      .prepare('SELECT COALESCE(MAX(number), 0) + 1 AS number FROM notes WHERE workspace = ?')
+      .get(ctx.workspace) as { number: number };
     const result = ctx.db
       .prepare(
-        `INSERT INTO notes (group_name, number, kind, text, session, agent, similar_notes, created_at)
+        `INSERT INTO notes (workspace, number, kind, text, session, agent, similar_notes, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
-        ctx.group,
+        ctx.workspace,
         next.number,
         kind,
         text,
@@ -339,8 +339,8 @@ export function listNotes(ctx: Ctx, options: ListNotesOptions = {}): WeightedNot
   if (options.kind !== undefined && !isNoteKind(options.kind)) {
     throw new CarnetError('INVALID_NOTE', `Invalid note kind "${options.kind}"`);
   }
-  const conditions: string[] = ['group_name IS ?'];
-  const parameters: (string | null)[] = [ctx.group];
+  const conditions: string[] = ['workspace IS ?'];
+  const parameters: (string | null)[] = [ctx.workspace];
   if (!options.includeDropped) conditions.push('dropped_at IS NULL');
   if (options.kind) {
     conditions.push('kind = ?');
@@ -436,10 +436,10 @@ const ACTIVITY_ORDER: Record<NoteActivityKind, number> = { dropped: 0, cited: 1,
 function activeIds(ctx: Ctx, json: string | null): number[] {
   if (!json) return [];
   const active = ctx.db.prepare(
-    'SELECT 1 FROM notes WHERE group_name IS ? AND number = ? AND dropped_at IS NULL',
+    'SELECT 1 FROM notes WHERE workspace IS ? AND number = ? AND dropped_at IS NULL',
   );
   return (JSON.parse(json) as number[]).filter(
-    (number) => active.get(ctx.group, number) !== undefined,
+    (number) => active.get(ctx.workspace, number) !== undefined,
   );
 }
 
@@ -447,9 +447,9 @@ export function sessionNoteActivity(ctx: Ctx, session: string): NoteActivity[] {
   const added = ctx.db
     .prepare(
       `SELECT number, kind, text, similar_notes, created_at FROM notes
-       WHERE group_name IS ? AND session = ?`,
+       WHERE workspace IS ? AND session = ?`,
     )
-    .all(ctx.group, session) as unknown as Pick<
+    .all(ctx.workspace, session) as unknown as Pick<
     NoteRow,
     'number' | 'kind' | 'text' | 'similar_notes' | 'created_at'
   >[];
@@ -457,17 +457,17 @@ export function sessionNoteActivity(ctx: Ctx, session: string): NoteActivity[] {
     .prepare(
       `SELECT notes.number AS note, notes.kind, note_citations.why, note_citations.at
        FROM note_citations JOIN notes ON notes.id = note_citations.note
-       WHERE notes.group_name IS ? AND note_citations.session = ?`,
+       WHERE notes.workspace IS ? AND note_citations.session = ?`,
     )
-    .all(ctx.group, session) as unknown as {
+    .all(ctx.workspace, session) as unknown as {
     note: number;
     kind: NoteKind;
     why: string;
     at: string;
   }[];
   const dropped = ctx.db
-    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes WHERE group_name IS ? AND dropped_session = ?`)
-    .all(ctx.group, session) as unknown as NoteRow[];
+    .prepare(`SELECT ${NOTE_COLUMNS} FROM notes WHERE workspace IS ? AND dropped_session = ?`)
+    .all(ctx.workspace, session) as unknown as NoteRow[];
   const activity: NoteActivity[] = [
     ...added.map((row) => ({
       activity: 'added' as const,

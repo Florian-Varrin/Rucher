@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { createGroup, openCarnet } from '@rucher/carnet';
+import { createWorkspace, openCarnet } from '@rucher/carnet';
 import { expect, test } from 'vite-plus/test';
 import { sessionEnd, sessionStart } from '../src/commands/hook.ts';
 import {
@@ -15,12 +15,12 @@ import {
 import { pickerLines, pickerSessions } from '../src/commands/picker.ts';
 import { makeIo, tempDirectory } from './helpers.ts';
 
-function shopGroup() {
+function shopWorkspace() {
   const api = join(tempDirectory('repos-'), 'shop-api');
   mkdirSync(join(api, 'src'), { recursive: true });
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  const root = createGroup('shop', { env, repos: [api] }).workspace;
-  const carnet = openCarnet({ group: 'shop', env });
+  const root = createWorkspace('shop', { env, repos: [api] }).runDirectory;
+  const carnet = openCarnet({ workspace: 'shop', env });
   return { root, api, env, carnet };
 }
 
@@ -32,8 +32,8 @@ test('arguments after -- are passed through, positionals are read before them', 
   expect(positionals(['main', 'alt', '--active'])).toEqual(['main', 'alt']);
 });
 
-test('rucher new starts a named active session from the group workspace', () => {
-  const { root, api, carnet } = shopGroup();
+test("rucher new starts a named active session from the workspace's run directory", () => {
+  const { root, api, carnet } = shopWorkspace();
   const plan = planNew(carnet, makeIo({ cwd: join(api, 'src') }), {
     kind: 'active',
     name: 'shop-auth',
@@ -58,7 +58,7 @@ test('rucher new starts a named active session from the group workspace', () => 
     CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
     RUCHER_PROMPT_VERSION: expect.stringMatching(/^[0-9a-f]{12}$/),
     RUCHER_SESSION_NAME: 'shop-auth',
-    RUCHER_GROUP: 'shop',
+    RUCHER_WS: 'shop',
   });
   expect(carnet.sessions.require(plan.sessionId ?? '')).toMatchObject({
     name: 'shop-auth',
@@ -75,7 +75,7 @@ test('rucher new starts a named active session from the group workspace', () => 
 });
 
 test('rucher tmp starts a temp session, named or not', () => {
-  const { api, carnet } = shopGroup();
+  const { api, carnet } = shopWorkspace();
   const unnamed = planNew(carnet, makeIo(), { kind: 'temp' });
   expect(unnamed.args).toEqual([
     '--session-id',
@@ -94,7 +94,7 @@ test('rucher tmp starts a temp session, named or not', () => {
 });
 
 test('a launch runs the session, and its exit ends it once', () => {
-  const { api, carnet } = shopGroup();
+  const { api, carnet } = shopWorkspace();
   const plan = planNew(carnet, makeIo(), { kind: 'active', name: 'shop-auth' });
   finishLaunch(carnet, plan);
   const id = plan.sessionId ?? '';
@@ -120,7 +120,7 @@ test('a launch runs the session, and its exit ends it once', () => {
 });
 
 test('rucher fork branches a session; the hook records the child with its parent', () => {
-  const { root, api, env, carnet } = shopGroup();
+  const { root, api, env, carnet } = shopWorkspace();
   const parent = planNew(carnet, makeIo(), { kind: 'active', name: 'shop-auth' });
   carnet.sessions.recordPromptVersion(parent.sessionId ?? '', 'abcdef012345');
   const fork = planFork(carnet, makeIo(), 'shop-auth', { name: 'shop-auth-alt' });
@@ -165,7 +165,7 @@ test('rucher fork branches a session; the hook records the child with its parent
 });
 
 test('the session-end hook ends a session launched outside rucher, and never fails', () => {
-  const { root, env, carnet } = shopGroup();
+  const { root, env, carnet } = shopWorkspace();
   carnet.close();
   const start = JSON.stringify({ session_id: 'outside', cwd: root, source: 'startup' });
   sessionStart(start, makeIo({ env }));
@@ -181,7 +181,7 @@ test('the session-end hook ends a session launched outside rucher, and never fai
 });
 
 test('the picker lists named sessions first, then temp ones by short id', () => {
-  const { carnet } = shopGroup();
+  const { carnet } = shopWorkspace();
   planNew(carnet, makeIo(), { kind: 'temp' });
   planNew(carnet, makeIo(), { kind: 'active', name: 'shop-auth' });
   const sessions = pickerSessions(carnet);
@@ -191,8 +191,8 @@ test('the picker lists named sessions first, then temp ones by short id', () => 
   expect(lines[1]).toMatch(/^2 {2}[0-9a-f]{8} +temp +running/);
 });
 
-test('rucher new renders the workspace before launching, and stays in place without a group', () => {
-  const { root, carnet } = shopGroup();
+test('rucher new renders the run directory before launching, and stays in place without a workspace', () => {
+  const { root, carnet } = shopWorkspace();
   rmSync(root, { recursive: true });
   const plan = planNew(carnet, makeIo(), { kind: 'temp' });
   expect(plan.cwd).toBe(root);
@@ -205,24 +205,24 @@ test('rucher new renders the workspace before launching, and stays in place with
   const solo = planNew(free, makeIo({ cwd: here, env }), { kind: 'temp' });
   expect(solo.cwd).toBe(here);
   expect(solo.args).not.toContain('--add-dir');
-  expect(solo.env.RUCHER_GROUP).toBeUndefined();
+  expect(solo.env.RUCHER_WS).toBeUndefined();
   expect(solo.env.CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD).toBe('1');
 });
 
-test('resume and fork re-render the group of the session and keep its directory', () => {
-  const { root, carnet, env } = shopGroup();
+test('resume and fork re-render the workspace of the session and keep its directory', () => {
+  const { root, carnet, env } = shopWorkspace();
   const plan = planNew(carnet, makeIo({ env }), { kind: 'active', name: 'shop-auth' });
   rmSync(join(root, '.claude'), { recursive: true });
   const resumed = planResume(carnet, makeIo({ env }), 'shop-auth');
   expect(resumed.cwd).toBe(root);
-  expect(resumed.env.RUCHER_GROUP).toBe('shop');
+  expect(resumed.env.RUCHER_WS).toBe('shop');
   expect(existsSync(join(root, '.claude', 'settings.json'))).toBe(true);
   expect(planFork(carnet, makeIo({ env }), 'shop-auth').cwd).toBe(root);
   expect(plan.sessionId).toBeDefined();
 });
 
 test('resume fails clearly when the recorded directory is gone', () => {
-  const { carnet, env } = shopGroup();
+  const { carnet, env } = shopWorkspace();
   const gone = join(tempDirectory('gone-'), 'repo');
   mkdirSync(gone);
   carnet.sessions.create({ id: 'shop-gone-id', kind: 'active', name: 'shop-gone', cwd: gone });

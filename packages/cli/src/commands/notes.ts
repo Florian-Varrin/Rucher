@@ -1,6 +1,6 @@
 import {
   type Carnet,
-  groupLabel,
+  workspaceLabel,
   formatClock,
   memoryHalfLife,
   type Note,
@@ -10,7 +10,7 @@ import {
   type WeightedNote,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
-import { warnNoGroup } from '../group-option.ts';
+import { warnNoWorkspace } from '../workspace-option.ts';
 import type { Io } from '../io.ts';
 import { CliError } from '../session.ts';
 
@@ -90,7 +90,7 @@ function markdown(carnet: Carnet, notes: WeightedNote[]): string {
     });
     return `## ${KIND_TITLES[kind]}\n\n${lines.join('\n')}`;
   });
-  return `# Memory: ${groupLabel(carnet.group)}\n\n${sections.join('\n\n') || 'No notes.'}\n`;
+  return `# Memory: ${workspaceLabel(carnet.workspace)}\n\n${sections.join('\n\n') || 'No notes.'}\n`;
 }
 
 export function notesList(carnet: Carnet, io: Io, options: NotesListOptions = {}): void {
@@ -108,9 +108,9 @@ export function notesList(carnet: Carnet, io: Io, options: NotesListOptions = {}
     return;
   }
   const colors = paint(io);
-  warnNoGroup(carnet, io);
+  warnNoWorkspace(carnet, io);
   if (notes.length === 0) {
-    if (carnet.group) {
+    if (carnet.workspace) {
       io.stdout(`${colors.dim(options.stale ? 'no note to review' : 'no notes')}\n`);
     }
     return;

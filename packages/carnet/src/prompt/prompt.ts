@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Group } from '../group/group.ts';
+import type { Workspace } from '../workspace/workspace.ts';
 import { corePromptPath, promptsDirectory } from '../paths.ts';
 import { shortId, type SessionKind } from '../sessions.ts';
 import { CORE_RULES } from './core-rules.ts';
@@ -34,39 +34,50 @@ export function baseRules(env: NodeJS.ProcessEnv = process.env): string {
   return readIfPresent(corePromptPath(env)) ?? CORE_RULES;
 }
 
-export function groupRules(group: Group | null): string | undefined {
-  return group ? readIfPresent(join(group.source, PROMPT_FILE)) : undefined;
+export function workspaceRules(workspace: Workspace | null): string | undefined {
+  return workspace ? readIfPresent(join(workspace.definition, PROMPT_FILE)) : undefined;
 }
 
-export function rulesText(group: Group | null, env: NodeJS.ProcessEnv = process.env): string {
-  const extra = groupRules(group);
+export function rulesText(
+  workspace: Workspace | null,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const extra = workspaceRules(workspace);
   const base = `Rucher rules, always follow them:\n${baseRules(env)}`;
-  return extra && group ? `${base}\n\nRules of the ${group.name} group:\n${extra}` : base;
+  return extra && workspace
+    ? `${base}\n\nRules of the ${workspace.name} workspace:\n${extra}`
+    : base;
 }
 
 // The identity block is left out so that renaming a session doesn't read as a rules change.
-export function rulesVersion(group: Group | null, env: NodeJS.ProcessEnv = process.env): string {
-  return createHash('sha256').update(rulesText(group, env)).digest('hex').slice(0, 12);
+export function rulesVersion(
+  workspace: Workspace | null,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return createHash('sha256').update(rulesText(workspace, env)).digest('hex').slice(0, 12);
 }
 
 export function assemblePrompt(
-  group: Group | null,
+  workspace: Workspace | null,
   session: PromptSession,
   env: NodeJS.ProcessEnv = process.env,
 ): AssembledPrompt {
   const label = session.name ?? shortId(session.id);
-  const identity = group
-    ? `This is the Rucher session ${label} (${session.kind}) of the ${group.name} group.`
-    : `This is the Rucher session ${label} (${session.kind}), outside any group.`;
-  return { text: `${rulesText(group, env)}\n\n${identity}\n`, version: rulesVersion(group, env) };
+  const identity = workspace
+    ? `This is the Rucher session ${label} (${session.kind}) of the ${workspace.name} workspace.`
+    : `This is the Rucher session ${label} (${session.kind}), outside any workspace.`;
+  return {
+    text: `${rulesText(workspace, env)}\n\n${identity}\n`,
+    version: rulesVersion(workspace, env),
+  };
 }
 
 export function appendPromptFile(
-  group: Group | null,
+  workspace: Workspace | null,
   session: PromptSession,
   env: NodeJS.ProcessEnv = process.env,
 ): AppendPromptFile {
-  const { text, version } = assemblePrompt(group, session, env);
+  const { text, version } = assemblePrompt(workspace, session, env);
   const directory = promptsDirectory(env);
   mkdirSync(directory, { recursive: true });
   const path = join(directory, `${session.id}.md`);
@@ -74,15 +85,18 @@ export function appendPromptFile(
   return { path, version };
 }
 
-export function compactReminder(group: Group | null, env: NodeJS.ProcessEnv = process.env): string {
-  return `The conversation was just compacted and this session was not started by rucher, so its system prompt no longer holds the Rucher rules. ${rulesText(group, env)}`;
+export function compactReminder(
+  workspace: Workspace | null,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return `The conversation was just compacted and this session was not started by rucher, so its system prompt no longer holds the Rucher rules. ${rulesText(workspace, env)}`;
 }
 
 export function outsideRucherContext(
-  group: Group | null,
+  workspace: Workspace | null,
   env: NodeJS.ProcessEnv = process.env,
 ): string {
-  return `This session was started without rucher, so its system prompt does not hold the Rucher rules. ${rulesText(group, env)}`;
+  return `This session was started without rucher, so its system prompt does not hold the Rucher rules. ${rulesText(workspace, env)}`;
 }
 
 export const OUTSIDE_RUCHER_NOTICE =

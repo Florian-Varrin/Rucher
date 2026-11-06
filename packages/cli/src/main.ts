@@ -1,21 +1,6 @@
-import { CarnetError, type Carnet, openGroupCarnet } from '@rucher/carnet';
+import { CarnetError, type Carnet, openWorkspaceCarnet } from '@rucher/carnet';
 import { defineCommand } from 'citty';
 import packageJson from '../package.json' with { type: 'json' };
-import {
-  groupAdd,
-  groupEdit,
-  groupPath,
-  groupRemove,
-  groupShow,
-  groupSync,
-} from './commands/group.ts';
-import {
-  groupsCreate,
-  groupsDrop,
-  groupsErrors,
-  groupsList,
-  groupsRename,
-} from './commands/groups.ts';
 import {
   postToolUse,
   sessionEnd,
@@ -57,9 +42,21 @@ import {
   sessionsRename,
 } from './commands/sessions.ts';
 import { statusOnce, statusWatch } from './commands/status.ts';
+import {
+  workspaceAdd,
+  workspaceCreate,
+  workspaceDrop,
+  workspaceEdit,
+  workspaceErrors,
+  workspaceList,
+  workspacePath,
+  workspaceRemove,
+  workspaceShow,
+  workspaceSync,
+} from './commands/ws.ts';
 import { type Io, processIo, readStdin } from './io.ts';
 import { terminalKeys } from './terminal-keys.ts';
-import { groupArgument, openCliCarnet } from './group-option.ts';
+import { forwardWorkspace, openCliCarnet, workspaceArgument } from './workspace-option.ts';
 import { CliError } from './session.ts';
 
 function fail(io: Io, error: unknown): never {
@@ -96,13 +93,13 @@ const statusCommand = defineCommand({
       default: '1',
       description: 'Refresh interval in seconds with --watch',
     },
-    ...groupArgument,
+    ...workspaceArgument,
     ...colorArgument,
   },
   async run({ args }) {
     const io = processIo({ color: args.color });
     try {
-      const carnet = openCliCarnet(io, args.group);
+      const carnet = openCliCarnet(io, args.ws);
       const options = { session: args.session, all: args.all };
       if (!args.watch) {
         statusOnce(carnet, io, options);
@@ -135,13 +132,13 @@ const logCommand = defineCommand({
       default: false,
       description: 'Agent events only, without session starts and ends',
     },
-    ...groupArgument,
+    ...workspaceArgument,
     ...colorArgument,
   },
   run({ args }) {
     const io = processIo({ color: args.color });
     try {
-      const carnet = openCliCarnet(io, args.group);
+      const carnet = openCliCarnet(io, args.ws);
       logOnce(carnet, io, {
         session: args.session,
         count: Number(args.count) || 20,
@@ -155,16 +152,16 @@ const logCommand = defineCommand({
 });
 
 const sessionsListCommand = defineCommand({
-  meta: { name: 'list', description: 'List the named sessions of the group' },
+  meta: { name: 'list', description: 'List the named sessions of the workspace' },
   args: {
     all: { type: 'boolean', default: false, description: 'Include temp and archived sessions' },
-    ...groupArgument,
+    ...workspaceArgument,
     ...colorArgument,
   },
   run({ args }) {
     const io = processIo({ color: args.color });
     try {
-      sessionsOnce(openCliCarnet(io, args.group), io, { all: args.all });
+      sessionsOnce(openCliCarnet(io, args.ws), io, { all: args.all });
     } catch (error) {
       fail(io, error);
     }
@@ -188,12 +185,12 @@ const sessionsMergeCommand = defineCommand({
       description: 'Session that keeps everything (name, id or id prefix)',
       required: true,
     },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   run({ args }) {
     const io = processIo();
     try {
-      const carnet = openCliCarnet(io, args.group);
+      const carnet = openCliCarnet(io, args.ws);
       sessionsMerge(carnet, args.from, args.into, io);
       carnet.close();
     } catch (error) {
@@ -213,11 +210,11 @@ const sessionsRenameCommand = defineCommand({
   args: {
     session: sessionReference,
     name: { type: 'positional', description: 'New name', required: true },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   run({ args }) {
     const io = processIo();
-    withCarnet(io, args.group, (carnet) => sessionsRename(carnet, args.session, args.name, io));
+    withCarnet(io, args.ws, (carnet) => sessionsRename(carnet, args.session, args.name, io));
   },
 });
 
@@ -226,20 +223,20 @@ const sessionsPromoteCommand = defineCommand({
   args: {
     session: sessionReference,
     name: { type: 'positional', description: 'Name, when the session has none', required: false },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   run({ args }) {
     const io = processIo();
-    withCarnet(io, args.group, (carnet) => sessionsPromote(carnet, args.session, args.name, io));
+    withCarnet(io, args.ws, (carnet) => sessionsPromote(carnet, args.session, args.name, io));
   },
 });
 
 const sessionsDemoteCommand = defineCommand({
   meta: { name: 'demote', description: 'Make an active session temp, keeping its name' },
-  args: { session: sessionReference, ...groupArgument },
+  args: { session: sessionReference, ...workspaceArgument },
   run({ args }) {
     const io = processIo();
-    withCarnet(io, args.group, (carnet) => sessionsDemote(carnet, args.session, io));
+    withCarnet(io, args.ws, (carnet) => sessionsDemote(carnet, args.session, io));
   },
 });
 
@@ -249,10 +246,10 @@ const purgeArgument = {
 
 const sessionsDropCommand = defineCommand({
   meta: { name: 'drop', description: 'Archive a session and close its agents' },
-  args: { session: sessionReference, ...purgeArgument, ...groupArgument },
+  args: { session: sessionReference, ...purgeArgument, ...workspaceArgument },
   run({ args }) {
     const io = processIo();
-    withCarnet(io, args.group, (carnet) =>
+    withCarnet(io, args.ws, (carnet) =>
       sessionsDrop(carnet, args.session, io, { purge: args.purge }),
     );
   },
@@ -261,22 +258,22 @@ const sessionsDropCommand = defineCommand({
 const sessionsMoveCommand = defineCommand({
   meta: {
     name: 'move',
-    description: 'Move a session, its agents, table line and journal to another group',
+    description: 'Move a session, its agents, table line and journal to another workspace',
   },
   args: {
     session: sessionReference,
-    to: { type: 'string', required: true, description: 'Target group name' },
+    to: { type: 'string', required: true, description: 'Target workspace name' },
     merge: {
       type: 'boolean',
       default: false,
-      description: 'Merge into the session the target group already has under this id or name',
+      description: 'Merge into the session the target workspace already has under this id or name',
     },
     'dry-run': { type: 'boolean', default: false, description: 'Show what would move' },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   run({ args }) {
     const io = processIo();
-    withCarnet(io, args.group, (carnet) =>
+    withCarnet(io, args.ws, (carnet) =>
       sessionsMove(carnet, args.session, args.to, io, {
         merge: args.merge,
         dryRun: args['dry-run'],
@@ -294,11 +291,11 @@ const sessionsCleanCommand = defineCommand({
     'older-than': { type: 'string', default: '7d', description: 'Idle time: 30m, 12h, 7d' },
     ...purgeArgument,
     'dry-run': { type: 'boolean', default: false, description: 'Show what would be archived' },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   run({ args }) {
     const io = processIo();
-    withCarnet(io, args.group, (carnet) =>
+    withCarnet(io, args.ws, (carnet) =>
       sessionsClean(carnet, io, {
         olderThan: args['older-than'],
         purge: args.purge,
@@ -309,8 +306,9 @@ const sessionsCleanCommand = defineCommand({
 });
 
 const sessionsCommand = defineCommand({
-  meta: { name: 'sessions', description: 'List and manage the sessions of the group' },
-  args: { ...groupArgument },
+  meta: { name: 'sessions', description: 'List and manage the sessions of the workspace' },
+  args: { ...workspaceArgument },
+  setup: forwardWorkspace,
   default: 'list',
   subCommands: {
     list: sessionsListCommand,
@@ -324,9 +322,9 @@ const sessionsCommand = defineCommand({
   },
 });
 
-function withCarnet(io: Io, group: string | undefined, run: (carnet: Carnet) => void): void {
+function withCarnet(io: Io, workspace: string | undefined, run: (carnet: Carnet) => void): void {
   try {
-    const carnet = openCliCarnet(io, group);
+    const carnet = openCliCarnet(io, workspace);
     try {
       run(carnet);
     } finally {
@@ -343,7 +341,7 @@ const noteFilterArguments = {
 } as const;
 
 const notesListCommand = defineCommand({
-  meta: { name: 'list', description: 'Active notes of the group, by kind' },
+  meta: { name: 'list', description: 'Active notes of the workspace, by kind' },
   args: {
     all: { type: 'boolean', default: false, description: 'Include dropped notes and their reason' },
     ...noteFilterArguments,
@@ -354,12 +352,12 @@ const notesListCommand = defineCommand({
       description: 'Notes to review: old and never (or no longer) cited',
     },
     md: { type: 'boolean', default: false, description: 'Markdown output, a view only' },
-    ...groupArgument,
+    ...workspaceArgument,
     ...colorArgument,
   },
   run({ args }) {
     const io = processIo({ color: args.color });
-    withCarnet(io, args.group, (carnet) =>
+    withCarnet(io, args.ws, (carnet) =>
       notesList(carnet, io, {
         all: args.all,
         kind: args.kind,
@@ -376,12 +374,12 @@ const notesShowCommand = defineCommand({
   meta: { name: 'show', description: 'A note with its repos, weight and citations' },
   args: {
     id: { type: 'positional', description: 'Note number', required: true },
-    ...groupArgument,
+    ...workspaceArgument,
     ...colorArgument,
   },
   run({ args }) {
     const io = processIo({ color: args.color });
-    withCarnet(io, args.group, (carnet) => notesShow(carnet, io, parseNoteId(args.id)));
+    withCarnet(io, args.ws, (carnet) => notesShow(carnet, io, parseNoteId(args.id)));
   },
 });
 
@@ -391,12 +389,12 @@ const notesAddCommand = defineCommand({
     kind: { type: 'positional', description: 'learning, decision or dead_end', required: true },
     text: { type: 'positional', description: 'One claim with its reason', required: true },
     repo: { type: 'string', description: 'Repo the note applies to (repeat for several)' },
-    ...groupArgument,
+    ...workspaceArgument,
     ...colorArgument,
   },
   run({ args, rawArgs }) {
     const io = processIo({ color: args.color });
-    withCarnet(io, args.group, (carnet) =>
+    withCarnet(io, args.ws, (carnet) =>
       notesAdd(carnet, io, { kind: args.kind, text: args.text, repos: repoList(rawArgs) }),
     );
   },
@@ -408,12 +406,12 @@ const notesDropCommand = defineCommand({
     id: { type: 'positional', description: 'Note number', required: true },
     reason: { type: 'string', description: 'Why it is no longer true', required: true },
     'replaced-by': { type: 'string', description: 'Number of the note that replaces it' },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   run({ args }) {
     const io = processIo();
     const replacement = args['replaced-by'];
-    withCarnet(io, args.group, (carnet) =>
+    withCarnet(io, args.ws, (carnet) =>
       notesDrop(carnet, io, parseNoteId(args.id), {
         reason: args.reason,
         replacedBy: replacement === undefined ? undefined : parseNoteId(replacement),
@@ -423,9 +421,13 @@ const notesDropCommand = defineCommand({
 });
 
 const notesCommand = defineCommand({
-  meta: { name: 'notes', description: "The group's memory: learnings, decisions and dead ends" },
+  meta: {
+    name: 'notes',
+    description: "The workspace's memory: learnings, decisions and dead ends",
+  },
   // Declared here too so `rucher notes --kind dead_end` reaches the default list command.
-  args: { ...noteFilterArguments, ...groupArgument },
+  args: { ...noteFilterArguments, ...workspaceArgument },
+  setup: forwardWorkspace,
   default: 'list',
   subCommands: {
     list: notesListCommand,
@@ -437,17 +439,17 @@ const notesCommand = defineCommand({
 
 async function launch(
   io: Io,
-  group: string | undefined,
+  workspace: string | undefined,
   plan: (carnet: Carnet) => LaunchPlan | Promise<LaunchPlan>,
 ): Promise<void> {
   try {
-    const carnet = openCliCarnet(io, group);
+    const carnet = openCliCarnet(io, workspace);
     const launchPlan = await plan(carnet);
     startLaunch(carnet, launchPlan);
     carnet.close();
     const exitCode = spawnLaunch(launchPlan, io.env);
-    // The same group as at launch, whatever the session's process did to the cwd.
-    const after = openGroupCarnet(carnet.group, { env: io.env });
+    // The same workspace as at launch, whatever the session's process did to the cwd.
+    const after = openWorkspaceCarnet(carnet.workspace, { env: io.env });
     finishLaunch(after, launchPlan);
     after.close();
     process.exitCode = exitCode;
@@ -458,13 +460,13 @@ async function launch(
 
 const passthroughHelp = 'Arguments after -- are passed to Claude Code';
 
-// The group option takes a value, which would otherwise read as a positional.
-export function withoutGroupOption(own: readonly string[]): string[] {
+// The workspace option takes a value, which would otherwise read as a positional.
+export function withoutWorkspaceOption(own: readonly string[]): string[] {
   const kept: string[] = [];
   for (let index = 0; index < own.length; index += 1) {
     const argument = own[index] ?? '';
-    if (argument === '-g' || argument === '--group') index += 1;
-    else if (!argument.startsWith('--group=') && !argument.startsWith('-g=')) kept.push(argument);
+    if (argument === '--ws') index += 1;
+    else if (!argument.startsWith('--ws=')) kept.push(argument);
   }
   return kept;
 }
@@ -473,14 +475,14 @@ const newCommand = defineCommand({
   meta: { name: 'new', description: `Start a named, durable session. ${passthroughHelp}` },
   args: {
     name: { type: 'positional', description: 'Session name', required: true },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   async run({ args, rawArgs }) {
     const { own, passthrough } = splitPassthrough(rawArgs);
-    await launch(processIo(), args.group, (carnet) =>
+    await launch(processIo(), args.ws, (carnet) =>
       planNew(carnet, processIo(), {
         kind: 'active',
-        name: positionals(withoutGroupOption(own))[0],
+        name: positionals(withoutWorkspaceOption(own))[0],
         passthrough,
       }),
     );
@@ -491,14 +493,14 @@ const tmpCommand = defineCommand({
   meta: { name: 'tmp', description: `Start a temporary session. ${passthroughHelp}` },
   args: {
     name: { type: 'positional', description: 'Optional session name', required: false },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   async run({ args, rawArgs }) {
     const { own, passthrough } = splitPassthrough(rawArgs);
-    await launch(processIo(), args.group, (carnet) =>
+    await launch(processIo(), args.ws, (carnet) =>
       planNew(carnet, processIo(), {
         kind: 'temp',
-        name: positionals(withoutGroupOption(own))[0],
+        name: positionals(withoutWorkspaceOption(own))[0],
         passthrough,
       }),
     );
@@ -516,13 +518,14 @@ const resumeCommand = defineCommand({
       description: 'Session name, id or id prefix',
       required: false,
     },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   async run({ args, rawArgs }) {
     const { own, passthrough } = splitPassthrough(rawArgs);
     const io = processIo();
-    await launch(io, args.group, async (carnet) => {
-      const reference = positionals(withoutGroupOption(own))[0] ?? (await pickSession(carnet)).id;
+    await launch(io, args.ws, async (carnet) => {
+      const reference =
+        positionals(withoutWorkspaceOption(own))[0] ?? (await pickSession(carnet)).id;
       return planResume(carnet, io, reference, passthrough);
     });
   },
@@ -541,105 +544,19 @@ const forkCommand = defineCommand({
       default: false,
       description: 'Make the new session durable (needs a name)',
     },
-    ...groupArgument,
+    ...workspaceArgument,
   },
   async run({ args, rawArgs }) {
     const { own, passthrough } = splitPassthrough(rawArgs);
-    const [reference, name] = positionals(withoutGroupOption(own));
+    const [reference, name] = positionals(withoutWorkspaceOption(own));
     const io = processIo();
-    await launch(io, args.group, (carnet) =>
+    await launch(io, args.ws, (carnet) =>
       planFork(carnet, io, reference ?? '', {
         name,
         active: own.includes('--active'),
         passthrough,
       }),
     );
-  },
-});
-
-const groupCommand = defineCommand({
-  meta: {
-    name: 'group',
-    description: 'The current group: show it, add or remove repos, render, edit its instructions',
-  },
-  subCommands: {
-    show: defineCommand({
-      meta: { name: 'show', description: 'Name, source, workspace and repos of the group' },
-      args: { ...groupArgument, ...colorArgument },
-      run({ args }) {
-        process.exitCode = groupShow(processIo({ color: args.color }), { group: args.group });
-      },
-    }),
-    add: defineCommand({
-      meta: { name: 'add', description: 'Add a repo path to the group, then render its workspace' },
-      args: {
-        path: { type: 'positional', description: 'Repo path', required: true },
-        ...groupArgument,
-        ...colorArgument,
-      },
-      run({ args }) {
-        process.exitCode = groupAdd(args.path, processIo({ color: args.color }), {
-          group: args.group,
-        });
-      },
-    }),
-    remove: defineCommand({
-      meta: {
-        name: 'remove',
-        description: 'Remove a repo from the group, then render its workspace',
-      },
-      args: {
-        path: { type: 'positional', description: 'Repo path or name', required: true },
-        ...groupArgument,
-        ...colorArgument,
-      },
-      run({ args }) {
-        process.exitCode = groupRemove(args.path, processIo({ color: args.color }), {
-          group: args.group,
-        });
-      },
-    }),
-    sync: defineCommand({
-      meta: {
-        name: 'sync',
-        description: "Render the group's workspace (instruction copies, generated settings)",
-      },
-      args: { ...groupArgument, ...colorArgument },
-      run({ args }) {
-        process.exitCode = groupSync(processIo({ color: args.color }), { group: args.group });
-      },
-    }),
-    edit: defineCommand({
-      meta: {
-        name: 'edit',
-        description: 'Open the instructions (or group.json with --json) in $EDITOR, then sync',
-      },
-      args: {
-        json: { type: 'boolean', default: false, description: 'Edit group.json instead' },
-        ...groupArgument,
-      },
-      async run({ args }) {
-        process.exitCode = await groupEdit(processIo(), {
-          group: args.group,
-          json: args.json,
-          confirm: askYes,
-        });
-      },
-    }),
-    path: defineCommand({
-      meta: {
-        name: 'path',
-        description: 'Print the workspace path (or the source with --source), for cd "$(...)"',
-      },
-      args: {
-        source: { type: 'boolean', default: false, description: 'The source folder instead' },
-        workspace: { type: 'boolean', default: false, description: 'The workspace (default)' },
-        ...groupArgument,
-      },
-      run({ args }) {
-        process.exitCode = groupPath(processIo(), { group: args.group, source: args.source });
-      },
-    }),
   },
 });
 
@@ -660,61 +577,140 @@ function commaList(value: string | undefined): string[] | undefined {
     .filter(Boolean);
 }
 
-const groupsCommand = defineCommand({
-  meta: { name: 'groups', description: 'The groups of this machine' },
+const wsCommand = defineCommand({
+  meta: {
+    name: 'ws',
+    description:
+      'The workspaces: create, list, show, add or remove repos, render, edit instructions',
+  },
+  args: { ...workspaceArgument },
+  setup: forwardWorkspace,
   default: 'list',
   subCommands: {
     list: defineCommand({
-      meta: { name: 'list', description: 'Groups with their repo and session counts' },
+      meta: { name: 'list', description: 'Workspaces with their repo and session counts' },
       args: { ...colorArgument },
       run({ args }) {
-        process.exitCode = groupsList(processIo({ color: args.color }));
+        process.exitCode = workspaceList(processIo({ color: args.color }));
       },
     }),
     create: defineCommand({
-      meta: { name: 'create', description: 'Create a group and render its workspace' },
+      meta: { name: 'create', description: 'Create a workspace and render its run directory' },
       args: {
-        name: { type: 'positional', description: 'Group name: a-z, 0-9 and -', required: true },
+        name: { type: 'positional', description: 'Workspace name: a-z, 0-9 and -', required: true },
         repos: { type: 'string', description: 'Comma-separated repo paths' },
         ...colorArgument,
       },
       run({ args }) {
         const io = processIo({ color: args.color });
-        process.exitCode = groupsErrors(io, () =>
-          groupsCreate(args.name, io, { repos: commaList(args.repos) }),
+        process.exitCode = workspaceErrors(io, () =>
+          workspaceCreate(args.name, io, { repos: commaList(args.repos) }),
         );
-      },
-    }),
-    rename: defineCommand({
-      meta: {
-        name: 'rename',
-        description: 'Rename a group with no running session; its workspace stays',
-      },
-      args: {
-        from: { type: 'positional', description: 'Current name', required: true },
-        to: { type: 'positional', description: 'New name', required: true },
-      },
-      run({ args }) {
-        const io = processIo();
-        process.exitCode = groupsErrors(io, () => groupsRename(args.from, args.to, io));
       },
     }),
     drop: defineCommand({
       meta: {
         name: 'drop',
-        description: 'Archive the sessions of a group and remove its source, keeping its notes',
+        description:
+          'Archive the sessions of a workspace and remove its definition, keeping its notes',
       },
       args: {
-        name: { type: 'positional', description: 'Group name', required: true },
+        name: { type: 'positional', description: 'Workspace name', required: true },
         purge: {
           type: 'boolean',
           default: false,
-          description: 'Also delete its notes and its workspace',
+          description: 'Also delete its notes and its run directory',
         },
       },
       run({ args }) {
         const io = processIo();
-        process.exitCode = groupsErrors(io, () => groupsDrop(args.name, io, { purge: args.purge }));
+        process.exitCode = workspaceErrors(io, () =>
+          workspaceDrop(args.name, io, { purge: args.purge }),
+        );
+      },
+    }),
+    show: defineCommand({
+      meta: {
+        name: 'show',
+        description: 'Name, definition, run directory and repos of the workspace',
+      },
+      args: { ...workspaceArgument, ...colorArgument },
+      run({ args }) {
+        process.exitCode = workspaceShow(processIo({ color: args.color }), { workspace: args.ws });
+      },
+    }),
+    add: defineCommand({
+      meta: {
+        name: 'add',
+        description: 'Add a repo path to the workspace, then render its run directory',
+      },
+      args: {
+        path: { type: 'positional', description: 'Repo path', required: true },
+        ...workspaceArgument,
+        ...colorArgument,
+      },
+      run({ args }) {
+        process.exitCode = workspaceAdd(args.path, processIo({ color: args.color }), {
+          workspace: args.ws,
+        });
+      },
+    }),
+    remove: defineCommand({
+      meta: {
+        name: 'remove',
+        description: 'Remove a repo from the workspace, then render its run directory',
+      },
+      args: {
+        path: { type: 'positional', description: 'Repo path or name', required: true },
+        ...workspaceArgument,
+        ...colorArgument,
+      },
+      run({ args }) {
+        process.exitCode = workspaceRemove(args.path, processIo({ color: args.color }), {
+          workspace: args.ws,
+        });
+      },
+    }),
+    sync: defineCommand({
+      meta: {
+        name: 'sync',
+        description:
+          "Render the workspace's run directory (instruction copies, generated settings)",
+      },
+      args: { ...workspaceArgument, ...colorArgument },
+      run({ args }) {
+        process.exitCode = workspaceSync(processIo({ color: args.color }), { workspace: args.ws });
+      },
+    }),
+    edit: defineCommand({
+      meta: {
+        name: 'edit',
+        description: 'Open the instructions (or workspace.json with --json) in $EDITOR, then sync',
+      },
+      args: {
+        json: { type: 'boolean', default: false, description: 'Edit workspace.json instead' },
+        ...workspaceArgument,
+      },
+      async run({ args }) {
+        process.exitCode = await workspaceEdit(processIo(), {
+          workspace: args.ws,
+          json: args.json,
+          confirm: askYes,
+        });
+      },
+    }),
+    path: defineCommand({
+      meta: {
+        name: 'path',
+        description: 'Print the run directory path (or the definition with --def), for cd "$(...)"',
+      },
+      args: {
+        def: { type: 'boolean', default: false, description: 'The definition folder instead' },
+        run: { type: 'boolean', default: false, description: 'The run directory (default)' },
+        ...workspaceArgument,
+      },
+      run({ args }) {
+        process.exitCode = workspacePath(processIo(), { workspace: args.ws, definition: args.def });
       },
     }),
   },
@@ -784,12 +780,20 @@ const serveCommand = defineCommand({
   },
 });
 
+// citty ignores unknown flags, so a removed one would act on the wrong workspace without a word.
+export function refuseRemovedOption(rawArgs: readonly string[]): void {
+  const removed = /^(-g|--group)(=|$)/;
+  const option = splitPassthrough([...rawArgs]).own.find((argument) => removed.test(argument));
+  if (option) fail(processIo(), new CliError(`Unknown option ${option}`, 'use --ws <name>'));
+}
+
 export const main = defineCommand({
   meta: {
     name: 'rucher',
     version: packageJson.version,
     description: 'Status, journal and sessions of your coding agents (Claude Code today)',
   },
+  setup: ({ rawArgs }) => refuseRemovedOption(rawArgs),
   subCommands: {
     status: statusCommand,
     log: logCommand,
@@ -799,8 +803,7 @@ export const main = defineCommand({
     fork: forkCommand,
     sessions: sessionsCommand,
     notes: notesCommand,
-    group: groupCommand,
-    groups: groupsCommand,
+    ws: wsCommand,
     hook: hookCommand,
     serve: serveCommand,
   },

@@ -10,7 +10,12 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { AGENTS_FILE, type Group, INSTRUCTIONS_FILE, sourceInstructions } from '../group/group.ts';
+import {
+  AGENTS_FILE,
+  type Workspace,
+  INSTRUCTIONS_FILE,
+  definitionInstructions,
+} from '../workspace/workspace.ts';
 import { PROMPT_FILE } from '../prompt/prompt.ts';
 import {
   GENERATED_MARKER,
@@ -18,7 +23,7 @@ import {
   mergeSettings,
   removeStaleCopies,
   writeGenerated,
-} from '../workspace-files.ts';
+} from '../run-directory-files.ts';
 import type {
   Host,
   HostRender,
@@ -115,17 +120,17 @@ const SETTINGS_FILE = join('.claude', 'settings.json');
 const BACKEND_NOTES = 'backends/claude.md';
 
 // Instruction files are copied, not linked: an @ import inside a link resolves next to its target,
-// outside the workspace, where Claude Code skips it without approval.
-export function instructionFiles(group: Group): string[] {
-  if (!existsSync(group.source)) return [];
-  return readdirSync(group.source, { withFileTypes: true })
+// outside the run directory, where Claude Code skips it without approval.
+export function instructionFiles(workspace: Workspace): string[] {
+  if (!existsSync(workspace.definition)) return [];
+  return readdirSync(workspace.definition, { withFileTypes: true })
     .filter((item) => item.isFile() && item.name.endsWith('.md') && item.name !== PROMPT_FILE)
     .map((item) => item.name)
     .sort();
 }
 
-function repoAgentsImports(group: Group): string[] {
-  return group.repos
+function repoAgentsImports(workspace: Workspace): string[] {
+  return workspace.repos
     .filter(
       (repo) =>
         existsSync(join(repo.path, AGENTS_FILE)) &&
@@ -136,37 +141,39 @@ function repoAgentsImports(group: Group): string[] {
 }
 
 // Claude Code has no reliable native AGENTS.md loading, so a generated CLAUDE.md imports it.
-function workspaceCopies(group: Group): Map<string, string> {
-  const agents = sourceInstructions(group) === AGENTS_FILE;
-  const read = (name: string) => readFileSync(join(group.source, name), 'utf8');
-  const copies = new Map(instructionFiles(group).map((name) => [name, markdownCopy(read(name))]));
+function runDirectoryCopies(workspace: Workspace): Map<string, string> {
+  const agents = definitionInstructions(workspace) === AGENTS_FILE;
+  const read = (name: string) => readFileSync(join(workspace.definition, name), 'utf8');
+  const copies = new Map(
+    instructionFiles(workspace).map((name) => [name, markdownCopy(read(name))]),
+  );
   if (!agents) return copies;
   const imports = [`@${AGENTS_FILE}`];
-  if (existsSync(join(group.source, BACKEND_NOTES))) {
+  if (existsSync(join(workspace.definition, BACKEND_NOTES))) {
     copies.set(BACKEND_NOTES, markdownCopy(read(BACKEND_NOTES)));
     imports.push(`@${BACKEND_NOTES}`);
   }
-  imports.push(...repoAgentsImports(group));
+  imports.push(...repoAgentsImports(workspace));
   copies.set(INSTRUCTIONS_FILE, markdownCopy(`${imports.join('\n')}\n`));
   return copies;
 }
 
-export function groupSettings(group: Group): Record<string, unknown> {
+export function workspaceSettings(workspace: Workspace): Record<string, unknown> {
   return mergeSettings(
     {
       '//': GENERATED_MARKER,
       permissions: {
-        additionalDirectories: group.repos.map((repo) => repo.path),
-        // The copies are rewritten on every render: instructions are edited in the source.
-        deny: [...workspaceCopies(group).keys()].sort().map((name) => `Edit(/${name})`),
+        additionalDirectories: workspace.repos.map((repo) => repo.path),
+        // The copies are rewritten on every render: instructions are edited in the definition.
+        deny: [...runDirectoryCopies(workspace).keys()].sort().map((name) => `Edit(/${name})`),
       },
     },
-    group.backends['claude-code']?.settings ?? {},
+    workspace.backends['claude-code']?.settings ?? {},
   );
 }
 
-function removeStaleBackendNotes(group: Group, keep: ReadonlySet<string>): string[] {
-  const directory = join(group.workspace, dirname(BACKEND_NOTES));
+function removeStaleBackendNotes(workspace: Workspace, keep: ReadonlySet<string>): string[] {
+  const directory = join(workspace.runDirectory, dirname(BACKEND_NOTES));
   const removed = removeStaleCopies(
     directory,
     new Set(
@@ -179,17 +186,17 @@ function removeStaleBackendNotes(group: Group, keep: ReadonlySet<string>): strin
   return removed.map((name) => join(dirname(BACKEND_NOTES), name));
 }
 
-function renderClaudeWorkspace(group: Group): HostRender {
+function renderClaudeRunDirectory(workspace: Workspace): HostRender {
   const rendered: HostRender = { written: [], removed: [] };
-  const copies = workspaceCopies(group);
+  const copies = runDirectoryCopies(workspace);
   for (const [name, content] of [...copies].sort(([a], [b]) => a.localeCompare(b))) {
-    if (writeGenerated(join(group.workspace, name), content)) rendered.written.push(name);
+    if (writeGenerated(join(workspace.runDirectory, name), content)) rendered.written.push(name);
   }
   const names = new Set(copies.keys());
-  rendered.removed.push(...removeStaleCopies(group.workspace, names));
-  rendered.removed.push(...removeStaleBackendNotes(group, names));
-  const settings = `${JSON.stringify(groupSettings(group), null, 2)}\n`;
-  if (writeGenerated(join(group.workspace, SETTINGS_FILE), settings)) {
+  rendered.removed.push(...removeStaleCopies(workspace.runDirectory, names));
+  rendered.removed.push(...removeStaleBackendNotes(workspace, names));
+  const settings = `${JSON.stringify(workspaceSettings(workspace), null, 2)}\n`;
+  if (writeGenerated(join(workspace.runDirectory, SETTINGS_FILE), settings)) {
     rendered.written.push(SETTINGS_FILE);
   }
   return rendered;
@@ -320,5 +327,5 @@ export const claudeCode: Host = {
   renameInstruction(name) {
     return `Ask the human to run /rename ${name} in Claude Code so the titles match.`;
   },
-  renderWorkspace: renderClaudeWorkspace,
+  renderRunDirectory: renderClaudeRunDirectory,
 };

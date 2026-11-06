@@ -3,10 +3,10 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import {
-  addGroupRepo,
+  addWorkspaceRepo,
   Carnet,
   type CarnetError,
-  createGroup,
+  createWorkspace,
   MEMORY_DB,
   memoryHalfLife,
   migrations,
@@ -14,7 +14,7 @@ import {
   schemaVersion,
   similarity,
 } from '../src/index.ts';
-import { tempDirectory, groupAt } from './helpers.ts';
+import { tempDirectory, workspaceAt } from './helpers.ts';
 
 const SESSION = '0360889d-99c7-4c8f-8447-50ce30696e5a';
 const OTHER = '9f2c6a10-0000-4000-8000-000000000001';
@@ -23,8 +23,8 @@ function shop(start = '2026-11-03T09:00:00') {
   const root = tempDirectory();
   for (const repo of ['shop-api', 'shop-web']) mkdirSync(join(root, repo));
   let now = new Date(start);
-  const group = groupAt(root, 'shop', [join(root, 'shop-api'), join(root, 'shop-web')]);
-  const carnet = new Carnet(openDatabase(MEMORY_DB), group, { now: () => now });
+  const workspace = workspaceAt(root, 'shop', [join(root, 'shop-api'), join(root, 'shop-web')]);
+  const carnet = new Carnet(openDatabase(MEMORY_DB), workspace, { now: () => now });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   const advanceDays = (days: number) => {
     now = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
@@ -113,7 +113,7 @@ test('list filters by kind and substring, orders dead ends, decisions, learnings
   const learning = carnet.notes.add({ kind: 'learning', text: 'the build needs Node 24' }).note;
   const decision = carnet.notes.add({
     kind: 'decision',
-    text: 'keep SQLite: one file per group',
+    text: 'keep SQLite: one file per workspace',
   }).note;
   const deadEnd = carnet.notes.add({
     kind: 'dead_end',
@@ -239,7 +239,7 @@ test('an existing version 6 database gains the memory tables and keeps its rows'
   db.close();
 });
 
-test('a group cannot hold two repos with the same name', () => {
+test('a workspace cannot hold two repos with the same name', () => {
   const root = tempDirectory();
   for (const path of ['a/shop-api', 'b/shop-api', 'shop-web']) {
     mkdirSync(join(root, path), { recursive: true });
@@ -247,13 +247,15 @@ test('a group cannot hold two repos with the same name', () => {
   const env = { RUCHER_HOME: join(root, 'home') };
   expect(
     codeOf(() =>
-      createGroup('shop', { env, repos: [join(root, 'a/shop-api'), join(root, 'b/shop-api')] }),
+      createWorkspace('shop', { env, repos: [join(root, 'a/shop-api'), join(root, 'b/shop-api')] }),
     ),
   ).toBe('REPO_NAME_TAKEN');
-  createGroup('shop', { env, repos: [join(root, 'a/shop-api')] });
-  expect(codeOf(() => addGroupRepo('shop', join(root, 'b/shop-api'), env))).toBe('REPO_NAME_TAKEN');
-  expect(addGroupRepo('shop', join(root, 'a/shop-api'), env).repos).toHaveLength(1);
-  expect(addGroupRepo('shop', join(root, 'shop-web'), env).repos).toHaveLength(2);
+  createWorkspace('shop', { env, repos: [join(root, 'a/shop-api')] });
+  expect(codeOf(() => addWorkspaceRepo('shop', join(root, 'b/shop-api'), env))).toBe(
+    'REPO_NAME_TAKEN',
+  );
+  expect(addWorkspaceRepo('shop', join(root, 'a/shop-api'), env).repos).toHaveLength(1);
+  expect(addWorkspaceRepo('shop', join(root, 'shop-web'), env).repos).toHaveLength(2);
 });
 
 test('sessionNoteActivity lists what a session added, cited and dropped, most recent first', () => {

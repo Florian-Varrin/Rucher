@@ -38,7 +38,7 @@ A fork starts from the main agent's context, works alone, writes its report to a
 - Pick a short name (what the human will read in the status pane) and a one-line task. Call `agent_start` with both, then launch the fork in a later message, so the agent exists before the fork starts.
 - Launch the fork with the agent name as the Agent tool `description`, and a prompt that starts with ``You are fork `<name>`.`` The hooks pair forks with Carnet agents by that name; start order is only a fallback, and it is unreliable when several forks start at once.
 - The fork's prompt states: its agent name, the exact base commit, where to write its report (`<scratchpad>/<name>.md`), and that `agent_done` must be its last tool action with `has_questions` set when the report asks the human something, followed by a one-line final message that carries no results (`<name> done, report written`), and that the report ends with a `## Learnings` section (see [Memory](#memory)). Until the fork has really stopped, the pane shows it as `⏳ running · reporting`.
-- Forks never commit, push or stash. A fork writes its report only to its scratchpad; the main agent copies it into the group.
+- Forks never commit, push or stash. A fork writes its report only to its scratchpad; the main agent copies it into the workspace.
 - Read-only analysis forks need no worktree.
 - Dev forks get their own git worktree only when the human allows worktrees. First step, always: `git reset --hard <exact base commit>`, then reinstall dependencies with the lockfile frozen, because worktrees can be created from stale commits.
 - Remove the worktree and its branch once the work is committed in the main repo.
@@ -50,7 +50,7 @@ Phase 1: the fork analyses, then writes numbered questions, each with a recommen
 ## When a fork finishes
 
 - The main agent says one line in the chat: `<name> finished, report ready`. Nothing more: no summary, no figures, no questions from the report, no action on it, even when the fork's final message carries results or when the human asks about something else. A report is presented only when the human asks for that fork's report; the reports of other forks stay held, also when several forks finish together.
-- `agent_done` copies the report to the report destination `agent_start` returned: `<workspace>/reports/<name>.md`, in the group's workspace, outside the repos, never committed. One file per fork; the human's answers are appended there once given.
+- `agent_done` copies the report to the report destination `agent_start` returned: `<run directory>/reports/<name>.md`, in the workspace's run directory, outside the repos, never committed. One file per fork; the human's answers are appended there once given.
 - When the human asks for a report, the main agent reads the fork file instead of keeping reports in context.
 - Once the human has answered, `agent_step answered`: the agent moves to `apply`, or pass `next` (`running` if the fork resumes, `review` if the human will read the result).
 
@@ -67,9 +67,9 @@ Dropped work: revert it in the main repo, keep its patch in the scratchpad, prom
 
 ## Memory
 
-The group's notes outlive sessions: what was learned, decided or ruled out. Sessions get them in their context; `note_list` finds the rest.
+The workspace's notes outlive sessions: what was learned, decided or ruled out. Sessions get them in their context; `note_list` finds the rest.
 
-- **Forks never call `note_add`.** A fork's report ends with a `## Learnings` section: candidate notes, one per line, `<kind> [<repo>, ...] <text>`, kind `learning`, `dead_end` or `decision`, repos only when the note holds for some repos of the group. Write `none` when there is nothing.
+- **Forks never call `note_add`.** A fork's report ends with a `## Learnings` section: candidate notes, one per line, `<kind> [<repo>, ...] <text>`, kind `learning`, `dead_end` or `decision`, repos only when the note holds for some repos of the workspace. Write `none` when there is nothing.
 - **The main agent records notes once per step, at its end**, never on the fly: the fork's `Learnings` when its work is applied or dropped, and what it learned itself. One claim per note, with its reason, under 200 characters, no backticks or markdown.
 - **Before trying an approach**, check the notes in context, and `note_list` with `query` when in doubt: a `dead_end` exists to stop the next session from hitting the same wall.
 - **`note_drop`** when a note proves wrong or outdated, with the reason; add the corrected note first and pass it as `replaced_by`.

@@ -1,7 +1,7 @@
 import { mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { Carnet, type Group, MEMORY_DB, openDatabase } from '../src/index.ts';
+import { Carnet, type Workspace, MEMORY_DB, openDatabase } from '../src/index.ts';
 
 export function tempDirectory(prefix = 'carnet-'): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -16,25 +16,25 @@ export function testHome(): NodeJS.ProcessEnv {
   return { RUCHER_HOME: tempDirectory('rucher-home-') };
 }
 
-export function groupAt(root: string, name: string, repos: readonly string[]): Group {
+export function workspaceAt(root: string, name: string, repos: readonly string[]): Workspace {
   return {
     name,
-    source: join(root, 'source'),
-    workspace: root,
+    definition: join(root, 'definition'),
+    runDirectory: root,
     repos: repos.map((path) => ({ path, name: basename(path) })),
     backends: {},
   };
 }
 
-export function testGroup(root: string, name = 'test-group'): Group {
-  return groupAt(root, name, [join(root, 'api')]);
+export function testWorkspace(root: string, name = 'test-workspace'): Workspace {
+  return workspaceAt(root, name, [join(root, 'api')]);
 }
 
 export function makeCarnet(): { carnet: Carnet; root: string } {
   const root = tempDirectory();
   mkdirSync(join(root, 'api'));
   return {
-    carnet: new Carnet(openDatabase(MEMORY_DB), testGroup(root), { now: makeClock() }),
+    carnet: new Carnet(openDatabase(MEMORY_DB), testWorkspace(root), { now: makeClock() }),
     root,
   };
 }

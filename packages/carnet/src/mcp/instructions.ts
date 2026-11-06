@@ -1,4 +1,4 @@
-export const INSTRUCTIONS = `Carnet holds the forks, the "On the table" line, sessions, the journal and the group memory that the \`rucher\` CLI renders. The session is resolved automatically; pass \`session\` only to target another one. The workflow rules are in the system prompt and the rucher skill: load the skill before dispatching, applying or reviewing forks.
+export const INSTRUCTIONS = `Carnet holds the forks, the "On the table" line, sessions, the journal and the workspace memory that the \`rucher\` CLI renders. The session is resolved automatically; pass \`session\` only to target another one. The workflow rules are in the system prompt and the rucher skill: load the skill before dispatching, applying or reviewing forks.
 
 Which tool, when:
 - Dispatch: agent_start, then launch the fork in a later message.

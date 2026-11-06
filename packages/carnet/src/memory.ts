@@ -1,5 +1,5 @@
 import { type Ctx, nowIso } from './context.ts';
-import type { Group } from './group/locate.ts';
+import type { Workspace } from './workspace/locate.ts';
 import {
   compareNotes,
   DEFAULT_HALF_LIFE_DAYS,
@@ -87,13 +87,13 @@ function notesFor(ctx: Ctx, repos: string[], general: boolean, halfLifeDays: num
   return [...byId.values()].sort(compareNotes);
 }
 
-function groupTitle(group: Group | null): string {
-  return group ? `Rucher memory of the ${group.name} group` : 'Rucher memory';
+function workspaceTitle(workspace: Workspace | null): string {
+  return workspace ? `Rucher memory of the ${workspace.name} workspace` : 'Rucher memory';
 }
 
 export function sessionStartMemory(
   ctx: Ctx,
-  group: Group | null,
+  workspace: Workspace | null,
   session: { id: string; repo: string | null },
   options: MemoryOptions = {},
 ): string | undefined {
@@ -104,19 +104,19 @@ export function sessionStartMemory(
   for (const repo of repos) {
     if (notes.some((note) => note.repos.includes(repo))) recordRepo(ctx, session.id, repo);
   }
-  return renderMemory({ title: groupTitle(group), notes }, options.maxCharacters);
+  return renderMemory({ title: workspaceTitle(workspace), notes }, options.maxCharacters);
 }
 
 export function sessionMemory(
   ctx: Ctx,
-  group: Group | null,
+  workspace: Workspace | null,
   session: { id: string },
   options: MemoryOptions = {},
 ): string | undefined {
   const halfLifeDays = options.halfLifeDays ?? DEFAULT_HALF_LIFE_DAYS;
   const notes = notesFor(ctx, injectedRepos(ctx, session.id), true, halfLifeDays);
   if (!notes.length) return undefined;
-  return renderMemory({ title: groupTitle(group), notes }, options.maxCharacters);
+  return renderMemory({ title: workspaceTitle(workspace), notes }, options.maxCharacters);
 }
 
 export function repoMemory(

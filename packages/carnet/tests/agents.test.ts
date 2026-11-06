@@ -35,11 +35,11 @@ test('start, update, finish and drop follow the lifecycle and log events', () =>
 
   const moved = carnet.agents.update(SESSION, 'banner', {
     status: 'answer',
-    reportPath: '/groups/shop/.rucher/reports/banner.md',
+    reportPath: '/workspaces/shop/.rucher/reports/banner.md',
   });
-  expect(moved.reportPath).toBe('/groups/shop/.rucher/reports/banner.md');
+  expect(moved.reportPath).toBe('/workspaces/shop/.rucher/reports/banner.md');
   expect(carnet.agents.update(SESSION, 'banner', { status: 'answer' }).reportPath).toBe(
-    '/groups/shop/.rucher/reports/banner.md',
+    '/workspaces/shop/.rucher/reports/banner.md',
   );
 
   const dropped = carnet.agents.drop(SESSION, 'banner', 'superseded');

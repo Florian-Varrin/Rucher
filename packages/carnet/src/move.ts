@@ -29,33 +29,33 @@ function agentNames(carnet: Carnet, session: string): string[] {
   ).map((row) => row.name);
 }
 
-function sessionNamed(carnet: Carnet, group: string, name: string): Session | null {
+function sessionNamed(carnet: Carnet, workspace: string, name: string): Session | null {
   const row = carnet.db
-    .prepare('SELECT id FROM sessions WHERE group_name = ? AND name = ?')
-    .get(group, name) as { id: string } | undefined;
+    .prepare('SELECT id FROM sessions WHERE workspace = ? AND name = ?')
+    .get(workspace, name) as { id: string } | undefined;
   return row ? carnet.sessions.require(row.id) : null;
 }
 
-// One database holds every group: moving a session only changes its group, and its agents,
-// events and table line follow its id. Notes stay in the group they were written in.
+// One database holds every workspace: moving a session only changes its workspace, and its agents,
+// events and table line follow its id. Notes stay in the workspace they were written in.
 export function moveSession(
   carnet: Carnet,
   sessionId: string,
-  targetGroup: string,
+  targetWorkspace: string,
   options: MoveOptions = {},
 ): MoveResult {
   const session = carnet.sessions.require(sessionId);
-  if (session.groupName !== (carnet.group?.name ?? null)) {
+  if (session.workspace !== (carnet.workspace?.name ?? null)) {
     throw new CarnetError('SESSION_NOT_FOUND', `Unknown session ${sessionId}`);
   }
-  if (session.groupName === targetGroup) {
-    throw new CarnetError('SESSION_MOVE_INVALID', 'The session is already in this group');
+  if (session.workspace === targetWorkspace) {
+    throw new CarnetError('SESSION_MOVE_INVALID', 'The session is already in this workspace');
   }
-  const into = session.name ? sessionNamed(carnet, targetGroup, session.name) : null;
+  const into = session.name ? sessionNamed(carnet, targetWorkspace, session.name) : null;
   if (into && !options.merge) {
     throw new CarnetError(
       'SESSION_NAME_TAKEN',
-      `Group ${targetGroup} already has session ${into.name}: pass --merge to merge into it`,
+      `Workspace ${targetWorkspace} already has session ${into.name}: pass --merge to merge into it`,
     );
   }
   const agents = agentNames(carnet, session.id);
@@ -82,6 +82,8 @@ export function moveSession(
   };
   if (options.dryRun) return result;
   if (into) carnet.sessions.merge(session.id, into.id);
-  carnet.db.prepare('UPDATE sessions SET group_name = ? WHERE id = ?').run(targetGroup, session.id);
+  carnet.db
+    .prepare('UPDATE sessions SET workspace = ? WHERE id = ?')
+    .run(targetWorkspace, session.id);
   return result;
 }

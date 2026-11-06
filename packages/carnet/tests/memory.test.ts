@@ -11,7 +11,7 @@ import {
   memoryMaxCharacters,
   openDatabase,
 } from '../src/index.ts';
-import { tempDirectory, groupAt } from './helpers.ts';
+import { tempDirectory, workspaceAt } from './helpers.ts';
 
 const SESSION = '0360889d-99c7-4c8f-8447-50ce30696e5a';
 const FORK = '9f2c6a10-0000-4000-8000-000000000002';
@@ -21,9 +21,9 @@ function shop() {
   const api = join(root, 'shop-api');
   const web = join(root, 'shop-web');
   for (const repo of [api, web]) mkdirSync(join(repo, 'src'), { recursive: true });
-  const group = groupAt(root, 'shop', [api, web]);
+  const workspace = workspaceAt(root, 'shop', [api, web]);
   const db = openDatabase(MEMORY_DB);
-  const carnet = new Carnet(db, group, { now: () => new Date('2026-11-03T09:00:00') });
+  const carnet = new Carnet(db, workspace, { now: () => new Date('2026-11-03T09:00:00') });
   return { carnet, db, root, api, web };
 }
 
@@ -62,14 +62,14 @@ test('startup brings the general notes and the notes of the session repo', () =>
   const { carnet, api } = shop();
   const ids = seed(carnet);
   const text = start(carnet, join(api, 'src'), 'startup').additionalContext ?? '';
-  expect(text).toContain('Rucher memory of the shop group (2 notes, note_list for details):');
+  expect(text).toContain('Rucher memory of the shop workspace (2 notes, note_list for details):');
   expect(text).toContain(`#${ids.general}`);
   expect(text).toContain(`[shop-api] tests need REDIS_URL`);
   expect(text).not.toContain('SSR cache');
   expect(text.indexOf('Decisions')).toBeLessThan(text.indexOf('Learnings'));
 });
 
-test('from the workspace only the general notes come at startup', () => {
+test('from the run directory only the general notes come at startup', () => {
   const { carnet, root } = shop();
   seed(carnet);
   const text = start(carnet, root, 'startup').additionalContext ?? '';
