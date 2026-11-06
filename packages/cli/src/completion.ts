@@ -3,11 +3,11 @@ import { dirname, join, resolve } from 'node:path';
 import type { Complete } from '@bomb.sh/tab';
 import tab from '@bomb.sh/tab/citty';
 import {
-  groupRepoNames,
-  listGroups,
+  workspaceRepoNames,
+  listWorkspaces,
   NOTE_KINDS,
   openCarnet,
-  resolveGroup,
+  resolveWorkspace,
   shortId,
 } from '@rucher/carnet';
 import type { CommandDef } from 'citty';
@@ -29,8 +29,8 @@ function quietly(suggest: () => void): void {
   } catch {}
 }
 
-// tab's parser takes `--group=shop` for a flag expecting its value in the next word, so it never
-// reaches the positional. The word under the cursor stays whole: tab completes `--group=sh` itself.
+// tab's parser takes `--ws=shop` for a flag expecting its value in the next word, so it never
+// reaches the positional. The word under the cursor stays whole: tab completes `--ws=sh` itself.
 export function splitInlineValues(words: string[]): string[] {
   return words.flatMap((word, index) => {
     const inline = index < words.length - 1 ? /^(--?[\w-]+)=(.*)$/.exec(word) : null;
@@ -43,21 +43,19 @@ function readTypedWords({ typedWords }: CompletionContext) {
   const typed = typedWords.slice(0, -1);
   const passthrough = typed.indexOf('--');
   const own = passthrough === -1 ? typed : typed.slice(0, passthrough);
-  const flag = own.findLastIndex((word) => word === '-g' || word === '--group');
-  const group = flag === -1 ? undefined : own[flag + 1];
-  const words = own.filter(
-    (_, index) => !(index > 0 && (own[index - 1] === '-g' || own[index - 1] === '--group')),
-  );
-  return { group, words };
+  const flag = own.lastIndexOf('--ws');
+  const workspace = flag === -1 ? undefined : own[flag + 1];
+  const words = own.filter((_, index) => !(index > 0 && own[index - 1] === '--ws'));
+  return { workspace, words };
 }
 
-function inGroup(context: CompletionContext) {
-  return { cwd: context.cwd, env: context.env, group: readTypedWords(context).group };
+function inWorkspace(context: CompletionContext) {
+  return { cwd: context.cwd, env: context.env, workspace: readTypedWords(context).workspace };
 }
 
 export function suggestSessions(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    const carnet = openCarnet(inGroup(context));
+    const carnet = openCarnet(inWorkspace(context));
     try {
       const typed = readTypedWords(context).words;
       const sessions = carnet.sessions.list({ includeTemp: true });
@@ -82,15 +80,16 @@ export function suggestSessions(context: CompletionContext, complete: Complete):
   });
 }
 
-export function suggestGroups(context: CompletionContext, complete: Complete): void {
+export function suggestWorkspaces(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    for (const group of listGroups(context.env)) complete(group.name, group.runDirectory);
+    for (const workspace of listWorkspaces(context.env))
+      complete(workspace.name, workspace.runDirectory);
   });
 }
 
 export function suggestRepos(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    for (const repo of resolveGroup(inGroup(context)).group?.repos ?? []) {
+    for (const repo of resolveWorkspace(inWorkspace(context)).workspace?.repos ?? []) {
       complete(repo.path, repo.name);
     }
   });
@@ -98,8 +97,8 @@ export function suggestRepos(context: CompletionContext, complete: Complete): vo
 
 export function suggestRepoNames(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    const { group } = resolveGroup(inGroup(context));
-    for (const repo of group ? groupRepoNames(group) : []) complete(repo, '');
+    const { workspace } = resolveWorkspace(inWorkspace(context));
+    for (const repo of workspace ? workspaceRepoNames(workspace) : []) complete(repo, '');
   });
 }
 
@@ -109,7 +108,7 @@ export function suggestNoteKinds(complete: Complete): void {
 
 export function suggestNotes(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    const carnet = openCarnet(inGroup(context));
+    const carnet = openCarnet(inWorkspace(context));
     try {
       for (const note of carnet.notes.list()) complete(String(note.id), note.text.slice(0, 60));
     } finally {
@@ -140,59 +139,55 @@ function processContext(): CompletionContext {
 }
 
 const sessions: Handler = (complete) => suggestSessions(processContext(), complete);
-const groups: Handler = (complete) => suggestGroups(processContext(), complete);
+const workspaces: Handler = (complete) => suggestWorkspaces(processContext(), complete);
 const repos: Handler = (complete) => suggestRepos(processContext(), complete);
 const directories: Handler = (complete) => suggestDirectories(processContext(), complete);
 const repoNames: Handler = (complete) => suggestRepoNames(processContext(), complete);
 const noteKinds: Handler = (complete) => suggestNoteKinds(complete);
 const notes: Handler = (complete) => suggestNotes(processContext(), complete);
 
-const group = { group: groups } as const;
+const workspace = { ws: workspaces } as const;
 
 export const completionConfig = {
   subCommands: {
-    status: { options: { session: sessions, ...group } },
-    log: { options: { session: sessions, ...group } },
-    new: { options: group },
-    tmp: { options: group },
-    resume: { args: { session: sessions }, options: group },
-    fork: { args: { session: sessions }, options: group },
+    status: { options: { session: sessions, ...workspace } },
+    log: { options: { session: sessions, ...workspace } },
+    new: { options: workspace },
+    tmp: { options: workspace },
+    resume: { args: { session: sessions }, options: workspace },
+    fork: { args: { session: sessions }, options: workspace },
     sessions: {
-      options: group,
+      options: workspace,
       subCommands: {
-        list: { options: group },
-        merge: { args: { from: sessions, into: sessions }, options: group },
-        move: { args: { session: sessions }, options: { to: groups, ...group } },
-        rename: { args: { session: sessions }, options: group },
-        promote: { args: { session: sessions }, options: group },
-        demote: { args: { session: sessions }, options: group },
-        drop: { args: { session: sessions }, options: group },
-        clean: { options: group },
+        list: { options: workspace },
+        merge: { args: { from: sessions, into: sessions }, options: workspace },
+        move: { args: { session: sessions }, options: { to: workspaces, ...workspace } },
+        rename: { args: { session: sessions }, options: workspace },
+        promote: { args: { session: sessions }, options: workspace },
+        demote: { args: { session: sessions }, options: workspace },
+        drop: { args: { session: sessions }, options: workspace },
+        clean: { options: workspace },
       },
     },
     notes: {
-      options: { kind: noteKinds, repo: repoNames, ...group },
+      options: { kind: noteKinds, repo: repoNames, ...workspace },
       subCommands: {
-        list: { options: { kind: noteKinds, repo: repoNames, ...group } },
-        show: { args: { id: notes }, options: group },
-        add: { args: { kind: noteKinds }, options: { repo: repoNames, ...group } },
-        drop: { args: { id: notes }, options: { 'replaced-by': notes, ...group } },
+        list: { options: { kind: noteKinds, repo: repoNames, ...workspace } },
+        show: { args: { id: notes }, options: workspace },
+        add: { args: { kind: noteKinds }, options: { repo: repoNames, ...workspace } },
+        drop: { args: { id: notes }, options: { 'replaced-by': notes, ...workspace } },
       },
     },
-    group: {
+    ws: {
+      options: workspace,
       subCommands: {
-        show: { options: group },
-        add: { args: { path: directories }, options: group },
-        remove: { args: { path: repos }, options: group },
-        sync: { options: group },
-        edit: { options: group },
-        path: { options: group },
-      },
-    },
-    groups: {
-      subCommands: {
-        rename: { args: { from: groups } },
-        drop: { args: { name: groups } },
+        drop: { args: { name: workspaces } },
+        show: { options: workspace },
+        add: { args: { path: directories }, options: workspace },
+        remove: { args: { path: repos }, options: workspace },
+        sync: { options: workspace },
+        edit: { options: workspace },
+        path: { options: workspace },
       },
     },
   },
@@ -209,9 +204,8 @@ export const uncompletedArguments = [
   'sessions rename name',
   'sessions promote name',
   'sessions clean --older-than',
-  'groups create name',
-  'groups create --repos',
-  'groups rename to',
+  'ws create name',
+  'ws create --repos',
 ];
 
 export async function setupCompletion(main: CommandDef): Promise<void> {

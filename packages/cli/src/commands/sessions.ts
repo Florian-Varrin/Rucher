@@ -2,11 +2,11 @@ import { rmSync } from 'node:fs';
 import {
   type Carnet,
   formatClock,
-  type Group,
-  groupExists,
-  groupLabel,
+  type Workspace,
+  workspaceExists,
+  workspaceLabel,
   hostById,
-  loadGroup,
+  loadWorkspace,
   type MoveOptions,
   moveSession,
   repoPathFor,
@@ -14,7 +14,7 @@ import {
   shortId,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
-import { warnNoGroup } from '../group-option.ts';
+import { warnNoWorkspace } from '../workspace-option.ts';
 import type { Io } from '../io.ts';
 import { CliError, findSession } from '../session.ts';
 
@@ -36,7 +36,7 @@ function row(carnet: Carnet, session: Session, now: Date): string[] {
     session.name ?? session.id.slice(0, 8),
     session.kind,
     session.status,
-    repoPathFor(carnet.group, session.cwd) ?? session.repo ?? '',
+    repoPathFor(carnet.workspace, session.cwd) ?? session.repo ?? '',
     lastActive(session.lastActiveAt, now),
     open ? `${open} agent${open > 1 ? 's' : ''}` : '',
     session.purpose ?? '',
@@ -49,10 +49,10 @@ export function sessionsOnce(carnet: Carnet, io: Io, options: SessionsOptions = 
     includeTemp: options.all,
     includeArchived: options.all,
   });
-  warnNoGroup(carnet, io);
+  warnNoWorkspace(carnet, io);
   if (sessions.length === 0) {
     const hint = options.all ? '' : ' (temp and archived ones are hidden, use --all)';
-    if (carnet.group) io.stdout(`${colors.dim(`no active session yet${hint}`)}\n`);
+    if (carnet.workspace) io.stdout(`${colors.dim(`no active session yet${hint}`)}\n`);
     return;
   }
   const now = options.now ?? new Date();
@@ -101,26 +101,26 @@ function label(session: Session): string {
   return session.name ?? shortId(session.id);
 }
 
-export function groupNamed(name: string, io: Io): Group {
-  if (!groupExists(name, io.env)) {
-    throw new CliError(`No group named "${name}"`, 'see rucher groups list');
+export function workspaced(name: string, io: Io): Workspace {
+  if (!workspaceExists(name, io.env)) {
+    throw new CliError(`No workspace named "${name}"`, 'see rucher ws list');
   }
-  return loadGroup(name, io.env);
+  return loadWorkspace(name, io.env);
 }
 
 export function sessionsMove(
   carnet: Carnet,
   reference: string,
-  groupReference: string,
+  workspaceReference: string,
   io: Io,
   options: MoveOptions = {},
 ): void {
   const session = findSession(carnet, reference);
-  const target = groupNamed(groupReference, io).name;
+  const target = workspaced(workspaceReference, io).name;
   const result = moveSession(carnet, session.id, target, options);
   const into = result.into ? ` into ${label(result.into)}` : '';
   const lines = [
-    `${options.dryRun ? 'would move' : 'moved'} ${label(session)} from ${groupLabel(carnet.group)} to ${target}${into}`,
+    `${options.dryRun ? 'would move' : 'moved'} ${label(session)} from ${workspaceLabel(carnet.workspace)} to ${target}${into}`,
     `  agents moved: ${result.movedAgents.join(', ') || 'none'}`,
     ...(result.skippedAgents.length
       ? [`  agents left out (name already used): ${result.skippedAgents.join(', ')}`]
@@ -128,7 +128,7 @@ export function sessionsMove(
     `  events moved: ${result.movedEvents}`,
     `  table line moved: ${result.movedTable ? 'yes' : 'no'}`,
     ...(result.keptNotes
-      ? [`  notes kept in ${groupLabel(carnet.group)}: ${result.keptNotes}`]
+      ? [`  notes kept in ${workspaceLabel(carnet.workspace)}: ${result.keptNotes}`]
       : []),
   ];
   io.stdout(`${lines.join('\n')}\n`);

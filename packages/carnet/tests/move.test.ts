@@ -2,17 +2,17 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { expect, test } from 'vite-plus/test';
 import { Carnet, type CarnetError, MEMORY_DB, moveSession, openDatabase } from '../src/index.ts';
-import { groupAt, makeClock, SESSION, tempDirectory } from './helpers.ts';
+import { workspaceAt, makeClock, SESSION, tempDirectory } from './helpers.ts';
 
-function shopGroup(db: DatabaseSync, name: string): Carnet {
+function shopWorkspace(db: DatabaseSync, name: string): Carnet {
   const root = tempDirectory(`${name}-`);
-  return new Carnet(db, groupAt(root, name, [join(root, 'shop-api')]), { now: makeClock() });
+  return new Carnet(db, workspaceAt(root, name, [join(root, 'shop-api')]), { now: makeClock() });
 }
 
 function strayShopSession(): { source: Carnet; target: Carnet } {
   const db = openDatabase(MEMORY_DB);
-  const source = shopGroup(db, 'shop-mobile');
-  const target = shopGroup(db, 'shop');
+  const source = shopWorkspace(db, 'shop-mobile');
+  const target = shopWorkspace(db, 'shop');
   source.sessions.create({ id: SESSION, kind: 'active', name: 'shop-auth', cwd: '/shop' });
   source.agents.start(SESSION, { name: 'login-form', task: 'Add the login form' });
   source.agents.start(SESSION, { name: 'cart-badge', task: 'Show the cart count' });
@@ -35,7 +35,7 @@ function codeOf(run: () => unknown): string | undefined {
   }
 }
 
-test('moves a session to another group with its agents, journal and table line, notes stay', () => {
+test('moves a session to another workspace with its agents, journal and table line, notes stay', () => {
   const { source, target } = strayShopSession();
   const result = moveSession(source, SESSION, 'shop');
   expect(result).toMatchObject({
@@ -84,7 +84,7 @@ test('a name taken in the target refuses the move, --merge joins them', () => {
   expect(source.sessions.list({ includeArchived: true, includeTemp: true })).toEqual([]);
 });
 
-test('a session cannot move into its own group', () => {
+test('a session cannot move into its own workspace', () => {
   const { source } = strayShopSession();
   expect(codeOf(() => moveSession(source, SESSION, 'shop-mobile'))).toBe('SESSION_MOVE_INVALID');
 });

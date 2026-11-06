@@ -18,7 +18,12 @@ import type { Ctx } from './context.ts';
 import { MEMORY_DB, openDatabase } from './db/open.ts';
 import { databasePath } from './paths.ts';
 import { logEvent, type LogEventInput, readEvents } from './events.ts';
-import { type Group, type GroupResolution, requireGroup, resolveGroup } from './group/locate.ts';
+import {
+  type Workspace,
+  type WorkspaceResolution,
+  requireWorkspace,
+  resolveWorkspace,
+} from './workspace/locate.ts';
 import {
   copyInjectedRepos,
   type MemoryOptions,
@@ -91,24 +96,25 @@ export class Carnet {
 
   constructor(
     db: DatabaseSync,
-    readonly group: Group | null,
+    readonly workspace: Workspace | null,
     options: CarnetOptions = {},
   ) {
     this.db = db;
-    this.ctx = { db, now: options.now ?? (() => new Date()), group: group?.name ?? null };
+    this.ctx = { db, now: options.now ?? (() => new Date()), workspace: workspace?.name ?? null };
   }
 
-  requireGroup(): Group {
-    return requireGroup(this.group);
+  requireWorkspace(): Workspace {
+    return requireWorkspace(this.workspace);
   }
 
   readonly sessions = {
     get: (id: string) => getSession(this.ctx, id),
     find: (reference: string) => findSession(this.ctx, reference),
     require: (id: string) => requireSession(this.ctx, id),
-    ensure: (id: string, cwd?: string) => ensureSession(this.ctx, id, cwd, this.group ?? undefined),
+    ensure: (id: string, cwd?: string) =>
+      ensureSession(this.ctx, id, cwd, this.workspace ?? undefined),
     upsertFromHook: (payload: HookSessionPayload, env?: HookEnv) =>
-      upsertFromHook(this.ctx, this.group, payload, env),
+      upsertFromHook(this.ctx, this.workspace, payload, env),
     touch: (id: string) => touchSession(this.ctx, id),
     merge: (fromId: string, intoId: string) => mergeSessions(this.ctx, fromId, intoId),
     purge: (keepId: string, days: number) => purgeSessions(this.ctx, keepId, days),
@@ -166,7 +172,7 @@ export class Carnet {
   };
 
   readonly notes = {
-    add: (input: AddNoteInput) => addNote(this.ctx, this.group, input),
+    add: (input: AddNoteInput) => addNote(this.ctx, this.workspace, input),
     get: (id: number) => getNote(this.ctx, id),
     show: (id: number, halfLifeDays?: number) => noteDetail(this.ctx, id, halfLifeDays),
     list: (options?: ListNotesOptions) => listNotes(this.ctx, options),
@@ -179,9 +185,9 @@ export class Carnet {
 
   readonly memory = {
     atStart: (session: Session, options?: MemoryOptions) =>
-      sessionStartMemory(this.ctx, this.group, session, options),
+      sessionStartMemory(this.ctx, this.workspace, session, options),
     ofSession: (session: Session, options?: MemoryOptions) =>
-      sessionMemory(this.ctx, this.group, session, options),
+      sessionMemory(this.ctx, this.workspace, session, options),
     forRepo: (session: Session, repo: string, options?: MemoryOptions) =>
       repoMemory(this.ctx, session, repo, options),
     copyRepos: (from: string, into: string) => copyInjectedRepos(this.ctx, from, into),
@@ -200,7 +206,7 @@ export class Carnet {
 }
 
 export interface OpenCarnetOptions extends CarnetOptions {
-  group?: string | undefined;
+  workspace?: string | undefined;
   sessionId?: string | undefined;
   cwd?: string | undefined;
   env?: NodeJS.ProcessEnv | undefined;
@@ -219,20 +225,23 @@ export function openCarnet(options: OpenCarnetOptions = {}): Carnet {
 
 export interface ResolvedCarnet {
   carnet: Carnet;
-  resolution: GroupResolution;
+  resolution: WorkspaceResolution;
 }
 
 export function openResolvedCarnet(options: OpenCarnetOptions = {}): ResolvedCarnet {
   const db = openStore(options);
   try {
-    const resolution = resolveGroup({ ...options, db });
-    return { carnet: new Carnet(db, resolution.group, options), resolution };
+    const resolution = resolveWorkspace({ ...options, db });
+    return { carnet: new Carnet(db, resolution.workspace, options), resolution };
   } catch (error) {
     db.close();
     throw error;
   }
 }
 
-export function openGroupCarnet(group: Group | null, options: OpenCarnetOptions = {}): Carnet {
-  return new Carnet(openStore(options), group, options);
+export function openWorkspaceCarnet(
+  workspace: Workspace | null,
+  options: OpenCarnetOptions = {},
+): Carnet {
+  return new Carnet(openStore(options), workspace, options);
 }

@@ -1,5 +1,5 @@
 import { CarnetError } from '../errors.ts';
-import type { Group } from '../group/locate.ts';
+import type { Workspace } from '../workspace/locate.ts';
 import type { Session } from '../sessions.ts';
 import { claudeCode } from './claude-code.ts';
 
@@ -77,7 +77,7 @@ export interface Host {
   forkCommand(parent: Session, options?: LaunchOptions): ResumeCommand;
   renameInstruction(name: string): string;
   transcriptFiles(session: Session, env?: NodeJS.ProcessEnv): string[];
-  renderRunDirectory(group: Group): HostRender;
+  renderRunDirectory(workspace: Workspace): HostRender;
 }
 
 export const DEFAULT_HOST = 'claude-code';

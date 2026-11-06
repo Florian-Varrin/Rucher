@@ -10,23 +10,23 @@ import {
   parseNoteId,
   repoList,
 } from '../src/commands/notes.ts';
-import { makeClock, makeIo, SESSION, tempDirectory, groupAt } from './helpers.ts';
+import { makeClock, makeIo, SESSION, tempDirectory, workspaceAt } from './helpers.ts';
 
 function shop() {
   const root = tempDirectory();
   for (const repo of ['shop-api', 'shop-web']) mkdirSync(join(root, repo));
-  const group = groupAt(root, 'shop', [join(root, 'shop-api'), join(root, 'shop-web')]);
-  const carnet = new Carnet(openDatabase(MEMORY_DB), group, { now: makeClock() });
+  const workspace = workspaceAt(root, 'shop', [join(root, 'shop-api'), join(root, 'shop-web')]);
+  const carnet = new Carnet(openDatabase(MEMORY_DB), workspace, { now: makeClock() });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   carnet.sessions.name(SESSION, 'shop-auth');
   return carnet;
 }
 
-test('notes list without a group hints on stderr, not an empty list', () => {
+test('notes list without a workspace hints on stderr, not an empty list', () => {
   const io = makeIo();
   notesList(new Carnet(openDatabase(MEMORY_DB), null), io);
   expect(io.output).toEqual([]);
-  expect(io.errors).toEqual(['no group here: pass -g after the subcommand\n']);
+  expect(io.errors).toEqual(['no workspace here: pass --ws\n']);
 });
 
 test('repeated or comma-separated --repo flags are all kept', () => {
@@ -39,7 +39,7 @@ test('repeated or comma-separated --repo flags are all kept', () => {
   expect(() => parseNoteId('abc')).toThrowError(/Invalid note id/);
 });
 
-test('notes add warns about a near duplicate, list groups by kind with the warning', () => {
+test('notes add warns about a near duplicate, list workspaces by kind with the warning', () => {
   const carnet = shop();
   notesAdd(carnet, makeIo(), {
     kind: 'dead_end',

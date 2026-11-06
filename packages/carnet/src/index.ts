@@ -11,18 +11,17 @@ export {
   type CarnetOptions,
   type OpenCarnetOptions,
   openCarnet,
-  openGroupCarnet,
+  openWorkspaceCarnet,
   openResolvedCarnet,
   type ResolvedCarnet,
 } from './carnet.ts';
 export { type MoveOptions, type MoveResult, moveSession } from './move.ts';
 export {
-  archiveGroupSessions,
-  deleteGroupNotes,
-  groupSessionCounts,
-  renameGroupRows,
-  sessionGroupName,
-} from './group-rows.ts';
+  archiveWorkspaceSessions,
+  deleteWorkspaceNotes,
+  workspaceSessionCounts,
+  sessionWorkspaceName,
+} from './workspace-rows.ts';
 export { MEMORY_DB, openDatabase } from './db/open.ts';
 export { migrate, migrations, schemaVersion } from './db/schema.ts';
 export { CarnetError, type CarnetErrorCode } from './errors.ts';
@@ -37,45 +36,44 @@ export {
   type SessionEventType,
 } from './events.ts';
 export {
-  addGroupRepo,
-  createGroup,
-  type CreateGroupOptions,
-  dropGroup,
-  type DropGroupOptions,
+  addWorkspaceRepo,
+  createWorkspace,
+  type CreateWorkspaceOptions,
+  dropWorkspace,
+  type DropWorkspaceOptions,
   AGENTS_FILE,
   expandHome,
-  type Group,
-  GROUP_FILE,
-  type GroupFile,
-  type GroupRepo,
-  groupExists,
-  groupHosts,
+  type Workspace,
+  WORKSPACE_FILE,
+  type WorkspaceFile,
+  type WorkspaceRepo,
+  workspaceExists,
+  workspaceHosts,
   INSTRUCTIONS_FILE,
-  isGroupName,
-  listGroups,
-  loadGroup,
-  removeGroupRepo,
-  renameGroup,
+  isWorkspaceName,
+  listWorkspaces,
+  loadWorkspace,
+  removeWorkspaceRepo,
   definitionInstructions,
-} from './group/group.ts';
+} from './workspace/workspace.ts';
 export {
-  ambiguousGroupContext,
-  groupLabel,
-  type GroupOrigin,
-  type GroupResolution,
+  ambiguousWorkspaceContext,
+  workspaceLabel,
+  type WorkspaceOrigin,
+  type WorkspaceResolution,
   isInside,
   repoNameFor,
   repoPathFor,
-  requireGroup,
-  resolveGroup,
-  type ResolveGroupOptions,
-} from './group/locate.ts';
+  requireWorkspace,
+  resolveWorkspace,
+  type ResolveWorkspaceOptions,
+} from './workspace/locate.ts';
 export {
   corePromptPath,
   databasePath,
   defaultRunDirectory,
-  groupDefinition,
-  groupsDirectory,
+  workspaceDefinition,
+  workspacesDirectory,
   promptsDirectory,
   reportPath,
   reportsDirectory,
@@ -91,7 +89,7 @@ export {
   type AssembledPrompt,
   baseRules,
   compactReminder,
-  groupRules,
+  workspaceRules,
   outsideRucherContext,
   OUTSIDE_RUCHER_NOTICE,
   PROMPT_FILE,
@@ -110,7 +108,7 @@ export {
   memoryMaxCharacters,
   renderMemory,
 } from './memory.ts';
-export { claudeCode, groupSettings, transcriptTitle } from './hosts/claude-code.ts';
+export { claudeCode, workspaceSettings, transcriptTitle } from './hosts/claude-code.ts';
 export {
   allHosts,
   DEFAULT_HOST,
@@ -134,7 +132,7 @@ export {
   DEFAULT_HALF_LIFE_DAYS,
   type DropNoteInput,
   DUPLICATE_SIMILARITY,
-  groupRepoNames,
+  workspaceRepoNames,
   isNoteKind,
   type ListNotesOptions,
   localDay,

@@ -3,21 +3,21 @@ import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
 import {
   type CarnetError,
-  createGroup,
+  createWorkspace,
   DEFAULT_HOST,
-  groupHosts,
+  workspaceHosts,
   hostById,
-  loadGroup,
+  loadWorkspace,
 } from '../src/index.ts';
 import { tempDirectory } from './helpers.ts';
 
-test('a group renders for its backends, claude-code when group.json has none', () => {
+test('a workspace renders for its backends, claude-code when workspace.json has none', () => {
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  const group = createGroup('shop', { env });
-  expect(groupHosts(group)).toEqual([DEFAULT_HOST]);
-  const file = join(group.definition, 'group.json');
+  const workspace = createWorkspace('shop', { env });
+  expect(workspaceHosts(workspace)).toEqual([DEFAULT_HOST]);
+  const file = join(workspace.definition, 'workspace.json');
   writeFileSync(file, JSON.stringify({ name: 'shop', backends: { 'claude-code': {} } }));
-  expect(groupHosts(loadGroup('shop', env))).toEqual(['claude-code']);
+  expect(workspaceHosts(loadWorkspace('shop', env))).toEqual(['claude-code']);
   expect(JSON.parse(readFileSync(file, 'utf8')).repos).toBeUndefined();
 });
 

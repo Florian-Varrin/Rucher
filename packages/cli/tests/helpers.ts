@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
-import { Carnet, type Group, MEMORY_DB, openDatabase } from '@rucher/carnet';
+import { Carnet, type Workspace, MEMORY_DB, openDatabase } from '@rucher/carnet';
 import type { Io } from '../src/io.ts';
 
 export const SESSION = '0360889d-99c7-4c8f-8447-50ce30696e5a';
@@ -15,7 +15,7 @@ export function makeClock(start = '2026-10-31T15:41:00.000Z'): () => Date {
   return () => new Date((time += 1000));
 }
 
-export function groupAt(root: string, name: string, repos: readonly string[]): Group {
+export function workspaceAt(root: string, name: string, repos: readonly string[]): Workspace {
   return {
     name,
     definition: join(root, 'definition'),
@@ -30,7 +30,7 @@ export function makeCarnet(): { carnet: Carnet; root: string } {
   mkdirSync(join(root, 'api'));
   const carnet = new Carnet(
     openDatabase(MEMORY_DB),
-    groupAt(root, 'test-group', [join(root, 'api')]),
+    workspaceAt(root, 'test-workspace', [join(root, 'api')]),
     {
       now: makeClock(),
     },

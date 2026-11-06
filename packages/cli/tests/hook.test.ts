@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  createGroup,
+  createWorkspace,
   openCarnet,
   OUTSIDE_RUCHER_NOTICE,
   rulesVersion,
@@ -17,22 +17,22 @@ import {
 } from '../src/commands/hook.ts';
 import { makeIo, SESSION, tempDirectory } from './helpers.ts';
 
-function group() {
+function workspace() {
   const api = tempDirectory('repo-api-');
   mkdirSync(join(api, 'src'), { recursive: true });
   const home = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_PID: '4242' };
-  const group = createGroup('shop', { env: home, repos: [api] });
-  const root = group.runDirectory;
+  const workspace = createWorkspace('shop', { env: home, repos: [api] });
+  const root = workspace.runDirectory;
   const env = {
     ...home,
     RUCHER_SESSION_ID: SESSION,
-    RUCHER_PROMPT_VERSION: rulesVersion(group, home),
+    RUCHER_PROMPT_VERSION: rulesVersion(workspace, home),
   };
   return { root, api, env };
 }
 
-test('records the session of a group with pid and repo', () => {
-  const { root, api, env } = group();
+test('records the session of a workspace with pid and repo', () => {
+  const { root, api, env } = workspace();
   const io = makeIo({ env });
   const payload = JSON.stringify({
     session_id: SESSION,
@@ -51,22 +51,22 @@ test('records the session of a group with pid and repo', () => {
   carnet.close();
 });
 
-test('outside any group it stays silent and succeeds', () => {
+test('outside any workspace it stays silent and succeeds', () => {
   const io = makeIo({ env: { RUCHER_HOME: tempDirectory('home-') } });
-  const payload = JSON.stringify({ session_id: SESSION, cwd: tempDirectory('nogroup-') });
+  const payload = JSON.stringify({ session_id: SESSION, cwd: tempDirectory('noworkspace-') });
   expect(sessionStart(payload, io)).toBe(0);
   expect(io.output).toEqual([]);
   expect(io.errors).toEqual([]);
 });
 
-test('a session launched by rucher outside any group is recorded without a group', () => {
+test('a session launched by rucher outside any workspace is recorded without a workspace', () => {
   const env = { RUCHER_HOME: tempDirectory('home-'), RUCHER_SESSION_ID: SESSION };
   const io = makeIo({ env });
-  const payload = JSON.stringify({ session_id: SESSION, cwd: tempDirectory('nogroup-') });
+  const payload = JSON.stringify({ session_id: SESSION, cwd: tempDirectory('noworkspace-') });
   expect(sessionStart(payload, io)).toBe(0);
   const carnet = openCarnet({ env, sessionId: SESSION });
-  expect(carnet.group).toBeNull();
-  expect(carnet.sessions.get(SESSION)?.groupName).toBeNull();
+  expect(carnet.workspace).toBeNull();
+  expect(carnet.sessions.get(SESSION)?.workspace).toBeNull();
   carnet.close();
 });
 
@@ -80,7 +80,7 @@ test('malformed input never fails the hook', () => {
 });
 
 test('on resume it prints the session state as additional context', () => {
-  const { api, env } = group();
+  const { api, env } = workspace();
   const startup = JSON.stringify({ session_id: SESSION, cwd: api, source: 'startup' });
   sessionStart(startup, makeIo({ env }));
   const io = makeIo({ env });
@@ -95,7 +95,7 @@ test('on resume it prints the session state as additional context', () => {
 });
 
 test('subagent hooks flag a fork that stopped without agent_done', () => {
-  const { root, env } = group();
+  const { root, env } = workspace();
   const carnet = openCarnet({ cwd: root, env });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   carnet.agents.start(SESSION, { name: 'lost', task: 't' });
@@ -120,11 +120,11 @@ test('subagent hooks flag a fork that stopped without agent_done', () => {
   after.close();
 });
 
-test('subagent hooks never fail, even without agent_id or group', () => {
+test('subagent hooks never fail, even without agent_id or workspace', () => {
   const io = makeIo({ env: { RUCHER_HOME: tempDirectory('home-') } });
   expect(
     subagentStop(
-      JSON.stringify({ session_id: SESSION, agent_id: 'a', cwd: tempDirectory('nogroup-') }),
+      JSON.stringify({ session_id: SESSION, agent_id: 'a', cwd: tempDirectory('noworkspace-') }),
       io,
     ),
   ).toBe(0);
@@ -135,7 +135,7 @@ test('subagent hooks never fail, even without agent_id or group', () => {
 });
 
 test('the prompt hook names the session after a /rename and never fails', () => {
-  const { root, env } = group();
+  const { root, env } = workspace();
   const io = makeIo({ env });
   sessionStart(JSON.stringify({ session_id: SESSION, cwd: root, source: 'startup' }), io);
   const prompt = JSON.stringify({ session_id: SESSION, cwd: root, session_title: 'shop-auth' });
@@ -153,7 +153,7 @@ test('the prompt hook names the session after a /rename and never fails', () => 
 });
 
 test('a stop names its fork even when the starts arrived in the wrong order', () => {
-  const { root, env } = group();
+  const { root, env } = workspace();
   const carnet = openCarnet({ cwd: root, env });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   carnet.agents.start(SESSION, { name: 'memory', task: 't' });
@@ -189,7 +189,7 @@ test('a stop names its fork even when the starts arrived in the wrong order', ()
 });
 
 test('a session started without rucher is warned on stderr and in context', () => {
-  const { root, env } = group();
+  const { root, env } = workspace();
   const io = makeIo({ env: { RUCHER_HOME: env.RUCHER_HOME, CLAUDE_PID: env.CLAUDE_PID } });
   const payload = JSON.stringify({ session_id: SESSION, cwd: root, source: 'startup' });
   expect(sessionStart(payload, io)).toBe(0);
@@ -198,7 +198,7 @@ test('a session started without rucher is warned on stderr and in context', () =
 });
 
 test('named sub-agents get the reporting rules, forks inherit them', () => {
-  const { root, env } = group();
+  const { root, env } = workspace();
   const carnet = openCarnet({ cwd: root, env });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root, source: 'startup' });
   carnet.close();
@@ -220,7 +220,7 @@ test('named sub-agents get the reporting rules, forks inherit them', () => {
 });
 
 test('post-tool-use adds a repo memory once, and stays silent otherwise', () => {
-  const { root, api, env } = group();
+  const { root, api, env } = workspace();
   const carnet = openCarnet({ cwd: root, env });
   carnet.notes.add({
     kind: 'dead_end',
@@ -246,21 +246,23 @@ test('post-tool-use adds a repo memory once, and stays silent otherwise', () => 
   expect(outside.errors).toEqual([]);
 });
 
-function twoGroupsSharingApi() {
+function twoWorkspacesSharingApi() {
   const api = tempDirectory('repo-api-');
   const env = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_PID: '4242' };
-  const shop = createGroup('shop', { env, repos: [api] }).runDirectory;
-  const blog = createGroup('blog', { env, repos: [api] }).runDirectory;
+  const shop = createWorkspace('shop', { env, repos: [api] }).runDirectory;
+  const blog = createWorkspace('blog', { env, repos: [api] }).runDirectory;
   return { api, shop, blog, env };
 }
 
-test('a repo shared by two groups records nothing and warns in context and on stderr', () => {
-  const { api, shop, blog, env } = twoGroupsSharingApi();
+test('a repo shared by two workspaces records nothing and warns in context and on stderr', () => {
+  const { api, shop, blog, env } = twoWorkspacesSharingApi();
   const io = makeIo({ env });
   const start = JSON.stringify({ session_id: SESSION, cwd: api, source: 'compact' });
   expect(sessionStart(start, io)).toBe(0);
   expect(io.errors).toHaveLength(1);
-  expect(io.errors[0]).toMatch(/several groups \(shop, blog\)|several groups \(blog, shop\)/);
+  expect(io.errors[0]).toMatch(
+    /several workspaces \(shop, blog\)|several workspaces \(blog, shop\)/,
+  );
   const output = JSON.parse(io.output.join('')) as {
     hookSpecificOutput: { hookEventName: string; additionalContext: string };
   };
@@ -277,26 +279,26 @@ test('a repo shared by two groups records nothing and warns in context and on st
   }
 });
 
-test('the group named by the launcher wins over a shared repo', () => {
-  const { api, blog, env } = twoGroupsSharingApi();
-  const pinned = makeIo({ env: { ...env, RUCHER_GROUP: 'blog' } });
+test('the workspace named by the launcher wins over a shared repo', () => {
+  const { api, blog, env } = twoWorkspacesSharingApi();
+  const pinned = makeIo({ env: { ...env, RUCHER_WS: 'blog' } });
   const start = JSON.stringify({ session_id: SESSION, cwd: api, source: 'startup' });
   expect(sessionStart(start, pinned)).toBe(0);
-  expect(pinned.errors.join('')).not.toMatch(/several groups/);
+  expect(pinned.errors.join('')).not.toMatch(/several workspaces/);
   const inBlog = openCarnet({ cwd: blog, env });
   expect(inBlog.sessions.get(SESSION)).toBeDefined();
   inBlog.close();
 });
 
-test('a known session id keeps the session in its group', () => {
-  const { api, shop, blog, env } = twoGroupsSharingApi();
-  const pinned = makeIo({ env: { ...env, RUCHER_GROUP: 'blog' } });
+test('a known session id keeps the session in its workspace', () => {
+  const { api, shop, blog, env } = twoWorkspacesSharingApi();
+  const pinned = makeIo({ env: { ...env, RUCHER_WS: 'blog' } });
   const start = JSON.stringify({ session_id: SESSION, cwd: api, source: 'startup' });
   expect(sessionStart(start, pinned)).toBe(0);
   const compacted = JSON.stringify({ session_id: SESSION, cwd: api, source: 'compact' });
   expect(sessionStart(compacted, makeIo({ env }))).toBe(0);
   const inBlog = openCarnet({ cwd: blog, env });
-  expect(inBlog.sessions.get(SESSION)?.groupName).toBe('blog');
+  expect(inBlog.sessions.get(SESSION)?.workspace).toBe('blog');
   inBlog.close();
   const inShop = openCarnet({ cwd: shop, env });
   expect(inShop.sessions.list({ includeTemp: true })).toEqual([]);

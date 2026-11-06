@@ -10,7 +10,7 @@ test('the skill leaves out the human-only sections', () => {
   const skill = renderSkill(readFileSync(WORKFLOW_PATH, 'utf8'));
   expect(skill).toMatch(/^---\nname: rucher\ndescription: /);
   expect(skill).not.toContain('skill:skip');
-  expect(skill).not.toContain('## Groups on disk');
+  expect(skill).not.toContain('## Workspaces on disk');
   expect(skill).toContain('## Dispatching a fork');
   expect(skill).toContain('<run directory>/reports/<name>.md');
 });

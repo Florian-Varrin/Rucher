@@ -36,7 +36,7 @@ test('a session started by rucher gets context only on resume', () => {
   const base = { session_id: SESSION, cwd: root };
   const env = {
     RUCHER_SESSION_ID: SESSION,
-    RUCHER_PROMPT_VERSION: rulesVersion(carnet.requireGroup(), {}),
+    RUCHER_PROMPT_VERSION: rulesVersion(carnet.requireWorkspace(), {}),
   };
   expect(handleSessionStart(carnet, { ...base, source: 'startup' }, env).additionalContext).toBe(
     undefined,

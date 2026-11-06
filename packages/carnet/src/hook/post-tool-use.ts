@@ -1,5 +1,5 @@
 import type { Carnet } from '../carnet.ts';
-import { repoNameFor } from '../group/locate.ts';
+import { repoNameFor } from '../workspace/locate.ts';
 import type { HostToolPayload } from '../hosts/host.ts';
 import { memoryMaxCharacters } from '../memory.ts';
 import { memoryHalfLife } from '../notes.ts';
@@ -12,7 +12,7 @@ export function handleToolUse(
 ): string | undefined {
   // session_repos tracks the main conversation; a subagent's context is not it.
   if (payload.agent_id) return undefined;
-  const repo = repoNameFor(carnet.group, payload.path);
+  const repo = repoNameFor(carnet.workspace, payload.path);
   if (!repo) return undefined;
   const session = carnet.sessions.ensure(payload.session_id, payload.cwd);
   return carnet.memory.forRepo(session, repo, {

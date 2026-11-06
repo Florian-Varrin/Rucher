@@ -1,6 +1,6 @@
 import {
   type Carnet,
-  groupLabel,
+  workspaceLabel,
   LEGEND,
   NOTES_HEADER,
   type NotesMode,
@@ -57,9 +57,9 @@ function sessionName(session: Session): string {
 
 function sessionLabel(carnet: Carnet, session: Session, columns: number): string {
   const name = sessionName(session);
-  // The name identifies the pane: only the group gives way to a narrow terminal.
+  // The name identifies the pane: only the workspace gives way to a narrow terminal.
   const room = columns - Array.from(name).length - 3;
-  return room > 1 ? `${name} · ${truncate(groupLabel(carnet.group), room)}` : name;
+  return room > 1 ? `${name} · ${truncate(workspaceLabel(carnet.workspace), room)}` : name;
 }
 
 function sessionHeader(session: Session, io: Io): string {
@@ -171,8 +171,11 @@ export function renderStatusView(carnet: Carnet, io: Io, options: StatusOptions)
   });
   const colors = paint(io);
   const separator = ' - ';
-  const group = truncate(groupLabel(carnet.group), io.columns - time.length - separator.length);
-  const title = `${colors.dim(time)}${separator}${colors.cyan(group)}`;
+  const workspace = truncate(
+    workspaceLabel(carnet.workspace),
+    io.columns - time.length - separator.length,
+  );
+  const title = `${colors.dim(time)}${separator}${colors.cyan(workspace)}`;
   return [title, '', blocks.join('\n\n'), '', colors.dim(LEGEND)].join('\n');
 }
 

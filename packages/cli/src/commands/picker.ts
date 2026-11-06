@@ -68,7 +68,7 @@ async function pickFromList(
 export async function pickSession(carnet: Carnet): Promise<Session> {
   const sessions = pickerSessions(carnet);
   if (sessions.length === 0) {
-    throw new CliError('No session to resume in this group', 'rucher new <name>');
+    throw new CliError('No session to resume in this workspace', 'rucher new <name>');
   }
   if (!process.stdin.isTTY) {
     throw new CliError('No session given', 'rucher resume <name, id or id prefix>');

@@ -10,7 +10,7 @@ export function purgeDays(value: string | undefined): number {
 
 // Only sessions without agent events go: the agent journal is never deleted, lifecycle events are.
 const PURGEABLE = `
-  group_name IS ? AND id != ? AND last_active_at < ?
+  workspace IS ? AND id != ? AND last_active_at < ?
   AND NOT EXISTS (
     SELECT 1 FROM events WHERE events.session = sessions.id AND events.type NOT LIKE 'session.%'
   )
@@ -25,7 +25,7 @@ export function purgeSessions(ctx: Ctx, keepId: string, days: number): string[] 
   try {
     const rows = ctx.db
       .prepare(`SELECT id FROM sessions WHERE ${PURGEABLE}`)
-      .all(ctx.group, keepId, cutoff) as unknown as { id: string }[];
+      .all(ctx.workspace, keepId, cutoff) as unknown as { id: string }[];
     const ids = rows.map((row) => row.id);
     for (const table of ['table_items', 'agents', 'events']) {
       const statement = ctx.db.prepare(`DELETE FROM ${table} WHERE session = ?`);

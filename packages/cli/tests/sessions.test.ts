@@ -7,19 +7,19 @@ import { sessionsMerge, sessionsOnce } from '../src/commands/sessions.ts';
 import { CliError } from '../src/session.ts';
 import { makeCarnet, makeIo, SESSION } from './helpers.ts';
 
-test('sessions without a group hints on stderr and keeps stdout for group-less sessions', () => {
+test('sessions without a workspace hints on stderr and keeps stdout for workspace-less sessions', () => {
   const carnet = new Carnet(openDatabase(MEMORY_DB), null);
   const empty = makeIo();
   sessionsOnce(carnet, empty);
   expect(empty.output).toEqual([]);
-  expect(empty.errors).toEqual(['no group here: pass -g after the subcommand\n']);
+  expect(empty.errors).toEqual(['no workspace here: pass --ws\n']);
 
   carnet.sessions.ensure('loose');
   carnet.sessions.name('loose', 'loose-one');
   const listed = makeIo();
   sessionsOnce(carnet, listed);
   expect(listed.output.join('')).toContain('loose-one');
-  expect(listed.errors).toEqual(['no group here: pass -g after the subcommand\n']);
+  expect(listed.errors).toEqual(['no workspace here: pass --ws\n']);
 });
 
 test('sessions lists active sessions, --all adds temp and archived ones', () => {

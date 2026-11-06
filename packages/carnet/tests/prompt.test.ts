@@ -18,10 +18,10 @@ import { makeCarnet, SESSION, tempDirectory } from './helpers.ts';
 function setup() {
   const { carnet, root } = makeCarnet();
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  return { carnet, root, env, group: carnet.requireGroup() };
+  return { carnet, root, env, workspace: carnet.requireWorkspace() };
 }
 
-function writeGroupPrompt(root: string, text: string): void {
+function writeWorkspacePrompt(root: string, text: string): void {
   mkdirSync(join(root, 'definition'), { recursive: true });
   writeFileSync(join(root, 'definition', 'prompt.md'), text);
 }
@@ -34,44 +34,48 @@ test('the base rules are the core rules unless the config prompt.md replaces the
   expect(baseRules(env)).toBe('- my own rules');
 });
 
-test('the prompt puts base rules, group rules then the session identity', () => {
-  const { root, env, group } = setup();
-  writeGroupPrompt(root, '- shop-api tests need REDIS_URL\n');
-  const { text } = assemblePrompt(group, { id: SESSION, name: 'shop-auth', kind: 'active' }, env);
+test('the prompt puts base rules, workspace rules then the session identity', () => {
+  const { root, env, workspace } = setup();
+  writeWorkspacePrompt(root, '- shop-api tests need REDIS_URL\n');
+  const { text } = assemblePrompt(
+    workspace,
+    { id: SESSION, name: 'shop-auth', kind: 'active' },
+    env,
+  );
   const base = text.indexOf(CORE_RULES);
   const extra = text.indexOf('shop-api tests need REDIS_URL');
   const identity = text.indexOf(
-    'This is the Rucher session shop-auth (active) of the test-group group.',
+    'This is the Rucher session shop-auth (active) of the test-workspace workspace.',
   );
   expect(base).toBeGreaterThan(-1);
   expect(extra).toBeGreaterThan(base);
   expect(identity).toBeGreaterThan(extra);
-  const unnamed = assemblePrompt(group, { id: SESSION, name: null, kind: 'temp' }, env);
+  const unnamed = assemblePrompt(workspace, { id: SESSION, name: null, kind: 'temp' }, env);
   expect(unnamed.text).toContain('session 0360889d (temp)');
 });
 
 test('the version follows the rules, not the session identity', () => {
-  const { root, env, group } = setup();
-  const named = assemblePrompt(group, { id: SESSION, name: 'a', kind: 'active' }, env);
-  const renamed = assemblePrompt(group, { id: SESSION, name: 'b', kind: 'temp' }, env);
+  const { root, env, workspace } = setup();
+  const named = assemblePrompt(workspace, { id: SESSION, name: 'a', kind: 'active' }, env);
+  const renamed = assemblePrompt(workspace, { id: SESSION, name: 'b', kind: 'temp' }, env);
   expect(named.version).toMatch(/^[0-9a-f]{12}$/);
   expect(renamed.version).toBe(named.version);
-  writeGroupPrompt(root, '- one more rule\n');
-  expect(rulesVersion(group, env)).not.toBe(named.version);
+  writeWorkspacePrompt(root, '- one more rule\n');
+  expect(rulesVersion(workspace, env)).not.toBe(named.version);
 });
 
 test('the append file is written per session in the state directory', () => {
-  const { env, group } = setup();
+  const { env, workspace } = setup();
   const { path, version } = appendPromptFile(
-    group,
+    workspace,
     { id: SESSION, name: 'x', kind: 'active' },
     env,
   );
   expect(path).toBe(join(env.RUCHER_HOME, 'state', 'prompts', `${SESSION}.md`));
   expect(readFileSync(path, 'utf8')).toBe(
-    assemblePrompt(group, { id: SESSION, name: 'x', kind: 'active' }, env).text,
+    assemblePrompt(workspace, { id: SESSION, name: 'x', kind: 'active' }, env).text,
   );
-  expect(version).toBe(rulesVersion(group, env));
+  expect(version).toBe(rulesVersion(workspace, env));
 });
 
 function start(source: string, env: Record<string, string>) {
@@ -87,7 +91,7 @@ function start(source: string, env: Record<string, string>) {
 
 test('a session started by rucher records its version and gets no warning', () => {
   const { carnet, home, run } = start('clear', { RUCHER_SESSION_ID: SESSION });
-  const current = rulesVersion(carnet.requireGroup(), home);
+  const current = rulesVersion(carnet.requireWorkspace(), home);
   const launched = run('startup', { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: current });
   expect(launched.session.promptVersion).toBe(current);
   expect(launched.notices).toEqual([]);
@@ -96,7 +100,7 @@ test('a session started by rucher records its version and gets no warning', () =
 
 test('a session never started by rucher is warned once in context and on stderr', () => {
   const { first, carnet, home } = start('startup', {});
-  expect(first.additionalContext).toBe(outsideRucherContext(carnet.requireGroup(), home));
+  expect(first.additionalContext).toBe(outsideRucherContext(carnet.requireWorkspace(), home));
   expect(first.additionalContext).toContain('Forks never commit');
   expect(first.notices).toEqual([OUTSIDE_RUCHER_NOTICE]);
 });
@@ -111,7 +115,7 @@ test('a resume keeps the recorded version and tells when the rules changed since
   expect(resumed.contextParts[0]).toContain('state when resumed');
   expect(resumed.additionalContext).not.toContain('started without rucher');
   expect(resumed.notices).toEqual([RULES_UPDATED_NOTICE]);
-  const current = rulesVersion(carnet.requireGroup(), home);
+  const current = rulesVersion(carnet.requireWorkspace(), home);
   const relaunched = run('startup', { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: current });
   expect(relaunched.notices).toEqual([]);
 });
@@ -128,7 +132,7 @@ test('a compaction without the append re-injects the rules and clears the versio
 
 test('a compaction or a fork launched by rucher records the version in effect', () => {
   const { run, carnet, home } = start('startup', {});
-  const current = rulesVersion(carnet.requireGroup(), home);
+  const current = rulesVersion(carnet.requireWorkspace(), home);
   const launched = { RUCHER_SESSION_ID: SESSION, RUCHER_PROMPT_VERSION: current };
   const compacted = run('compact', launched);
   expect(compacted.session.promptVersion).toBe(current);

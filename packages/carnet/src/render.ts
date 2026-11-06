@@ -1,5 +1,5 @@
 import { mkdirSync } from 'node:fs';
-import { type Group, groupHosts } from './group/group.ts';
+import { type Workspace, workspaceHosts } from './workspace/workspace.ts';
 import { hostById } from './hosts/host.ts';
 import { reportsDirectory } from './paths.ts';
 
@@ -15,14 +15,14 @@ export interface RunDirectoryRenderOptions {
 }
 
 export function renderRunDirectory(
-  group: Group,
+  workspace: Workspace,
   options: RunDirectoryRenderOptions = {},
 ): RenderResult {
-  mkdirSync(group.runDirectory, { recursive: true });
-  mkdirSync(reportsDirectory(group), { recursive: true });
-  const result: RenderResult = { runDirectory: group.runDirectory, written: [], removed: [] };
-  for (const id of options.host ? [options.host] : groupHosts(group)) {
-    const rendered = hostById(id).renderRunDirectory(group);
+  mkdirSync(workspace.runDirectory, { recursive: true });
+  mkdirSync(reportsDirectory(workspace), { recursive: true });
+  const result: RenderResult = { runDirectory: workspace.runDirectory, written: [], removed: [] };
+  for (const id of options.host ? [options.host] : workspaceHosts(workspace)) {
+    const rendered = hostById(id).renderRunDirectory(workspace);
     result.written.push(...rendered.written);
     result.removed.push(...rendered.removed);
   }

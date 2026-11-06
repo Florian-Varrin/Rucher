@@ -47,7 +47,7 @@ We do not write a big TUI in one go. We add a brick when the lack is felt, use i
 | Component                | Role                                                                                                                      | Form                                                      |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | **Multi-agent workflow** | The rules of the game: two-phase forks, parallel work and sequential review, reports in files, applying a fork, worktrees | [docs](workflow.md) + the plugin's `rucher` skill         |
-| **Groups**               | One group per set of related repos (a product's api, web and infra): repo map, shared instructions, directory access      | definition in `~/.config/rucher` + rendered run directory |
+| **Workspaces**           | One workspace per set of related repos (a product's api, web and infra): repo map, shared instructions, directory access  | definition in `~/.config/rucher` + rendered run directory |
 | **Carnet**               | The shared state: agent statuses, "On the table", sessions, journal                                                       | library + SQLite database + MCP server for the agents     |
 | **CLI `rucher`**         | The human entry point: `status`, `log`, `sessions`, `resume`, and later the TUI                                           | CLI built on Carnet                                       |
 | **Sessions**             | A small set of named, resumable sessions; the others temporary                                                            | registry in Carnet + `SessionStart` hook                  |
@@ -79,7 +79,7 @@ _Carnet_ is French for notebook.
 ## Progression
 
 1. **Workflow** — the rules of the game, [documented](workflow.md). _Done._
-2. **Groups** — one group per set of repos, managed by `rucher` and usable from anywhere. _Done._
+2. **Workspaces** — one workspace per set of repos, managed by `rucher` and usable from anywhere. _Done._
 3. **Carnet + CLI** — state leaves markdown and moves into a database, written by the agents through MCP; the `rucher` CLI replaces the status files. _Done._
 4. **Sessions** — registry, resume by name, temporary sessions. _Done._
 5. **`rucher` skill + plugin** — the workflow packaged, installable in one command. _Done._

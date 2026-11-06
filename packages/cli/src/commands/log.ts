@@ -2,7 +2,7 @@ import {
   type Carnet,
   type CarnetEvent,
   formatClock,
-  groupLabel,
+  workspaceLabel,
   type Session,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
@@ -68,7 +68,7 @@ export function formatEventsMarkdown(events: CarnetEvent[], title: string): stri
 }
 
 function sessionTitle(carnet: Carnet, session: Session): string {
-  return `${groupLabel(carnet.group)} · ${session.name ?? session.id.slice(0, 8)}`;
+  return `${workspaceLabel(carnet.workspace)} · ${session.name ?? session.id.slice(0, 8)}`;
 }
 
 export function logOnce(carnet: Carnet, io: Io, options: LogOptions): void {

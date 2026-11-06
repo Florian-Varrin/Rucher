@@ -51,6 +51,6 @@ test('--md renders the journal as markdown grouped by day', () => {
   ]);
   const io = makeIo();
   logOnce(carnet, io, { count: 20, md: true });
-  expect(io.output.join('')).toMatch(/^# Journal: test-group · 0360889d\n/);
+  expect(io.output.join('')).toMatch(/^# Journal: test-workspace · 0360889d\n/);
   expect(formatEventsMarkdown([], 'x')).toBe('# Journal: x\n\nNo events yet.');
 });

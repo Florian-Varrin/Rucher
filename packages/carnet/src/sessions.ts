@@ -1,7 +1,7 @@
 import { type Ctx, nowIso } from './context.ts';
 import { CarnetError } from './errors.ts';
 import { logEvent } from './events.ts';
-import { type Group, repoNameFor } from './group/locate.ts';
+import { type Workspace, repoNameFor } from './workspace/locate.ts';
 import { DEFAULT_HOST, type HostSessionPayload } from './hosts/host.ts';
 
 export type SessionKind = 'active' | 'temp';
@@ -9,7 +9,7 @@ export type SessionStatus = 'running' | 'idle' | 'archived';
 
 export interface Session {
   id: string;
-  groupName: string | null;
+  workspace: string | null;
   name: string | null;
   purpose: string | null;
   kind: SessionKind;
@@ -29,7 +29,7 @@ export interface Session {
 
 interface SessionRow {
   id: string;
-  group_name: string | null;
+  workspace: string | null;
   name: string | null;
   purpose: string | null;
   kind: SessionKind;
@@ -76,13 +76,13 @@ export interface ListSessionsOptions {
   includeArchived?: boolean | undefined;
 }
 
-const COLUMNS = `id, group_name, name, purpose, kind, status, cwd, repo, host, host_pid, hooked_at, last_title,
+const COLUMNS = `id, workspace, name, purpose, kind, status, cwd, repo, host, host_pid, hooked_at, last_title,
   parent_id, prompt_version, created_at, last_active_at, ended_at`;
 
 function toSession(row: SessionRow): Session {
   return {
     id: row.id,
-    groupName: row.group_name,
+    workspace: row.workspace,
     name: row.name,
     purpose: row.purpose,
     kind: row.kind,
@@ -114,15 +114,20 @@ export function requireSession(ctx: Ctx, id: string): Session {
   return session;
 }
 
-export function ensureSession(ctx: Ctx, id: string, cwd?: string, group?: Group | null): Session {
+export function ensureSession(
+  ctx: Ctx,
+  id: string,
+  cwd?: string,
+  workspace?: Workspace | null,
+): Session {
   const existing = getSession(ctx, id);
   if (existing) return existing;
   const at = nowIso(ctx);
   ctx.db
     .prepare(
-      'INSERT INTO sessions (id, group_name, cwd, repo, created_at, last_active_at) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sessions (id, workspace, cwd, repo, created_at, last_active_at) VALUES (?, ?, ?, ?, ?, ?)',
     )
-    .run(id, ctx.group, cwd ?? null, group ? repoNameFor(group, cwd) : null, at, at);
+    .run(id, ctx.workspace, cwd ?? null, workspace ? repoNameFor(workspace, cwd) : null, at, at);
   return requireSession(ctx, id);
 }
 
@@ -141,13 +146,13 @@ export function createSession(ctx: Ctx, input: CreateSessionInput): Session {
   try {
     ctx.db
       .prepare(
-        `INSERT INTO sessions (id, group_name, name, kind, status, cwd, repo, host, last_title,
+        `INSERT INTO sessions (id, workspace, name, kind, status, cwd, repo, host, last_title,
            created_at, last_active_at)
          VALUES (?, ?, ?, ?, 'running', ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.id,
-        ctx.group,
+        ctx.workspace,
         input.name ?? null,
         input.kind,
         input.cwd,
@@ -218,23 +223,23 @@ export function adoptTitle(ctx: Ctx, id: string, rawTitle: string | undefined): 
 
 export function upsertFromHook(
   ctx: Ctx,
-  group: Group | null,
+  workspace: Workspace | null,
   payload: HookSessionPayload,
   env: HookEnv = {},
 ): Session {
   const at = nowIso(ctx);
   const host = env.host ?? DEFAULT_HOST;
   const hostPid = env.processId ?? null;
-  const repo = group ? repoNameFor(group, payload.cwd) : null;
+  const repo = workspace ? repoNameFor(workspace, payload.cwd) : null;
   const existing = getSession(ctx, payload.session_id);
   if (!existing) {
     ctx.db
       .prepare(
-        `INSERT INTO sessions (id, group_name, cwd, repo, host, host_pid, hooked_at, created_at,
+        `INSERT INTO sessions (id, workspace, cwd, repo, host, host_pid, hooked_at, created_at,
            last_active_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(payload.session_id, ctx.group, payload.cwd ?? null, repo, host, hostPid, at, at, at);
+      .run(payload.session_id, ctx.workspace, payload.cwd ?? null, repo, host, hostPid, at, at, at);
   } else {
     ctx.db
       .prepare(
@@ -281,14 +286,14 @@ export function nameSession(ctx: Ctx, id: string, name: string, purpose?: string
 }
 
 export function listSessions(ctx: Ctx, options: ListSessionsOptions = {}): Session[] {
-  const conditions: string[] = ['group_name IS ?'];
+  const conditions: string[] = ['workspace IS ?'];
   if (!options.includeTemp) conditions.push("kind != 'temp'");
   if (!options.includeArchived) conditions.push("status != 'archived'");
   const rows = ctx.db
     .prepare(
       `SELECT ${COLUMNS} FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY last_active_at DESC`,
     )
-    .all(ctx.group) as unknown as SessionRow[];
+    .all(ctx.workspace) as unknown as SessionRow[];
   return rows.map(toSession);
 }
 
@@ -309,17 +314,17 @@ export function dropSession(ctx: Ctx, id: string): Session {
 export function defaultSession(ctx: Ctx): Session | undefined {
   const row = ctx.db
     .prepare(
-      `SELECT ${COLUMNS} FROM sessions WHERE group_name IS ? AND status != 'archived'
+      `SELECT ${COLUMNS} FROM sessions WHERE workspace IS ? AND status != 'archived'
        ORDER BY last_active_at DESC LIMIT 1`,
     )
-    .get(ctx.group) as SessionRow | undefined;
+    .get(ctx.workspace) as SessionRow | undefined;
   return row && toSession(row);
 }
 
 export function sessionByName(ctx: Ctx, name: string): Session | undefined {
   const row = ctx.db
-    .prepare(`SELECT ${COLUMNS} FROM sessions WHERE group_name IS ? AND name = ?`)
-    .get(ctx.group, name) as SessionRow | undefined;
+    .prepare(`SELECT ${COLUMNS} FROM sessions WHERE workspace IS ? AND name = ?`)
+    .get(ctx.workspace, name) as SessionRow | undefined;
   return row && toSession(row);
 }
 
@@ -338,10 +343,10 @@ export function findSession(ctx: Ctx, reference: string): Session {
   if (isIdPrefix && reference.length >= MINIMUM_ID_PREFIX) {
     const rows = ctx.db
       .prepare(
-        `SELECT ${COLUMNS} FROM sessions WHERE group_name IS ? AND id LIKE ?
+        `SELECT ${COLUMNS} FROM sessions WHERE workspace IS ? AND id LIKE ?
          ORDER BY last_active_at DESC`,
       )
-      .all(ctx.group, `${reference.toLowerCase()}%`) as unknown as SessionRow[];
+      .all(ctx.workspace, `${reference.toLowerCase()}%`) as unknown as SessionRow[];
     const [only, ...others] = rows;
     if (only && others.length === 0) return toSession(only);
     if (only) {
@@ -457,10 +462,10 @@ export function staleTempSessions(ctx: Ctx, olderThanMilliseconds: number): Sess
   const rows = ctx.db
     .prepare(
       `SELECT ${COLUMNS} FROM sessions
-       WHERE group_name IS ? AND kind = 'temp' AND status = 'idle' AND last_active_at < ?
+       WHERE workspace IS ? AND kind = 'temp' AND status = 'idle' AND last_active_at < ?
        ORDER BY last_active_at ASC`,
     )
-    .all(ctx.group, before) as unknown as SessionRow[];
+    .all(ctx.workspace, before) as unknown as SessionRow[];
   return rows.map(toSession);
 }
 
