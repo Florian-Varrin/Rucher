@@ -1,5 +1,20 @@
 # @rucher/cli
 
+## 0.2.0-beta.5
+
+### Minor Changes
+
+- f00dce0: Support `AGENTS.md` as a group's instructions, rendered into the workspace with a generated `CLAUDE.md`.
+- 3625941: Rename groups to workspaces: `rucher ws` replaces `group` and `groups`, `--ws` and `RUCHER_WS` replace `-g`, `--group` and `RUCHER_GROUP`, definitions move to `~/.config/rucher/workspaces/` with `workspace.json`, `ws path` takes `--def` and `--run`, and `--ws` also works before a subcommand. `ws rename` is out until it can move a run directory.
+
+### Patch Changes
+
+- 5524301: Complete sessions, repos and notes from the group given by `-g`.
+- 455ceb6: Say when no group resolved instead of showing an empty list
+- Updated dependencies [f00dce0]
+- Updated dependencies [3625941]
+  - @rucher/carnet@0.2.0-beta.5
+
 ## 0.2.0-beta.4
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @rucher/carnet
 
+## 0.2.0-beta.5
+
+### Minor Changes
+
+- f00dce0: Support `AGENTS.md` as a group's instructions, rendered into the workspace with a generated `CLAUDE.md`.
+- 3625941: Rename groups to workspaces: `rucher ws` replaces `group` and `groups`, `--ws` and `RUCHER_WS` replace `-g`, `--group` and `RUCHER_GROUP`, definitions move to `~/.config/rucher/workspaces/` with `workspace.json`, `ws path` takes `--def` and `--run`, and `--ws` also works before a subcommand. `ws rename` is out until it can move a run directory.
+
 ## 0.2.0-beta.4
 
 ### Minor Changes
