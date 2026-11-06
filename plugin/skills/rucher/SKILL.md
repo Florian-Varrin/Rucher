@@ -50,7 +50,7 @@ Phase 1: the fork analyses, then writes numbered questions, each with a recommen
 ## When a fork finishes
 
 - The main agent says one line in the chat: `<name> finished, report ready`. Nothing more: no summary, no figures, no questions from the report, no action on it, even when the fork's final message carries results or when the human asks about something else. A report is presented only when the human asks for that fork's report; the reports of other forks stay held, also when several forks finish together.
-- `agent_done` copies the report to the report destination `agent_start` returned: `<workspace>/reports/<name>.md`, in the group's workspace, outside the repos, never committed. One file per fork; the human's answers are appended there once given.
+- `agent_done` copies the report to the report destination `agent_start` returned: `<run directory>/reports/<name>.md`, in the group's run directory, outside the repos, never committed. One file per fork; the human's answers are appended there once given.
 - When the human asks for a report, the main agent reads the fork file instead of keeping reports in context.
 - Once the human has answered, `agent_step answered`: the agent moves to `apply`, or pass `next` (`running` if the fork resumes, `review` if the human will read the result).
 

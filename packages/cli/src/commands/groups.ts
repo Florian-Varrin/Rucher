@@ -10,7 +10,7 @@ import {
   openGroupCarnet,
   renameGroup,
   renameGroupRows,
-  renderWorkspace,
+  renderRunDirectory,
   type Session,
 } from '@rucher/carnet';
 import { resolve } from 'node:path';
@@ -38,7 +38,7 @@ export function groupsList(io: Io): number {
   const width = Math.max(...groups.map((group) => group.name.length));
   const lines = groups.map(
     (group) =>
-      `${colors.bold(group.name.padEnd(width))}  ${plural(group.repos.length, 'repo')}  ${plural(sessions.get(group.name) ?? 0, 'session')}  ${colors.dim(group.workspace)}`,
+      `${colors.bold(group.name.padEnd(width))}  ${plural(group.repos.length, 'repo')}  ${plural(sessions.get(group.name) ?? 0, 'session')}  ${colors.dim(group.runDirectory)}`,
   );
   io.stdout(`${lines.join('\n')}\n`);
   return 0;
@@ -54,15 +54,15 @@ export function groupsCreate(name: string, io: Io, options: GroupsCreateOptions 
     repos: options.repos?.map((repo) => resolve(io.cwd, repo)),
     env: io.env,
   });
-  const result = renderWorkspace(group, { env: io.env });
+  const result = renderRunDirectory(group, { env: io.env });
   const lines = [
     `${colors.bold(group.name)} created`,
-    `  source: ${group.source}`,
-    `  workspace: ${group.workspace}`,
+    `  definition: ${group.definition}`,
+    `  run directory: ${group.runDirectory}`,
     `  repos: ${group.repos.length ? group.repos.map((repo) => repo.path).join(', ') : 'none yet, add them with `rucher group add <path> -g ' + group.name + '`'}`,
     ...result.written.map((path) => `  written ${path}`),
     '',
-    'Accept the Claude Code trust prompt in its first session: until then the workspace settings are ignored, and rucher passes the repos with --add-dir.',
+    'Accept the Claude Code trust prompt in its first session: until then the run directory settings are ignored, and rucher passes the repos with --add-dir.',
     `Next: \`rucher group edit -g ${group.name}\` for its instructions, then \`rucher new <session> -g ${group.name}\`.`,
   ];
   io.stdout(`${lines.join('\n')}\n`);
@@ -108,7 +108,7 @@ export function groupsRename(
       renameGroup(to, from, io.env);
       throw error;
     }
-    io.stdout(`renamed ${from} to ${to}; its workspace stays at ${group.workspace}\n`);
+    io.stdout(`renamed ${from} to ${to}; its run directory stays at ${group.runDirectory}\n`);
     return 0;
   } finally {
     carnet.close();
@@ -129,11 +129,11 @@ export function groupsDrop(name: string, io: Io, options: GroupsDropOptions = {}
     const deletedNotes = options.purge ? deleteGroupNotes(carnet.db, name) : 0;
     const group = dropGroup(name, { purge: options.purge, env: io.env });
     const lines = [
-      `dropped ${name}: source ${group.source} removed`,
+      `dropped ${name}: definition ${group.definition} removed`,
       `  sessions archived: ${archived}`,
       options.purge
-        ? `  notes deleted: ${deletedNotes}; workspace ${group.workspace} removed`
-        : `  notes and workspace kept; recreate the group under the same name to see them again`,
+        ? `  notes deleted: ${deletedNotes}; run directory ${group.runDirectory} removed`
+        : `  notes and run directory kept; recreate the group under the same name to see them again`,
     ];
     io.stdout(`${lines.join('\n')}\n`);
     return 0;

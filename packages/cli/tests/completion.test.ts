@@ -27,7 +27,7 @@ function collect(suggest: (complete: (value: string, description: string) => voi
 function shopGroup() {
   const env = { RUCHER_HOME: tempDirectory('home-') };
   const api = tempDirectory('shop-api-');
-  const meta = createGroup('shop', { env, repos: [api] }).workspace;
+  const meta = createGroup('shop', { env, repos: [api] }).runDirectory;
   const carnet = openCarnet({ cwd: meta, env });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: meta, source: 'startup' });
   carnet.sessions.name(SESSION, 'shop-auth', 'Login flow');
@@ -75,7 +75,7 @@ test('outside a group nothing is suggested and nothing throws', () => {
 function twoGroups() {
   const { env, meta, api } = shopGroup();
   const blogRepo = tempDirectory('blog-api-');
-  const blog = createGroup('blog', { env, repos: [blogRepo] }).workspace;
+  const blog = createGroup('blog', { env, repos: [blogRepo] }).runDirectory;
   const carnet = openCarnet({ cwd: blog, env });
   const id = 'd4e5f6a7-0000-4000-8000-000000000000';
   carnet.sessions.upsertFromHook({ session_id: id, cwd: blog, source: 'startup' });
@@ -97,7 +97,7 @@ test.each([
   ).toEqual(expected);
 });
 
-test('-g wins over the workspace, and over the group a cursor word hints at', () => {
+test('-g wins over the run directory, and over the group a cursor word hints at', () => {
   const { env, meta, blogRepo } = twoGroups();
   const words = ['group', 'remove', '-g', 'blog', ''];
   expect(collect((complete) => suggestRepos(context(meta, env, words), complete))).toEqual([

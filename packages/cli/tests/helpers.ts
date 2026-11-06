@@ -18,8 +18,8 @@ export function makeClock(start = '2026-10-31T15:41:00.000Z'): () => Date {
 export function groupAt(root: string, name: string, repos: readonly string[]): Group {
   return {
     name,
-    source: join(root, 'source'),
-    workspace: root,
+    definition: join(root, 'definition'),
+    runDirectory: root,
     repos: repos.map((path) => ({ path, name: basename(path) })),
     backends: {},
   };

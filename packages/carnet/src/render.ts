@@ -4,22 +4,25 @@ import { hostById } from './hosts/host.ts';
 import { reportsDirectory } from './paths.ts';
 
 export interface RenderResult {
-  workspace: string;
+  runDirectory: string;
   written: string[];
   removed: string[];
 }
 
-export interface WorkspaceRenderOptions {
+export interface RunDirectoryRenderOptions {
   env?: NodeJS.ProcessEnv | undefined;
   host?: string | undefined;
 }
 
-export function renderWorkspace(group: Group, options: WorkspaceRenderOptions = {}): RenderResult {
-  mkdirSync(group.workspace, { recursive: true });
+export function renderRunDirectory(
+  group: Group,
+  options: RunDirectoryRenderOptions = {},
+): RenderResult {
+  mkdirSync(group.runDirectory, { recursive: true });
   mkdirSync(reportsDirectory(group), { recursive: true });
-  const result: RenderResult = { workspace: group.workspace, written: [], removed: [] };
+  const result: RenderResult = { runDirectory: group.runDirectory, written: [], removed: [] };
   for (const id of options.host ? [options.host] : groupHosts(group)) {
-    const rendered = hostById(id).renderWorkspace(group);
+    const rendered = hostById(id).renderRunDirectory(group);
     result.written.push(...rendered.written);
     result.removed.push(...rendered.removed);
   }

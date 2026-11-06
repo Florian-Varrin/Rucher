@@ -77,7 +77,7 @@ export interface Host {
   forkCommand(parent: Session, options?: LaunchOptions): ResumeCommand;
   renameInstruction(name: string): string;
   transcriptFiles(session: Session, env?: NodeJS.ProcessEnv): string[];
-  renderWorkspace(group: Group): HostRender;
+  renderRunDirectory(group: Group): HostRender;
 }
 
 export const DEFAULT_HOST = 'claude-code';

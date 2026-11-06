@@ -56,7 +56,7 @@ export {
   loadGroup,
   removeGroupRepo,
   renameGroup,
-  sourceInstructions,
+  definitionInstructions,
 } from './group/group.ts';
 export {
   ambiguousGroupContext,
@@ -73,8 +73,8 @@ export {
 export {
   corePromptPath,
   databasePath,
-  defaultWorkspace,
-  groupSource,
+  defaultRunDirectory,
+  groupDefinition,
   groupsDirectory,
   promptsDirectory,
   reportPath,
@@ -201,7 +201,7 @@ export {
 export { buildStatusView, formatClock, type StatusLine, type StatusView } from './status/view.ts';
 export type { SetTableInput, TableItem } from './table.ts';
 export { AGENT_STEPS, type AgentStep, stepAgent, type StepAgentInput } from './steps.ts';
-export { type RenderResult, renderWorkspace, type WorkspaceRenderOptions } from './render.ts';
+export { type RenderResult, renderRunDirectory, type RunDirectoryRenderOptions } from './render.ts';
 export {
   GENERATED_MARKER,
   MARKDOWN_MARKER,
@@ -209,4 +209,4 @@ export {
   mergeSettings,
   removeStaleCopies,
   writeGenerated,
-} from './workspace-files.ts';
+} from './run-directory-files.ts';

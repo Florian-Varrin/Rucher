@@ -19,7 +19,7 @@ function shopGroup() {
   const api = join(tempDirectory('repos-'), 'shop-api');
   mkdirSync(join(api, 'src'), { recursive: true });
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  const root = createGroup('shop', { env, repos: [api] }).workspace;
+  const root = createGroup('shop', { env, repos: [api] }).runDirectory;
   const carnet = openCarnet({ group: 'shop', env });
   return { root, api, env, carnet };
 }
@@ -32,7 +32,7 @@ test('arguments after -- are passed through, positionals are read before them', 
   expect(positionals(['main', 'alt', '--active'])).toEqual(['main', 'alt']);
 });
 
-test('rucher new starts a named active session from the group workspace', () => {
+test("rucher new starts a named active session from the group's run directory", () => {
   const { root, api, carnet } = shopGroup();
   const plan = planNew(carnet, makeIo({ cwd: join(api, 'src') }), {
     kind: 'active',
@@ -191,7 +191,7 @@ test('the picker lists named sessions first, then temp ones by short id', () => 
   expect(lines[1]).toMatch(/^2 {2}[0-9a-f]{8} +temp +running/);
 });
 
-test('rucher new renders the workspace before launching, and stays in place without a group', () => {
+test('rucher new renders the run directory before launching, and stays in place without a group', () => {
   const { root, carnet } = shopGroup();
   rmSync(root, { recursive: true });
   const plan = planNew(carnet, makeIo(), { kind: 'temp' });

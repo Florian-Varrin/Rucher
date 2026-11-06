@@ -49,10 +49,10 @@ claude plugin install rucher@rucher
 
 rucher groups create shop --repos ~/code/shop-api,~/code/shop-web
 rucher status --watch -g shop   # in a side pane
-rucher new shop-auth -g shop    # in another pane: starts Claude Code in the group's workspace
+rucher new shop-auth -g shop    # in another pane: starts Claude Code in the group's run directory
 ```
 
-A group is a set of related repos, managed by `rucher`. Its source, `~/.config/rucher/groups/<name>/` (`group.json`, `CLAUDE.md`), is what you edit and can keep in your dotfiles. Its workspace, `~/.local/share/rucher/workspaces/<name>/`, is the cwd of its sessions: a link to the instructions, a generated `.claude/settings.json` giving access to the repos, and the fork reports. All groups share one Carnet database, `~/.local/share/rucher/carnet.db`. The repos stay where they are and are referenced by path; nothing is written inside them. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.
+A group is a set of related repos, managed by `rucher`. Its definition, `~/.config/rucher/groups/<name>/` (`group.json`, `CLAUDE.md`), is what you edit and can keep in your dotfiles. Its run directory, `~/.local/share/rucher/workspaces/<name>/`, is the cwd of its sessions: copies of the instructions, a generated `.claude/settings.json` giving access to the repos, and the fork reports. All groups share one Carnet database, `~/.local/share/rucher/carnet.db`. The repos stay where they are and are referenced by path; nothing is written inside them. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.
 
 ## Commands
 
@@ -61,9 +61,9 @@ rucher groups list                     # the groups, with repo and session count
 rucher group add ~/code/shop-infra     # add a repo to the group
 rucher group remove ~/code/shop-infra  # drop a repo
 rucher group edit                      # the group's instructions in $EDITOR, then sync
-rucher group sync                      # render the workspace from the group's source
-cd "$(rucher group path -g shop)"      # the workspace
-rucher groups rename shop store        # the workspace keeps its path
+rucher group sync                      # render the run directory from the group's definition
+cd "$(rucher group path -g shop)"      # the run directory
+rucher groups rename shop store        # the run directory keeps its path
 rucher groups drop store               # archive its sessions, keep its notes
 rucher status --watch                  # the status pane
 rucher log                             # the journal
@@ -74,7 +74,7 @@ rucher sessions merge <from> <into>    # join a session split by a resume
 rucher sessions move <session> --to <group>  # move a session to its right group
 ```
 
-Run `rucher` from anywhere: `-g <name>` picks the group, otherwise the workspace or the repo you are in does (longest path; a repo shared by several groups needs `-g`). `rucher new` and `rucher tmp` start Claude Code in the workspace, so the group's instructions load and every repo is reachable; a session keeps its group and its launch directory, whatever it does with `cd`.
+Run `rucher` from anywhere: `-g <name>` picks the group, otherwise the run directory or the repo you are in does (longest path; a repo shared by several groups needs `-g`). `rucher new` and `rucher tmp` start Claude Code in the run directory, so the group's instructions load and every repo is reachable; a session keeps its group and its launch directory, whatever it does with `cd`.
 
 Naming, watching, resuming and dropping sessions: [docs/sessions.md](docs/sessions.md).
 

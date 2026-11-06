@@ -564,14 +564,17 @@ const groupCommand = defineCommand({
   },
   subCommands: {
     show: defineCommand({
-      meta: { name: 'show', description: 'Name, source, workspace and repos of the group' },
+      meta: { name: 'show', description: 'Name, definition, run directory and repos of the group' },
       args: { ...groupArgument, ...colorArgument },
       run({ args }) {
         process.exitCode = groupShow(processIo({ color: args.color }), { group: args.group });
       },
     }),
     add: defineCommand({
-      meta: { name: 'add', description: 'Add a repo path to the group, then render its workspace' },
+      meta: {
+        name: 'add',
+        description: 'Add a repo path to the group, then render its run directory',
+      },
       args: {
         path: { type: 'positional', description: 'Repo path', required: true },
         ...groupArgument,
@@ -586,7 +589,7 @@ const groupCommand = defineCommand({
     remove: defineCommand({
       meta: {
         name: 'remove',
-        description: 'Remove a repo from the group, then render its workspace',
+        description: 'Remove a repo from the group, then render its run directory',
       },
       args: {
         path: { type: 'positional', description: 'Repo path or name', required: true },
@@ -602,7 +605,7 @@ const groupCommand = defineCommand({
     sync: defineCommand({
       meta: {
         name: 'sync',
-        description: "Render the group's workspace (instruction copies, generated settings)",
+        description: "Render the group's run directory (instruction copies, generated settings)",
       },
       args: { ...groupArgument, ...colorArgument },
       run({ args }) {
@@ -629,15 +632,15 @@ const groupCommand = defineCommand({
     path: defineCommand({
       meta: {
         name: 'path',
-        description: 'Print the workspace path (or the source with --source), for cd "$(...)"',
+        description: 'Print the run directory path (or the definition with --def), for cd "$(...)"',
       },
       args: {
-        source: { type: 'boolean', default: false, description: 'The source folder instead' },
-        workspace: { type: 'boolean', default: false, description: 'The workspace (default)' },
+        def: { type: 'boolean', default: false, description: 'The definition folder instead' },
+        run: { type: 'boolean', default: false, description: 'The run directory (default)' },
         ...groupArgument,
       },
       run({ args }) {
-        process.exitCode = groupPath(processIo(), { group: args.group, source: args.source });
+        process.exitCode = groupPath(processIo(), { group: args.group, definition: args.def });
       },
     }),
   },
@@ -672,7 +675,7 @@ const groupsCommand = defineCommand({
       },
     }),
     create: defineCommand({
-      meta: { name: 'create', description: 'Create a group and render its workspace' },
+      meta: { name: 'create', description: 'Create a group and render its run directory' },
       args: {
         name: { type: 'positional', description: 'Group name: a-z, 0-9 and -', required: true },
         repos: { type: 'string', description: 'Comma-separated repo paths' },
@@ -688,7 +691,7 @@ const groupsCommand = defineCommand({
     rename: defineCommand({
       meta: {
         name: 'rename',
-        description: 'Rename a group with no running session; its workspace stays',
+        description: 'Rename a group with no running session; its run directory stays',
       },
       args: {
         from: { type: 'positional', description: 'Current name', required: true },
@@ -702,14 +705,14 @@ const groupsCommand = defineCommand({
     drop: defineCommand({
       meta: {
         name: 'drop',
-        description: 'Archive the sessions of a group and remove its source, keeping its notes',
+        description: 'Archive the sessions of a group and remove its definition, keeping its notes',
       },
       args: {
         name: { type: 'positional', description: 'Group name', required: true },
         purge: {
           type: 'boolean',
           default: false,
-          description: 'Also delete its notes and its workspace',
+          description: 'Also delete its notes and its run directory',
         },
       },
       run({ args }) {

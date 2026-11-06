@@ -9,7 +9,7 @@ import {
   hostById,
   isGroupName,
   loadGroup,
-  renderWorkspace,
+  renderRunDirectory,
   repoNameFor,
   type Session,
   type SessionKind,
@@ -73,11 +73,11 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
     id: randomUUID(),
     kind: options.kind,
     name: options.name,
-    cwd: carnet.group?.workspace ?? io.cwd,
+    cwd: carnet.group?.runDirectory ?? io.cwd,
     repo: repoNameFor(carnet.group, io.cwd),
   });
   const host = hostById(session.host);
-  if (carnet.group) renderWorkspace(carnet.group, { env: io.env, host: session.host });
+  if (carnet.group) renderRunDirectory(carnet.group, { env: io.env, host: session.host });
   const prompt = appendPromptFile(carnet.group, session, io.env);
   const command = host.launchCommand(session.id, {
     name: session.name,
@@ -87,13 +87,13 @@ export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): Lau
   });
   return {
     ...command,
-    cwd: carnet.group?.workspace ?? io.cwd,
+    cwd: carnet.group?.runDirectory ?? io.cwd,
     env: launchEnv(carnet.group, session, prompt.version),
     sessionId: session.id,
   };
 }
 
-// Settings directories apply only once the workspace is trusted, and never load the repos' CLAUDE.md.
+// Settings directories apply only once the run directory is trusted, and never load the repos' CLAUDE.md.
 function repoDirectories(group: Group | null): string[] {
   return (group?.repos ?? []).map((repo) => repo.path).filter((path) => existsSync(path));
 }
@@ -105,10 +105,10 @@ function sessionGroup(carnet: Carnet, session: Session, env: NodeJS.ProcessEnv):
     : loadGroup(session.groupName, env);
 }
 
-// Rendering first recreates a missing workspace, the usual cwd of a group session.
+// Rendering first recreates a missing run directory, the usual cwd of a group session.
 function prepareSession(carnet: Carnet, session: Session, env: NodeJS.ProcessEnv): Group | null {
   const group = sessionGroup(carnet, session, env);
-  if (group) renderWorkspace(group, { env, host: session.host });
+  if (group) renderRunDirectory(group, { env, host: session.host });
   return group;
 }
 

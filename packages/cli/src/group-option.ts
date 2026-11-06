@@ -12,15 +12,16 @@ export const groupArgument = {
   group: {
     type: 'string',
     alias: 'g',
-    description: 'Group name (default: from RUCHER_GROUP, the workspace or the repo you are in)',
+    description:
+      'Group name (default: from RUCHER_GROUP, the run directory or the repo you are in)',
   },
 } as const;
 
 // Said only when the directory picked the group, so a wrong guess is visible before it acts.
 export function announceGroup(io: Io, resolution: GroupResolution): void {
   if (!resolution.group) return;
-  if (resolution.origin === 'workspace') {
-    io.stderr(`group ${resolution.group.name} (from its workspace)\n`);
+  if (resolution.origin === 'run-directory') {
+    io.stderr(`group ${resolution.group.name} (from its run directory)\n`);
   } else if (resolution.origin === 'repo' && resolution.repo) {
     io.stderr(`group ${resolution.group.name} (from ${resolution.repo.name})\n`);
   }

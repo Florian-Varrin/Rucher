@@ -81,7 +81,7 @@ At start (`rucher hook session-start`):
 | `resume`           | after the resume context, the notes the session already had                  |
 | `compact`          | the notes the session already had                                            |
 
-A session started in its group's workspace has no repo yet. A repo's notes come in the first time a tool touches a file of that repo (`rucher hook post-tool-use`, on `Read`, `Edit`, `Write`, `Grep`, `Glob` and `Bash`): the file path, the search path, or the shell's working directory for `Bash` (commands are not parsed). Once per repo and per session; a note shared with a repo already brought in is not repeated. Forks run in their parent's context, so they get nothing of their own.
+A session started in its group's run directory has no repo yet. A repo's notes come in the first time a tool touches a file of that repo (`rucher hook post-tool-use`, on `Read`, `Edit`, `Write`, `Grep`, `Glob` and `Bash`): the file path, the search path, or the shell's working directory for `Bash` (commands are not parsed). Once per repo and per session; a note shared with a repo already brought in is not repeated. Forks run in their parent's context, so they get nothing of their own.
 
 ```text
 Rucher memory, repo shop-web (2 notes, note_list for details):

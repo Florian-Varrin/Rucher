@@ -45,11 +45,11 @@ export function groupsDirectory(env?: NodeJS.ProcessEnv): string {
   return join(rucherPaths(env).config, 'groups');
 }
 
-export function groupSource(name: string, env?: NodeJS.ProcessEnv): string {
+export function groupDefinition(name: string, env?: NodeJS.ProcessEnv): string {
   return join(groupsDirectory(env), name);
 }
 
-export function defaultWorkspace(name: string, env?: NodeJS.ProcessEnv): string {
+export function defaultRunDirectory(name: string, env?: NodeJS.ProcessEnv): string {
   return join(rucherPaths(env).data, 'workspaces', name);
 }
 
@@ -62,7 +62,7 @@ export function corePromptPath(env?: NodeJS.ProcessEnv): string {
 }
 
 export function reportsDirectory(group: Group): string {
-  return join(group.workspace, 'reports');
+  return join(group.runDirectory, 'reports');
 }
 
 export function reportPath(group: Group, agentName: string): string {

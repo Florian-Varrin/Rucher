@@ -84,7 +84,7 @@ export function suggestSessions(context: CompletionContext, complete: Complete):
 
 export function suggestGroups(context: CompletionContext, complete: Complete): void {
   quietly(() => {
-    for (const group of listGroups(context.env)) complete(group.name, group.workspace);
+    for (const group of listGroups(context.env)) complete(group.name, group.runDirectory);
   });
 }
 

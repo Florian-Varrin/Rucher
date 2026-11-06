@@ -10,7 +10,7 @@ A Carnet session is one Claude Code conversation inside a group. It holds:
 - the "On the table" line: what the main agent is handling now;
 - the journal: started, finished, answered, applied, tested, committed, dropped.
 
-You never create a session by hand. The plugin's `SessionStart` hook records one each time Claude Code starts, resumes, clears or compacts a conversation in a group (its workspace or any of its repos), or a conversation `rucher` launched outside any group. The MCP server then writes every tool call of that conversation into it.
+You never create a session by hand. The plugin's `SessionStart` hook records one each time Claude Code starts, resumes, clears or compacts a conversation in a group (its run directory or any of its repos), or a conversation `rucher` launched outside any group. The MCP server then writes every tool call of that conversation into it.
 
 A session has a **kind**, which says whether it is worth keeping, and a **status**, which says what its process is doing. The two are independent.
 
@@ -31,7 +31,7 @@ The **default session** of a group is the most recently active one that is not a
 
 ## Start a session
 
-Start sessions with `rucher`, from anywhere: `-g` names the group, otherwise it comes from the workspace or repo you are in.
+Start sessions with `rucher`, from anywhere: `-g` names the group, otherwise it comes from the run directory or repo you are in.
 
 ```bash
 rucher new shop-auth -g shop  # a named, durable session
@@ -39,23 +39,23 @@ rucher tmp                    # a temporary one (a name is optional: rucher tmp 
 rucher new shop-auth -- --model opus   # arguments after -- go to Claude Code
 ```
 
-`rucher` creates the session in Carnet, renders the group's workspace, then runs Claude Code from it, so the group instructions load and every repo is reachable. Run from inside a repo, it still starts in the workspace and records that repo as the session's starting repo; outside any group, it starts in the current directory. Claude Code gets the session's id (`--session-id`), its name as title (`--name`) and each repo of the group with `--add-dir`; the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME`, `RUCHER_GROUP` (when there is a group) and `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`, so the `CLAUDE.md` of each repo loads too; a repo's `AGENTS.md` loads through an import in the generated `CLAUDE.md` of a group using `AGENTS.md`, once Claude Code's external imports prompt is approved. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
+`rucher` creates the session in Carnet, renders the group's run directory, then runs Claude Code from it, so the group instructions load and every repo is reachable. Run from inside a repo, it still starts in the run directory and records that repo as the session's starting repo; outside any group, it starts in the current directory. Claude Code gets the session's id (`--session-id`), its name as title (`--name`) and each repo of the group with `--add-dir`; the environment carries `RUCHER_SESSION_ID`, `RUCHER_SESSION_NAME`, `RUCHER_GROUP` (when there is a group) and `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`, so the `CLAUDE.md` of each repo loads too; a repo's `AGENTS.md` loads through an import in the generated `CLAUDE.md` of a group using `AGENTS.md`, once Claude Code's external imports prompt is approved. The session is `running` while Claude Code runs and `idle` once it exits; a `SessionEnd` hook does the same for sessions started without `rucher`.
 
-Rendering the workspace, at each `new`, `tmp`, `fork` and `resume` and with `rucher group sync`:
+Rendering the run directory, at each `new`, `tmp`, `fork` and `resume` and with `rucher group sync`:
 
-- creates the workspace and its `reports/` folder;
-- copies every `.md` file at the top of the group source except `prompt.md` (the instructions and the files they import), each with a marker comment, so their relative `@` imports resolve inside the workspace; a copy whose source file is gone is removed;
-- when the source holds `AGENTS.md` instead of `CLAUDE.md`, generates a `CLAUDE.md` importing `@AGENTS.md`, `@backends/claude.md` when the source has that file (copied too, for instructions meant for Claude Code only), and the `AGENTS.md` of each repo that has no `CLAUDE.md`;
+- creates the run directory and its `reports/` folder;
+- copies every `.md` file at the top of the group definition except `prompt.md` (the instructions and the files they import), each with a marker comment, so their relative `@` imports resolve inside the run directory; a copy whose definition file is gone is removed;
+- when the definition holds `AGENTS.md` instead of `CLAUDE.md`, generates a `CLAUDE.md` importing `@AGENTS.md`, `@backends/claude.md` when the definition has that file (copied too, for instructions meant for Claude Code only), and the `AGENTS.md` of each repo that has no `CLAUDE.md`;
 - writes `.claude/settings.json` from scratch: a `"//"` marker, `permissions.additionalDirectories` from the repos, a `permissions.deny` `Edit(/<file>)` rule for each copy, then the group's `backends["claude-code"].settings` merged over them (lists joined without duplicates);
 - touches nothing else: reports, `.mcp.json`, skills, `settings.local.json` and any other file stay.
 
-A group's source holds `AGENTS.md` or `CLAUDE.md`, not both: rendering fails with `GROUP_INSTRUCTIONS_CONFLICT` and names the file to remove. A generated file carries the marker and is rewritten without asking; a hand-written file of the same name in the workspace is refused, never overwritten. The instructions are edited in the source, with `rucher group edit`; sessions are denied edits of the copies.
+A group's definition holds `AGENTS.md` or `CLAUDE.md`, not both: rendering fails with `GROUP_INSTRUCTIONS_CONFLICT` and names the file to remove. A generated file carries the marker and is rewritten without asking; a hand-written file of the same name in the run directory is refused, never overwritten. The instructions are edited in the definition, with `rucher group edit`; sessions are denied edits of the copies.
 
-Claude Code applies a workspace's `.claude/settings.json` only once the workspace is trusted: accept the trust prompt in the first session of a new group. Until then, `--add-dir` still gives the session its repos.
+Claude Code applies a run directory's `.claude/settings.json` only once the run directory is trusted: accept the trust prompt in the first session of a new group. Until then, `--add-dir` still gives the session its repos.
 
 A session keeps the directory it was launched in: Claude Code stores its transcript there, so hooks never change the recorded `cwd`, even after a `cd`. `resume` and `fork` start from it, and fail with `SESSION_CWD_MISSING` when it no longer exists.
 
-Starting `claude` directly from a workspace or a repo of a group still works: the hooks record the session as `temp`. Outside any group, a session started without `rucher` is not recorded.
+Starting `claude` directly from a run directory or a repo of a group still works: the hooks record the session as `temp`. Outside any group, a session started without `rucher` is not recorded.
 
 In a side pane, watch it:
 
@@ -123,7 +123,7 @@ Each fork the main agent dispatches is an agent of the session: `agent_start` re
 
 ## The rules a session runs with
 
-A session started with `rucher` gets the Rucher core rules appended to its system prompt (see [workflow.md](workflow.md#where-the-rules-live)), plus the group's own rules from `prompt.md` in its source (`~/.config/rucher/groups/<name>/`) and one line naming the session. Forks inherit them; named sub-agents get short reporting rules from the `SubagentStart` hook.
+A session started with `rucher` gets the Rucher core rules appended to its system prompt (see [workflow.md](workflow.md#where-the-rules-live)), plus the group's own rules from `prompt.md` in its definition (`~/.config/rucher/groups/<name>/`) and one line naming the session. Forks inherit them; named sub-agents get short reporting rules from the `SubagentStart` hook.
 
 Claude Code keeps a session's system prompt until the conversation is compacted, so:
 
@@ -152,7 +152,7 @@ A session belongs to the group Carnet recorded it in. Commands and hooks find th
 1. the session itself, by its id, for hooks and the Carnet server;
 2. `-g, --group <name>`;
 3. `RUCHER_GROUP`, set by `rucher new`, `tmp`, `resume` and `fork`;
-4. the workspace containing the working directory;
+4. the run directory containing the working directory;
 5. the group whose repo contains the working directory (longest path). A repo of several groups is an error naming them: pass `-g`.
 
 When the directory decided (4 or 5), a command you type says so on stderr: `group shop (from api)`. `agent_start` names the group in its result.

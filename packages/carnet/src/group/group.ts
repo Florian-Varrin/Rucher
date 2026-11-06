@@ -11,7 +11,7 @@ import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { CarnetError } from '../errors.ts';
 import { DEFAULT_HOST } from '../hosts/host.ts';
-import { defaultWorkspace, groupsDirectory, groupSource } from '../paths.ts';
+import { defaultRunDirectory, groupsDirectory, groupDefinition } from '../paths.ts';
 
 export interface GroupRepo {
   path: string;
@@ -20,14 +20,15 @@ export interface GroupRepo {
 
 export interface Group {
   name: string;
-  source: string;
-  workspace: string;
+  definition: string;
+  runDirectory: string;
   repos: GroupRepo[];
   backends: Record<string, { settings?: Record<string, unknown> }>;
 }
 
 export interface GroupFile {
   name?: string | undefined;
+  // Existing group files hold the run directory under this key.
   workspace?: string | undefined;
   repos?: { path: string; name?: string | undefined }[] | undefined;
   backends?: Group['backends'] | undefined;
@@ -57,7 +58,7 @@ export function expandHome(path: string, env: NodeJS.ProcessEnv = process.env): 
 }
 
 function groupFilePath(name: string, env?: NodeJS.ProcessEnv): string {
-  return join(groupSource(name, env), GROUP_FILE);
+  return join(groupDefinition(name, env), GROUP_FILE);
 }
 
 export function groupExists(name: string, env?: NodeJS.ProcessEnv): boolean {
@@ -79,8 +80,8 @@ export function loadGroup(name: string, env: NodeJS.ProcessEnv = process.env): G
   const file = readGroupFile(name, env);
   return {
     name,
-    source: groupSource(name, env),
-    workspace: resolve(expandHome(file.workspace ?? defaultWorkspace(name, env), env)),
+    definition: groupDefinition(name, env),
+    runDirectory: resolve(expandHome(file.workspace ?? defaultRunDirectory(name, env), env)),
     repos: (file.repos ?? []).map((repo) => {
       const path = resolve(expandHome(repo.path, env));
       return { path, name: repo.name ?? basename(path) };
@@ -134,22 +135,22 @@ export function createGroup(name: string, options: CreateGroupOptions = {}): Gro
   const paths = [...new Set((options.repos ?? []).map((repo) => checkedRepo(repo, env)))];
   const repos = paths.map((path) => ({ path, name: basename(path) }));
   requireDistinctNames(name, repos);
-  const source = groupSource(name, env);
-  const workspace = defaultWorkspace(name, env);
-  mkdirSync(source, { recursive: true });
-  mkdirSync(workspace, { recursive: true });
-  writeGroupFile(name, { name, workspace, repos, backends: {} }, env);
-  const instructions = join(source, INSTRUCTIONS_FILE);
+  const definition = groupDefinition(name, env);
+  const runDirectory = defaultRunDirectory(name, env);
+  mkdirSync(definition, { recursive: true });
+  mkdirSync(runDirectory, { recursive: true });
+  writeGroupFile(name, { name, workspace: runDirectory, repos, backends: {} }, env);
+  const instructions = join(definition, INSTRUCTIONS_FILE);
   if (!existsSync(instructions)) writeFileSync(instructions, '');
   return loadGroup(name, env);
 }
 
-export function sourceInstructions(group: Group): string {
-  const agents = existsSync(join(group.source, AGENTS_FILE));
-  if (agents && existsSync(join(group.source, INSTRUCTIONS_FILE))) {
+export function definitionInstructions(group: Group): string {
+  const agents = existsSync(join(group.definition, AGENTS_FILE));
+  if (agents && existsSync(join(group.definition, INSTRUCTIONS_FILE))) {
     throw new CarnetError(
       'GROUP_INSTRUCTIONS_CONFLICT',
-      `Group ${group.name} has both ${AGENTS_FILE} and ${INSTRUCTIONS_FILE} in ${group.source}: remove ${INSTRUCTIONS_FILE}`,
+      `Group ${group.name} has both ${AGENTS_FILE} and ${INSTRUCTIONS_FILE} in ${group.definition}: remove ${INSTRUCTIONS_FILE}`,
     );
   }
   return agents ? AGENTS_FILE : INSTRUCTIONS_FILE;
@@ -185,14 +186,14 @@ export function removeGroupRepo(name: string, repo: string, env?: NodeJS.Process
   return loadGroup(name, env);
 }
 
-// The workspace stays where it is: Claude Code files transcripts by cwd.
+// The run directory stays where it is: Claude Code files transcripts by cwd.
 export function renameGroup(from: string, to: string, env?: NodeJS.ProcessEnv): Group {
   const file = readGroupFile(from, env);
   requireGroupName(to);
-  if (existsSync(groupSource(to, env)))
+  if (existsSync(groupDefinition(to, env)))
     throw new CarnetError('GROUP_EXISTS', `Group ${to} already exists`);
-  const workspace = loadGroup(from, env).workspace;
-  renameSync(groupSource(from, env), groupSource(to, env));
+  const workspace = loadGroup(from, env).runDirectory;
+  renameSync(groupDefinition(from, env), groupDefinition(to, env));
   writeGroupFile(to, { ...file, name: to, workspace }, env);
   return loadGroup(to, env);
 }
@@ -204,7 +205,7 @@ export interface DropGroupOptions {
 
 export function dropGroup(name: string, options: DropGroupOptions = {}): Group {
   const group = loadGroup(name, options.env);
-  rmSync(group.source, { recursive: true, force: true });
-  if (options.purge) rmSync(group.workspace, { recursive: true, force: true });
+  rmSync(group.definition, { recursive: true, force: true });
+  if (options.purge) rmSync(group.runDirectory, { recursive: true, force: true });
   return group;
 }

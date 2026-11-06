@@ -22,8 +22,8 @@ function setup() {
 }
 
 function writeGroupPrompt(root: string, text: string): void {
-  mkdirSync(join(root, 'source'), { recursive: true });
-  writeFileSync(join(root, 'source', 'prompt.md'), text);
+  mkdirSync(join(root, 'definition'), { recursive: true });
+  writeFileSync(join(root, 'definition', 'prompt.md'), text);
 }
 
 test('the base rules are the core rules unless the config prompt.md replaces them', () => {

@@ -32,7 +32,7 @@ export function repoPathFor(group: Group | null, path: string | undefined | null
   return relativePath ? join(repo.name, relativePath) : repo.name;
 }
 
-export type GroupOrigin = 'session' | 'option' | 'env' | 'workspace' | 'repo' | 'none';
+export type GroupOrigin = 'session' | 'option' | 'env' | 'run-directory' | 'repo' | 'none';
 
 export interface GroupResolution {
   group: Group | null;
@@ -55,9 +55,12 @@ function namedGroup(name: string, env: NodeJS.ProcessEnv): Group {
   return loadGroup(name, env);
 }
 
-function byWorkspace(groups: readonly Group[], directories: readonly string[]): Group | undefined {
+function byRunDirectory(
+  groups: readonly Group[],
+  directories: readonly string[],
+): Group | undefined {
   return groups.find((group) =>
-    directories.some((directory) => isInside(group.workspace, directory)),
+    directories.some((directory) => isInside(group.runDirectory, directory)),
   );
 }
 
@@ -105,8 +108,8 @@ export function resolveGroup({
     .filter((directory): directory is string => directory !== undefined);
   const directories = [resolve(cwd), ...projectDirectories.map((directory) => resolve(directory))];
   const groups = listGroups(env);
-  const workspaceGroup = byWorkspace(groups, directories);
-  if (workspaceGroup) return { group: workspaceGroup, origin: 'workspace' };
+  const runDirectoryGroup = byRunDirectory(groups, directories);
+  if (runDirectoryGroup) return { group: runDirectoryGroup, origin: 'run-directory' };
   for (const directory of directories) {
     const match = byRepo(groups, directory);
     if (match) return { group: match.group, origin: 'repo', repo: match.repo };
@@ -122,7 +125,7 @@ export function requireGroup(group: Group | null): Group {
   if (group) return group;
   throw new CarnetError(
     'NO_GROUP',
-    'No Rucher group here: pass --group, or run this from a repo or workspace of a group',
+    'No Rucher group here: pass --group, or run this from a repo or run directory of a group',
   );
 }
 

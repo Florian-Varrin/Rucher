@@ -14,7 +14,7 @@ Wires [Carnet](../docs/reference.md) into Claude Code:
 
 - Node.js 24 or later.
 - The `rucher` binary on your `PATH`: `npm install -g @rucher/cli`, at the same version as the plugin. The plugin calls `rucher` by name, nothing is bundled. For a local build, see Development in the root README.
-- A group: `rucher groups create <name> --repos <paths>`. Outside a group (its workspace or one of its repos) the server still starts, and tools answer `NO_GROUP`.
+- A group: `rucher groups create <name> --repos <paths>`. Outside a group (its run directory or one of its repos) the server still starts, and tools answer `NO_GROUP`.
 
 ## Install
 

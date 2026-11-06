@@ -20,13 +20,13 @@ function setup() {
   return { env, api, web, group };
 }
 
-test('group show names the group, its source, workspace and repos', () => {
+test('group show names the group, its definition, run directory and repos', () => {
   const { env, api, group } = setup();
   const io = makeIo({ env, cwd: api });
   expect(groupShow(io)).toBe(0);
   const output = io.output.join('');
-  expect(output).toContain(`source: ${group.source}`);
-  expect(output).toContain(`workspace: ${group.workspace}`);
+  expect(output).toContain(`definition: ${group.definition}`);
+  expect(output).toContain(`run directory: ${group.runDirectory}`);
   expect(output).toContain(api);
   const outside = makeIo({ env });
   expect(groupShow(outside)).toBe(1);
@@ -41,19 +41,19 @@ test('the group comes from -g first, and a guess from the directory is said on s
   expect(fromRepo.errors.join('')).toMatch(/^group shop \(from shop-api-/);
   const named = makeIo({ env, cwd: api });
   expect(groupPath(named, { group: 'blog' })).toBe(0);
-  expect(named.output.join('')).toBe(`${loadGroup('blog', env).workspace}\n`);
+  expect(named.output.join('')).toBe(`${loadGroup('blog', env).runDirectory}\n`);
   expect(named.errors).toEqual([]);
   const fromEnv = makeIo({ env: { ...env, RUCHER_GROUP: 'blog' }, cwd: api });
   expect(groupPath(fromEnv)).toBe(0);
   expect(fromEnv.output.join('')).toContain('blog');
   expect(fromEnv.errors).toEqual([]);
-  const fromWorkspace = makeIo({ env, cwd: loadGroup('shop', env).workspace });
-  expect(groupPath(fromWorkspace, { source: true })).toBe(0);
-  expect(fromWorkspace.output.join('')).toBe(`${loadGroup('shop', env).source}\n`);
-  expect(fromWorkspace.errors.join('')).toBe('group shop (from its workspace)\n');
+  const fromRunDirectory = makeIo({ env, cwd: loadGroup('shop', env).runDirectory });
+  expect(groupPath(fromRunDirectory, { definition: true })).toBe(0);
+  expect(fromRunDirectory.output.join('')).toBe(`${loadGroup('shop', env).definition}\n`);
+  expect(fromRunDirectory.errors.join('')).toBe('group shop (from its run directory)\n');
 });
 
-test('group add and remove change group.json and render the workspace', () => {
+test('group add and remove change group.json and render the run directory', () => {
   const { env, api, web } = setup();
   const add = makeIo({ env });
   expect(groupAdd(web, add, { group: 'shop' })).toBe(0);
@@ -89,22 +89,22 @@ test('group edit opens the instructions, then syncs', async () => {
     },
   });
   expect(code).toBe(0);
-  expect(opened).toEqual([join(group.source, 'CLAUDE.md')]);
-  expect(readFileSync(join(group.source, 'CLAUDE.md'), 'utf8')).toBe('# shop\n');
+  expect(opened).toEqual([join(group.definition, 'CLAUDE.md')]);
+  expect(readFileSync(join(group.definition, 'CLAUDE.md'), 'utf8')).toBe('# shop\n');
 });
 
-test('group edit opens AGENTS.md when the source uses it, and reports both files', async () => {
+test('group edit opens AGENTS.md when the definition uses it, and reports both files', async () => {
   const { env, group } = setup();
-  rmSync(join(group.source, 'CLAUDE.md'));
-  writeFileSync(join(group.source, 'AGENTS.md'), '# shop\n');
+  rmSync(join(group.definition, 'CLAUDE.md'));
+  writeFileSync(join(group.definition, 'AGENTS.md'), '# shop\n');
   const opened: string[] = [];
   const openEditor = (file: string) => {
     opened.push(file);
     return 0;
   };
   expect(await groupEdit(makeIo({ env }), { group: 'shop', openEditor })).toBe(0);
-  expect(opened).toEqual([join(group.source, 'AGENTS.md')]);
-  writeFileSync(join(group.source, 'CLAUDE.md'), '# shop\n');
+  expect(opened).toEqual([join(group.definition, 'AGENTS.md')]);
+  writeFileSync(join(group.definition, 'CLAUDE.md'), '# shop\n');
   const io = makeIo({ env });
   expect(await groupEdit(io, { group: 'shop', openEditor })).toBe(1);
   expect(io.errors.join('')).toContain('remove CLAUDE.md');
@@ -113,7 +113,7 @@ test('group edit opens AGENTS.md when the source uses it, and reports both files
 
 test('group edit --json restores an invalid group.json unless asked to edit again', async () => {
   const { env, group } = setup();
-  const file = join(group.source, 'group.json');
+  const file = join(group.definition, 'group.json');
   const original = readFileSync(file, 'utf8');
   const io = makeIo({ env });
   const aborted = await groupEdit(io, {

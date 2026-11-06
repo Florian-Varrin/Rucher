@@ -35,7 +35,7 @@ export function baseRules(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export function groupRules(group: Group | null): string | undefined {
-  return group ? readIfPresent(join(group.source, PROMPT_FILE)) : undefined;
+  return group ? readIfPresent(join(group.definition, PROMPT_FILE)) : undefined;
 }
 
 export function rulesText(group: Group | null, env: NodeJS.ProcessEnv = process.env): string {

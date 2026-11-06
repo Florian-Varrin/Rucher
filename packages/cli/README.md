@@ -4,7 +4,7 @@ The `rucher` binary: status, journal and sessions of your Claude Code sub-agents
 
 ```bash
 rucher groups create shop --repos ~/code/shop-api,~/code/shop-web
-rucher new shop-auth -g shop   # Claude Code in the group's workspace
+rucher new shop-auth -g shop   # Claude Code in the group's run directory
 rucher status --watch -g shop  # the status pane
 rucher log                # the journal
 rucher sessions           # named sessions

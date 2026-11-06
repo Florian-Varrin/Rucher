@@ -8,8 +8,8 @@ import {
   type Group,
   loadGroup,
   removeGroupRepo,
-  renderWorkspace,
-  sourceInstructions,
+  renderRunDirectory,
+  definitionInstructions,
 } from '@rucher/carnet';
 import { paint } from '../color.ts';
 import { currentGroup } from '../group-option.ts';
@@ -32,7 +32,7 @@ function carnetErrors(io: Io, run: () => number): number {
 }
 
 function rendered(group: Group, io: Io): string[] {
-  const result = renderWorkspace(group, { env: io.env });
+  const result = renderRunDirectory(group, { env: io.env });
   return [
     ...result.written.map((path) => `written ${path}`),
     ...result.removed.map((path) => `removed ${path}`),
@@ -51,7 +51,7 @@ export function groupShow(io: Io, options: GroupOptions = {}): number {
       ? group.repos.map((repo) => `  ${repo.name}  ${colors.dim(repo.path)}`).join('\n')
       : `  ${colors.dim('none')}`;
     io.stdout(
-      `${colors.bold(group.name)}\nsource: ${group.source}\nworkspace: ${group.workspace}\nrepos:\n${repos}\n`,
+      `${colors.bold(group.name)}\ndefinition: ${group.definition}\nrun directory: ${group.runDirectory}\nrepos:\n${repos}\n`,
     );
     return 0;
   });
@@ -90,13 +90,13 @@ export function groupSync(io: Io, options: GroupOptions = {}): number {
 }
 
 export interface GroupPathOptions extends GroupOptions {
-  source?: boolean | undefined;
+  definition?: boolean | undefined;
 }
 
 export function groupPath(io: Io, options: GroupPathOptions = {}): number {
   return carnetErrors(io, () => {
     const group = currentGroup(io, options.group);
-    io.stdout(`${options.source ? group.source : group.workspace}\n`);
+    io.stdout(`${options.definition ? group.definition : group.runDirectory}\n`);
     return 0;
   });
 }
@@ -136,7 +136,7 @@ export async function groupEdit(io: Io, options: GroupEditOptions = {}): Promise
   let file: string;
   try {
     group = currentGroup(io, options.group);
-    file = join(group.source, options.json ? GROUP_FILE : sourceInstructions(group));
+    file = join(group.definition, options.json ? GROUP_FILE : definitionInstructions(group));
   } catch (error) {
     if (error instanceof CarnetError) {
       io.stderr(`error: ${error.message}\n`);

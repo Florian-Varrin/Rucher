@@ -22,7 +22,7 @@ function group() {
   mkdirSync(join(api, 'src'), { recursive: true });
   const home = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_PID: '4242' };
   const group = createGroup('shop', { env: home, repos: [api] });
-  const root = group.workspace;
+  const root = group.runDirectory;
   const env = {
     ...home,
     RUCHER_SESSION_ID: SESSION,
@@ -249,8 +249,8 @@ test('post-tool-use adds a repo memory once, and stays silent otherwise', () => 
 function twoGroupsSharingApi() {
   const api = tempDirectory('repo-api-');
   const env = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_PID: '4242' };
-  const shop = createGroup('shop', { env, repos: [api] }).workspace;
-  const blog = createGroup('blog', { env, repos: [api] }).workspace;
+  const shop = createGroup('shop', { env, repos: [api] }).runDirectory;
+  const blog = createGroup('blog', { env, repos: [api] }).runDirectory;
   return { api, shop, blog, env };
 }
 

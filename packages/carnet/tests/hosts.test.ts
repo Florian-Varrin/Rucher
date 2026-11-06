@@ -15,7 +15,7 @@ test('a group renders for its backends, claude-code when group.json has none', (
   const env = { RUCHER_HOME: tempDirectory('home-') };
   const group = createGroup('shop', { env });
   expect(groupHosts(group)).toEqual([DEFAULT_HOST]);
-  const file = join(group.source, 'group.json');
+  const file = join(group.definition, 'group.json');
   writeFileSync(file, JSON.stringify({ name: 'shop', backends: { 'claude-code': {} } }));
   expect(groupHosts(loadGroup('shop', env))).toEqual(['claude-code']);
   expect(JSON.parse(readFileSync(file, 'utf8')).repos).toBeUndefined();

@@ -27,6 +27,8 @@ test.skipIf(!existsSync(bin))('built binary runs help, groups create, hook and s
   expect(run(['groups', 'create', 'demo', '--repos', api])).toContain('demo created');
   expect(run(['group', 'show'])).toContain(api);
   expect(run(['group', 'path', '-g', 'demo'])).toContain(join('workspaces', 'demo'));
+  expect(run(['group', 'path', '--run', '-g', 'demo'])).toContain(join('workspaces', 'demo'));
+  expect(run(['group', 'path', '--def', '-g', 'demo'])).toContain(join('groups', 'demo'));
   run(['hook', 'session-start'], JSON.stringify({ session_id: 's1', cwd: join(api, 'src') }));
   const status = run(['status']);
   expect(status).toContain('Waiting on you\n  nothing');

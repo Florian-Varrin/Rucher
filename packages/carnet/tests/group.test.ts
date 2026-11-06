@@ -62,17 +62,17 @@ test('RUCHER_HOME holds every location, XDG variables otherwise', () => {
   expect(databasePath({ RUCHER_HOME: '/r' })).toBe('/r/data/carnet.db');
 });
 
-test('createGroup writes the source and the workspace, the file system is the registry', () => {
+test('createGroup writes the definition and the run directory, the file system is the registry', () => {
   const { api, env } = setup();
   const group = createGroup('shop', { env, repos: [api] });
   const home = env.RUCHER_HOME as string;
-  expect(group.source).toBe(join(home, 'config', 'groups', 'shop'));
-  expect(group.workspace).toBe(join(home, 'data', 'workspaces', 'shop'));
-  expect(existsSync(group.workspace)).toBe(true);
-  expect(readFileSync(join(group.source, 'CLAUDE.md'), 'utf8')).toBe('');
-  expect(JSON.parse(readFileSync(join(group.source, 'group.json'), 'utf8'))).toEqual({
+  expect(group.definition).toBe(join(home, 'config', 'groups', 'shop'));
+  expect(group.runDirectory).toBe(join(home, 'data', 'workspaces', 'shop'));
+  expect(existsSync(group.runDirectory)).toBe(true);
+  expect(readFileSync(join(group.definition, 'CLAUDE.md'), 'utf8')).toBe('');
+  expect(JSON.parse(readFileSync(join(group.definition, 'group.json'), 'utf8'))).toEqual({
     name: 'shop',
-    workspace: group.workspace,
+    workspace: group.runDirectory,
     repos: [{ path: api, name: group.repos[0]?.name }],
     backends: {},
   });
@@ -89,7 +89,7 @@ test('loadGroup expands ~ and names repos after their folder unless group.json n
   mkdirSync(join(home, 'code', 'shop-api'), { recursive: true });
   const group = createGroup('shop', { env });
   writeFileSync(
-    join(group.source, 'group.json'),
+    join(group.definition, 'group.json'),
     JSON.stringify({
       name: 'shop',
       repos: [{ path: '~/code/shop-api' }, { path: '~/code/shop-web', name: 'web' }],
@@ -100,13 +100,13 @@ test('loadGroup expands ~ and names repos after their folder unless group.json n
     { path: join(home, 'code', 'shop-api'), name: 'shop-api' },
     { path: join(home, 'code', 'shop-web'), name: 'web' },
   ]);
-  expect(loaded.workspace).toBe(join(env.RUCHER_HOME as string, 'data', 'workspaces', 'shop'));
+  expect(loaded.runDirectory).toBe(join(env.RUCHER_HOME as string, 'data', 'workspaces', 'shop'));
 });
 
 test('addGroupRepo and removeGroupRepo keep the other fields of group.json', () => {
   const { api, web, env } = setup();
   const group = createGroup('shop', { env, repos: [api] });
-  const file = join(group.source, 'group.json');
+  const file = join(group.definition, 'group.json');
   const settings = { 'claude-code': { settings: { model: 'opus' } } };
   writeFileSync(
     file,
@@ -119,27 +119,27 @@ test('addGroupRepo and removeGroupRepo keep the other fields of group.json', () 
   expect(codeOf(() => removeGroupRepo('shop', api, env))).toBe('REPO_NOT_FOUND');
 });
 
-test('renameGroup moves the source only, the workspace keeps its path', () => {
+test('renameGroup moves the definition only, the run directory keeps its path', () => {
   const { env } = setup();
   const group = createGroup('shop', { env });
   const renamed = renameGroup('shop', 'store', env);
   expect(renamed.name).toBe('store');
-  expect(renamed.workspace).toBe(group.workspace);
-  expect(existsSync(group.source)).toBe(false);
+  expect(renamed.runDirectory).toBe(group.runDirectory);
+  expect(existsSync(group.definition)).toBe(false);
   expect(listGroups(env).map((listed) => listed.name)).toEqual(['store']);
   createGroup('shop', { env });
   expect(codeOf(() => renameGroup('store', 'shop', env))).toBe('GROUP_EXISTS');
 });
 
-test('dropGroup removes the source, and the workspace with purge', () => {
+test('dropGroup removes the definition, and the run directory with purge', () => {
   const { env } = setup();
   const kept = createGroup('shop', { env });
   dropGroup('shop', { env });
-  expect(existsSync(kept.source)).toBe(false);
-  expect(existsSync(kept.workspace)).toBe(true);
+  expect(existsSync(kept.definition)).toBe(false);
+  expect(existsSync(kept.runDirectory)).toBe(true);
   const purged = createGroup('cart', { env });
   dropGroup('cart', { env, purge: true });
-  expect(existsSync(purged.workspace)).toBe(false);
+  expect(existsSync(purged.runDirectory)).toBe(false);
   expect(listGroups(env)).toEqual([]);
 });
 
@@ -154,7 +154,7 @@ test('repoNameFor and repoPathFor match the repo containing a path', () => {
   expect(repoPathFor(group, api)).toBe(name);
 });
 
-test('resolution: option, then RUCHER_GROUP, then workspace, then repo, else no group', () => {
+test('resolution: option, then RUCHER_GROUP, then run directory, then repo, else no group', () => {
   const { api, web, env } = setup();
   const shop = createGroup('shop', { env, repos: [api] });
   createGroup('cart', { env, repos: [web] });
@@ -166,9 +166,9 @@ test('resolution: option, then RUCHER_GROUP, then workspace, then repo, else no 
     origin: 'env',
     group: { name: 'cart' },
   });
-  mkdirSync(join(shop.workspace, 'reports'), { recursive: true });
-  expect(resolveGroup({ cwd: join(shop.workspace, 'reports'), env })).toMatchObject({
-    origin: 'workspace',
+  mkdirSync(join(shop.runDirectory, 'reports'), { recursive: true });
+  expect(resolveGroup({ cwd: join(shop.runDirectory, 'reports'), env })).toMatchObject({
+    origin: 'run-directory',
     group: { name: 'shop' },
   });
   expect(resolveGroup({ cwd: join(api, 'src', 'deep'), env })).toMatchObject({
