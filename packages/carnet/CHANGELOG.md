@@ -1,5 +1,11 @@
 # @rucher/carnet
 
+## 0.2.0-beta.6
+
+### Patch Changes
+
+- 45caa13: Resume a session closed before its first message
+
 ## 0.2.0-beta.5
 
 ### Minor Changes
