@@ -13,12 +13,13 @@ import {
   startLaunch,
 } from '../src/commands/launch.ts';
 import { pickerLines, pickerSessions } from '../src/commands/picker.ts';
-import { makeIo, tempDirectory } from './helpers.ts';
+import { CliError } from '../src/session.ts';
+import { makeIo, tempDirectory, writeConversation } from './helpers.ts';
 
 function shopWorkspace() {
   const api = join(tempDirectory('repos-'), 'shop-api');
   mkdirSync(join(api, 'src'), { recursive: true });
-  const env = { RUCHER_HOME: tempDirectory('home-') };
+  const env = { RUCHER_HOME: tempDirectory('home-'), CLAUDE_CONFIG_DIR: tempDirectory('claude-') };
   const root = createWorkspace('shop', { env, repos: [api] }).runDirectory;
   const carnet = openCarnet({ workspace: 'shop', env });
   return { root, api, env, carnet };
@@ -94,15 +95,16 @@ test('rucher tmp starts a temp session, named or not', () => {
 });
 
 test('a launch runs the session, and its exit ends it once', () => {
-  const { api, carnet } = shopWorkspace();
-  const plan = planNew(carnet, makeIo(), { kind: 'active', name: 'shop-auth' });
+  const { root, api, env, carnet } = shopWorkspace();
+  const plan = planNew(carnet, makeIo({ env }), { kind: 'active', name: 'shop-auth' });
   finishLaunch(carnet, plan);
   const id = plan.sessionId ?? '';
+  writeConversation(env, root, id);
   expect(carnet.sessions.require(id).status).toBe('idle');
   expect(carnet.sessions.require(id).endedAt).not.toBeNull();
   finishLaunch(carnet, plan);
   expect(carnet.events.read(id).filter((event) => event.type === 'session.ended')).toHaveLength(1);
-  const resume = planResume(carnet, makeIo(), 'shop-auth', ['-p', 'hi']);
+  const resume = planResume(carnet, makeIo({ env }), 'shop-auth', ['-p', 'hi']);
   expect(resume.args).toEqual([
     '--resume',
     id,
@@ -121,9 +123,10 @@ test('a launch runs the session, and its exit ends it once', () => {
 
 test('rucher fork branches a session; the hook records the child with its parent', () => {
   const { root, api, env, carnet } = shopWorkspace();
-  const parent = planNew(carnet, makeIo(), { kind: 'active', name: 'shop-auth' });
+  const parent = planNew(carnet, makeIo({ env }), { kind: 'active', name: 'shop-auth' });
   carnet.sessions.recordPromptVersion(parent.sessionId ?? '', 'abcdef012345');
-  const fork = planFork(carnet, makeIo(), 'shop-auth', { name: 'shop-auth-alt' });
+  writeConversation(env, root, parent.sessionId ?? '');
+  const fork = planFork(carnet, makeIo({ env }), 'shop-auth', { name: 'shop-auth-alt' });
   expect(fork.args).toEqual([
     '--resume',
     parent.sessionId,
@@ -158,7 +161,7 @@ test('rucher fork branches a session; the hook records the child with its parent
   });
   finishLaunch(after, fork);
   expect(after.sessions.require('child-session').status).toBe('idle');
-  expect(() => planFork(after, makeIo(), 'shop-auth', { active: true })).toThrowError(
+  expect(() => planFork(after, makeIo({ env }), 'shop-auth', { active: true })).toThrowError(
     /needs a name/,
   );
   after.close();
@@ -212,6 +215,7 @@ test('rucher new renders the run directory before launching, and stays in place 
 test('resume and fork re-render the workspace of the session and keep its directory', () => {
   const { root, carnet, env } = shopWorkspace();
   const plan = planNew(carnet, makeIo({ env }), { kind: 'active', name: 'shop-auth' });
+  writeConversation(env, root, plan.sessionId ?? '');
   rmSync(join(root, '.claude'), { recursive: true });
   const resumed = planResume(carnet, makeIo({ env }), 'shop-auth');
   expect(resumed.cwd).toBe(root);
@@ -228,4 +232,54 @@ test('resume fails clearly when the recorded directory is gone', () => {
   carnet.sessions.create({ id: 'shop-gone-id', kind: 'active', name: 'shop-gone', cwd: gone });
   rmSync(gone, { recursive: true });
   expect(() => planResume(carnet, makeIo({ env }), 'shop-gone')).toThrowError(/no longer exists/);
+});
+
+test('resume starts a session closed before its first message under the same id and name', () => {
+  const { root, api, env, carnet } = shopWorkspace();
+  const plan = planNew(carnet, makeIo({ env }), { kind: 'active', name: 'shop-auth' });
+  finishLaunch(carnet, plan);
+  const id = plan.sessionId ?? '';
+  const io = makeIo({ env });
+  const fresh = planResume(carnet, io, 'shop-auth');
+  expect(fresh.args).toEqual([
+    '--session-id',
+    id,
+    '--name',
+    'shop-auth',
+    '--append-system-prompt-file',
+    expect.stringMatching(/state\/prompts\/.+\.md$/),
+    '--add-dir',
+    api,
+  ]);
+  expect(fresh).toMatchObject({ cwd: root, sessionId: id });
+  expect(io.errors).toEqual(['no conversation yet for shop-auth: starting it\n']);
+  expect(carnet.sessions.require(id).name).toBe('shop-auth');
+});
+
+test('resume keeps --resume when the conversation is filed under another directory', () => {
+  const { env, carnet } = shopWorkspace();
+  const plan = planNew(carnet, makeIo({ env }), { kind: 'active', name: 'shop-auth' });
+  writeConversation(env, tempDirectory('elsewhere-'), plan.sessionId ?? '');
+  const io = makeIo({ env });
+  expect(planResume(carnet, io, 'shop-auth').args.slice(0, 2)).toEqual([
+    '--resume',
+    plan.sessionId,
+  ]);
+  expect(io.errors).toEqual([]);
+});
+
+test('fork refuses a session with no conversation yet and points to resume', () => {
+  const { env, carnet } = shopWorkspace();
+  planNew(carnet, makeIo({ env }), { kind: 'active', name: 'shop-auth' });
+  let error: unknown;
+  try {
+    planFork(carnet, makeIo({ env }), 'shop-auth');
+  } catch (caught) {
+    error = caught;
+  }
+  expect(error).toBeInstanceOf(CliError);
+  expect(error).toMatchObject({
+    message: 'Session shop-auth has no conversation yet, nothing to fork',
+    hint: 'rucher resume shop-auth',
+  });
 });

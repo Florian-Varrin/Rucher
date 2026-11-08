@@ -5,7 +5,7 @@ import { expect, test } from 'vite-plus/test';
 import { planResume } from '../src/commands/launch.ts';
 import { sessionsMerge, sessionsOnce } from '../src/commands/sessions.ts';
 import { CliError } from '../src/session.ts';
-import { makeCarnet, makeIo, SESSION } from './helpers.ts';
+import { makeCarnet, makeIo, SESSION, writeConversation } from './helpers.ts';
 
 test('sessions without a workspace hints on stderr and keeps stdout for workspace-less sessions', () => {
   const carnet = new Carnet(openDatabase(MEMORY_DB), null);
@@ -57,6 +57,7 @@ test('resume targets claude --resume with the session id from its original cwd',
   const { carnet, root } = makeCarnet();
   carnet.sessions.name(SESSION, 'shop-auth');
   const io = makeIo();
+  writeConversation(io.env, join(root, 'api'), SESSION);
   expect(planResume(carnet, io, 'shop-auth')).toMatchObject({
     command: 'claude',
     args: [
@@ -117,7 +118,9 @@ test('sessions merge and resume accept the short ids shown by rucher sessions', 
   carnet.agents.start(split, { name: 'lost', task: 'task' });
   sessionsMerge(carnet, '8c2fce7d', SESSION.slice(0, 8), makeIo());
   expect(carnet.agents.get(SESSION, 'lost')?.status).toBe('running');
-  expect(planResume(carnet, makeIo(), SESSION.slice(0, 8)).args).toEqual([
+  const io = makeIo();
+  writeConversation(io.env, join(root, 'api'), SESSION);
+  expect(planResume(carnet, io, SESSION.slice(0, 8)).args).toEqual([
     '--resume',
     SESSION,
     '--append-system-prompt-file',
