@@ -213,6 +213,10 @@ function launchArguments(options: LaunchOptions = {}): string[] {
 
 const RENDERING_SOURCES = new Set(['startup', 'clear', 'compact', 'fork']);
 
+function projectsDirectory(env: NodeJS.ProcessEnv): string {
+  return join(env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects');
+}
+
 export const claudeCode: Host = {
   id: 'claude-code',
   displayName: 'Claude Code',
@@ -318,10 +322,18 @@ export const claudeCode: Host = {
   // Claude Code keeps each conversation under a project directory derived from its cwd.
   transcriptFiles(session, env = process.env) {
     if (!session.cwd) return [];
-    const root = env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
-    const project = join(root, 'projects', session.cwd.replace(/[^a-zA-Z0-9]/g, '-'));
+    const project = join(projectsDirectory(env), session.cwd.replace(/[^a-zA-Z0-9]/g, '-'));
     return [join(project, `${session.id}.jsonl`), join(project, session.id)].filter((path) =>
       existsSync(path),
+    );
+  },
+  // Claude Code writes no transcript before the first message. Every project directory is
+  // searched, so a conversation filed under another cwd is never shadowed by a fresh one.
+  hasConversation(session, env = process.env) {
+    const projects = projectsDirectory(env);
+    if (!existsSync(projects)) return false;
+    return readdirSync(projects).some((project) =>
+      existsSync(join(projects, project, `${session.id}.jsonl`)),
     );
   },
   renameInstruction(name) {

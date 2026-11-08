@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { Carnet, type Workspace, MEMORY_DB, openDatabase } from '@rucher/carnet';
@@ -8,6 +8,13 @@ export const SESSION = '0360889d-99c7-4c8f-8447-50ce30696e5a';
 
 export function tempDirectory(prefix = 'rucher-cli-'): string {
   return mkdtempSync(join(tmpdir(), prefix));
+}
+
+// Where Claude Code would file the session's transcript, under the test's CLAUDE_CONFIG_DIR.
+export function writeConversation(env: NodeJS.ProcessEnv, cwd: string, id: string): void {
+  const project = join(env.CLAUDE_CONFIG_DIR ?? '', 'projects', cwd.replace(/[^a-zA-Z0-9]/g, '-'));
+  mkdirSync(project, { recursive: true });
+  writeFileSync(join(project, `${id}.jsonl`), '{}\n');
 }
 
 export function makeClock(start = '2026-10-31T15:41:00.000Z'): () => Date {
@@ -59,8 +66,8 @@ export function makeIo(overrides: Partial<Io> = {}): FakeIo {
       io.errors.push(text);
     },
     cwd: tempDirectory('cwd-'),
-    // Never the real home: every Rucher location derives from RUCHER_HOME.
-    env: { RUCHER_HOME: tempDirectory('home-') },
+    // Never the real home: every Rucher location derives from RUCHER_HOME, Claude Code's from CLAUDE_CONFIG_DIR.
+    env: { RUCHER_HOME: tempDirectory('home-'), CLAUDE_CONFIG_DIR: tempDirectory('claude-') },
     color: false,
     columns: 80,
     ...overrides,

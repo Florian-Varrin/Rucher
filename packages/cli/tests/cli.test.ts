@@ -5,13 +5,16 @@ import { expect, test } from 'vite-plus/test';
 import { tempDirectory } from './helpers.ts';
 
 const bin = join(import.meta.dirname, '..', 'dist', 'cli.mjs');
+// Each spawn of the binary costs a Node start, which CI runners make far slower than a laptop.
+const binaryTest = test.skipIf(!existsSync(bin));
+const slow = { timeout: 30_000 };
 
 // The test may itself run inside a rucher session, whose variables would pick its workspace.
 function withoutRucher(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(env).filter(([key]) => !key.startsWith('RUCHER_')));
 }
 
-test.skipIf(!existsSync(bin))('built binary runs help, ws create, hook and status', () => {
+binaryTest('built binary runs help, ws create, hook and status', slow, () => {
   const api = tempDirectory('repo-api-');
   mkdirSync(join(api, 'src'), { recursive: true });
   const env = {
@@ -41,21 +44,18 @@ test.skipIf(!existsSync(bin))('built binary runs help, ws create, hook and statu
   expect(run(['complete', '--', 'resume', '--ws=demo', ''])).toContain('s1');
 });
 
-test.skipIf(!existsSync(bin))(
-  'sessions list outside a workspace exits 0 with a stderr hint',
-  () => {
-    const result = spawnSync('node', [bin, 'sessions', 'list'], {
-      cwd: tempDirectory('outside-'),
-      env: { ...withoutRucher(process.env), RUCHER_HOME: tempDirectory('home-'), NO_COLOR: '1' },
-      encoding: 'utf8',
-    });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toBe('');
-    expect(result.stderr).toContain('no workspace here: pass --ws\n');
-  },
-);
+binaryTest('sessions list outside a workspace exits 0 with a stderr hint', slow, () => {
+  const result = spawnSync('node', [bin, 'sessions', 'list'], {
+    cwd: tempDirectory('outside-'),
+    env: { ...withoutRucher(process.env), RUCHER_HOME: tempDirectory('home-'), NO_COLOR: '1' },
+    encoding: 'utf8',
+  });
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe('');
+  expect(result.stderr).toContain('no workspace here: pass --ws\n');
+});
 
-test.skipIf(!existsSync(bin))('--ws before a subcommand reaches it', () => {
+binaryTest('--ws before a subcommand reaches it', slow, () => {
   const env = {
     ...withoutRucher(process.env),
     RUCHER_HOME: tempDirectory('home-'),
@@ -99,7 +99,7 @@ test.skipIf(!existsSync(bin))('--ws before a subcommand reaches it', () => {
   }
 });
 
-test.skipIf(!existsSync(bin))('the old group option and commands fail', () => {
+binaryTest('the old group option and commands fail', slow, () => {
   const env = { ...withoutRucher(process.env), RUCHER_HOME: tempDirectory('home-'), NO_COLOR: '1' };
   const run = (...args: string[]) =>
     spawnSync('node', [bin, ...args], { cwd: tempDirectory('outside-'), env, encoding: 'utf8' });
