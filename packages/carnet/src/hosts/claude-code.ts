@@ -2,28 +2,42 @@ import {
   closeSync,
   existsSync,
   fstatSync,
-  mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   readSync,
-  writeFileSync,
+  rmdirSync,
 } from 'node:fs';
+import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import type { Group } from '../group/locate.ts';
+import {
+  AGENTS_FILE,
+  type Workspace,
+  INSTRUCTIONS_FILE,
+  definitionInstructions,
+} from '../workspace/workspace.ts';
+import { PROMPT_FILE } from '../prompt/prompt.ts';
+import {
+  GENERATED_MARKER,
+  markdownCopy,
+  mergeSettings,
+  removeStaleCopies,
+  writeGenerated,
+} from '../run-directory-files.ts';
 import type {
-  ContextFile,
-  ContextFileResult,
   Host,
+  HostRender,
   HostPromptPayload,
+  HostSessionEndPayload,
+  HostToolPayload,
   HostSessionPayload,
   HostSubagentPayload,
+  LaunchOptions,
 } from './host.ts';
 
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024;
 const TITLE_PATTERN = /"type":"custom-title","customTitle":("(?:[^"\\]|\\.)*")/g;
-
-export const REPOS_START = '<!-- rucher:repos start -->';
-export const REPOS_END = '<!-- rucher:repos end -->';
+const FORK_NAME_PATTERN = /You are fork `([^`]+)`/;
 
 function payloadObject(json: string): Record<string, unknown> {
   const data = JSON.parse(json) as Record<string, unknown>;
@@ -36,6 +50,52 @@ function payloadObject(json: string): Record<string, unknown> {
 function text(data: Record<string, unknown>, key: string): string | undefined {
   const value = data[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+// Bash commands are not parsed: their cwd is the only reliable path.
+function touchedPath(
+  toolName: string | undefined,
+  input: unknown,
+  cwd: string | undefined,
+): string | undefined {
+  const fields =
+    typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {};
+  if (toolName === 'Read' || toolName === 'Edit' || toolName === 'Write') {
+    return text(fields, 'file_path');
+  }
+  if (toolName === 'Grep' || toolName === 'Glob') return text(fields, 'path') ?? cwd;
+  if (toolName === 'Bash') return cwd;
+  return undefined;
+}
+
+function ownTaskDescription(data: Record<string, unknown>, agentId: string): string | undefined {
+  const tasks = data.background_tasks;
+  if (!Array.isArray(tasks)) return undefined;
+  const own = tasks.find(
+    (task): task is Record<string, unknown> =>
+      typeof task === 'object' && task !== null && (task as Record<string, unknown>).id === agentId,
+  );
+  return own ? text(own, 'description') : undefined;
+}
+
+function subagentMetadataDescription(transcriptPath: string): string | undefined {
+  try {
+    const metadata = JSON.parse(
+      readFileSync(transcriptPath.replace(/\.jsonl$/, '.meta.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    return text(metadata, 'description');
+  } catch {
+    return undefined;
+  }
+}
+
+function subagentPromptName(transcriptPath: string): string | undefined {
+  try {
+    const firstLine = readFileSync(transcriptPath, 'utf8').split('\n', 1)[0] ?? '';
+    return FORK_NAME_PATTERN.exec(firstLine)?.[1];
+  } catch {
+    return undefined;
+  }
 }
 
 export function transcriptTitle(path: string): string | undefined {
@@ -56,87 +116,102 @@ export function transcriptTitle(path: string): string | undefined {
   }
 }
 
-export function reposBlock(group: Group): string {
-  const repos = group.repos.length
-    ? group.repos.map((repo) => `- \`${basename(repo)}\`: ${repo}`).join('\n')
-    : '- (none yet: `rucher group add <path>`)';
-  return `${REPOS_START}\n## Repos\n\n${repos}\n${REPOS_END}`;
+const SETTINGS_FILE = join('.claude', 'settings.json');
+const BACKEND_NOTES = 'backends/claude.md';
+
+// Instruction files are copied, not linked: an @ import inside a link resolves next to its target,
+// outside the run directory, where Claude Code skips it without approval.
+export function instructionFiles(workspace: Workspace): string[] {
+  if (!existsSync(workspace.definition)) return [];
+  return readdirSync(workspace.definition, { withFileTypes: true })
+    .filter((item) => item.isFile() && item.name.endsWith('.md') && item.name !== PROMPT_FILE)
+    .map((item) => item.name)
+    .sort();
 }
 
-export function replaceReposBlock(content: string, group: Group): string | null {
-  const start = content.indexOf(REPOS_START);
-  const end = content.indexOf(REPOS_END);
-  if (start === -1 || end === -1 || end < start) return null;
-  return content.slice(0, start) + reposBlock(group) + content.slice(end + REPOS_END.length);
+function repoAgentsImports(workspace: Workspace): string[] {
+  return workspace.repos
+    .filter(
+      (repo) =>
+        existsSync(join(repo.path, AGENTS_FILE)) &&
+        !existsSync(join(repo.path, INSTRUCTIONS_FILE)) &&
+        !existsSync(join(repo.path, '.claude', INSTRUCTIONS_FILE)),
+    )
+    .map((repo) => `@${join(repo.path, AGENTS_FILE)}`);
 }
 
-export function groupInstructions(group: Group): string {
-  return `# ${group.name}
-
-Meta directory of the ${group.name} group: context only, the repos live at their own paths below and are reachable through \`.claude/settings.json\`. Start Claude Code sessions here.
-
-${reposBlock(group)}
-
-## Multi-agent work
-
-Use the rucher tools (Carnet) for agent statuses and the journal, and the rucher skill for the workflow.
-
-## Shared instructions
-
-(what every session of this group should know)
-`;
+// Claude Code has no reliable native AGENTS.md loading, so a generated CLAUDE.md imports it.
+function runDirectoryCopies(workspace: Workspace): Map<string, string> {
+  const agents = definitionInstructions(workspace) === AGENTS_FILE;
+  const read = (name: string) => readFileSync(join(workspace.definition, name), 'utf8');
+  const copies = new Map(
+    instructionFiles(workspace).map((name) => [name, markdownCopy(read(name))]),
+  );
+  if (!agents) return copies;
+  const imports = [`@${AGENTS_FILE}`];
+  if (existsSync(join(workspace.definition, BACKEND_NOTES))) {
+    copies.set(BACKEND_NOTES, markdownCopy(read(BACKEND_NOTES)));
+    imports.push(`@${BACKEND_NOTES}`);
+  }
+  imports.push(...repoAgentsImports(workspace));
+  copies.set(INSTRUCTIONS_FILE, markdownCopy(`${imports.join('\n')}\n`));
+  return copies;
 }
 
-export function groupSettings(group: Group): string {
-  return `${JSON.stringify({ permissions: { additionalDirectories: group.repos } }, null, 2)}\n`;
+export function workspaceSettings(workspace: Workspace): Record<string, unknown> {
+  return mergeSettings(
+    {
+      '//': GENERATED_MARKER,
+      permissions: {
+        additionalDirectories: workspace.repos.map((repo) => repo.path),
+        // The copies are rewritten on every render: instructions are edited in the definition.
+        deny: [...runDirectoryCopies(workspace).keys()].sort().map((name) => `Edit(/${name})`),
+      },
+    },
+    workspace.backends['claude-code']?.settings ?? {},
+  );
 }
 
-interface Settings {
-  permissions?: { additionalDirectories?: string[] } & Record<string, unknown>;
-  [key: string]: unknown;
+function removeStaleBackendNotes(workspace: Workspace, keep: ReadonlySet<string>): string[] {
+  const directory = join(workspace.runDirectory, dirname(BACKEND_NOTES));
+  const removed = removeStaleCopies(
+    directory,
+    new Set(
+      [...keep]
+        .filter((name) => dirname(name) === dirname(BACKEND_NOTES))
+        .map((name) => basename(name)),
+    ),
+  );
+  if (existsSync(directory) && readdirSync(directory).length === 0) rmdirSync(directory);
+  return removed.map((name) => join(dirname(BACKEND_NOTES), name));
 }
 
-const instructionsFile: ContextFile = {
-  path: 'CLAUDE.md',
-  sync(group): ContextFileResult {
-    const path = join(group.root, 'CLAUDE.md');
-    if (!existsSync(path)) {
-      writeFileSync(path, groupInstructions(group));
-      return 'written';
-    }
-    const content = readFileSync(path, 'utf8');
-    const next = replaceReposBlock(content, group);
-    if (next === null) return 'no-markers';
-    if (next === content) return 'unchanged';
-    writeFileSync(path, next);
-    return 'updated';
-  },
-};
+function renderClaudeRunDirectory(workspace: Workspace): HostRender {
+  const rendered: HostRender = { written: [], removed: [] };
+  const copies = runDirectoryCopies(workspace);
+  for (const [name, content] of [...copies].sort(([a], [b]) => a.localeCompare(b))) {
+    if (writeGenerated(join(workspace.runDirectory, name), content)) rendered.written.push(name);
+  }
+  const names = new Set(copies.keys());
+  rendered.removed.push(...removeStaleCopies(workspace.runDirectory, names));
+  rendered.removed.push(...removeStaleBackendNotes(workspace, names));
+  const settings = `${JSON.stringify(workspaceSettings(workspace), null, 2)}\n`;
+  if (writeGenerated(join(workspace.runDirectory, SETTINGS_FILE), settings)) {
+    rendered.written.push(SETTINGS_FILE);
+  }
+  return rendered;
+}
 
-const settingsFile: ContextFile = {
-  path: '.claude/settings.json',
-  sync(group, mode): ContextFileResult {
-    const path = join(group.root, '.claude', 'settings.json');
-    if (!existsSync(path)) {
-      if (group.repos.length === 0) return 'unchanged';
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, groupSettings(group));
-      return 'written';
-    }
-    const settings = JSON.parse(readFileSync(path, 'utf8')) as Settings;
-    const current = settings.permissions?.additionalDirectories ?? [];
-    const next =
-      mode === 'exact'
-        ? group.repos
-        : [...current, ...group.repos.filter((repo) => !current.includes(repo))];
-    if (next.length === current.length && next.every((repo, index) => repo === current[index])) {
-      return 'unchanged';
-    }
-    settings.permissions = { ...settings.permissions, additionalDirectories: next };
-    writeFileSync(path, `${JSON.stringify(settings, null, 2)}\n`);
-    return 'updated';
-  },
-};
+function launchArguments(options: LaunchOptions = {}): string[] {
+  return [
+    ...(options.name ? ['--name', options.name] : []),
+    ...(options.appendPromptFile ? ['--append-system-prompt-file', options.appendPromptFile] : []),
+    ...(options.directories ?? []).flatMap((directory) => ['--add-dir', directory]),
+    ...(options.passthrough ?? []),
+  ];
+}
+
+const RENDERING_SOURCES = new Set(['startup', 'clear', 'compact', 'fork']);
 
 export const claudeCode: Host = {
   id: 'claude-code',
@@ -178,7 +253,45 @@ export const claudeCode: Host = {
       agent_id: agentId,
       agent_type: text(data, 'agent_type'),
       cwd: text(data, 'cwd'),
+      description: ownTaskDescription(data, agentId),
+      agent_transcript_path: text(data, 'agent_transcript_path'),
     };
+  },
+  parseSessionEndPayload(json): HostSessionEndPayload {
+    const data = payloadObject(json);
+    return {
+      session_id: data.session_id as string,
+      cwd: text(data, 'cwd'),
+      reason: text(data, 'reason'),
+    };
+  },
+  parseToolPayload(json): HostToolPayload {
+    const data = payloadObject(json);
+    const toolName = text(data, 'tool_name');
+    const cwd = text(data, 'cwd');
+    return {
+      session_id: data.session_id as string,
+      cwd,
+      tool_name: toolName,
+      agent_id: text(data, 'agent_id'),
+      path: touchedPath(toolName, data.tool_input, cwd),
+    };
+  },
+  subagentInheritsContext(payload) {
+    return payload.agent_type === 'fork';
+  },
+  // The system prompt is rendered again on these sources and kept as is on resume.
+  rendersSystemPrompt(source) {
+    return RENDERING_SOURCES.has(source);
+  },
+  subagentNames(payload) {
+    const transcript = payload.agent_transcript_path;
+    const candidates = [
+      payload.description,
+      transcript && subagentMetadataDescription(transcript),
+      transcript && subagentPromptName(transcript),
+    ];
+    return [...new Set(candidates.filter((name): name is string => Boolean(name)))];
   },
   // `/rename` fires no hook of its own; the next prompt carries the new title.
   promptTitle(payload) {
@@ -187,11 +300,32 @@ export const claudeCode: Host = {
       (payload.transcript_path ? transcriptTitle(payload.transcript_path) : undefined)
     );
   },
-  resumeCommand(session) {
-    return { command: 'claude', args: ['--resume', session.id] };
+  launchCommand(sessionId, options) {
+    return { command: 'claude', args: ['--session-id', sessionId, ...launchArguments(options)] };
+  },
+  resumeCommand(session, options) {
+    return {
+      command: 'claude',
+      args: ['--resume', session.id, ...launchArguments({ name: session.name, ...options })],
+    };
+  },
+  forkCommand(parent, options) {
+    return {
+      command: 'claude',
+      args: ['--resume', parent.id, '--fork-session', ...launchArguments(options)],
+    };
+  },
+  // Claude Code keeps each conversation under a project directory derived from its cwd.
+  transcriptFiles(session, env = process.env) {
+    if (!session.cwd) return [];
+    const root = env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude');
+    const project = join(root, 'projects', session.cwd.replace(/[^a-zA-Z0-9]/g, '-'));
+    return [join(project, `${session.id}.jsonl`), join(project, session.id)].filter((path) =>
+      existsSync(path),
+    );
   },
   renameInstruction(name) {
     return `Ask the human to run /rename ${name} in Claude Code so the titles match.`;
   },
-  contextFiles: [settingsFile, instructionsFile],
+  renderRunDirectory: renderClaudeRunDirectory,
 };

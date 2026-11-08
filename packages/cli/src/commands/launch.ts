@@ -1,0 +1,227 @@
+import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import {
+  appendPromptFile,
+  type Carnet,
+  CarnetError,
+  type Workspace,
+  hostById,
+  isWorkspaceName,
+  loadWorkspace,
+  renderRunDirectory,
+  repoNameFor,
+  type Session,
+  type SessionKind,
+} from '@rucher/carnet';
+import type { Io } from '../io.ts';
+import { CliError, findSession } from '../session.ts';
+
+export interface LaunchPlan {
+  command: string;
+  args: string[];
+  cwd: string;
+  env: Record<string, string>;
+  sessionId?: string;
+  parentId?: string;
+  knownChildren?: string[];
+}
+
+export interface SplitArguments {
+  own: string[];
+  passthrough: string[];
+}
+
+export function splitPassthrough(rawArgs: readonly string[]): SplitArguments {
+  const separator = rawArgs.indexOf('--');
+  if (separator === -1) return { own: [...rawArgs], passthrough: [] };
+  return { own: rawArgs.slice(0, separator), passthrough: rawArgs.slice(separator + 1) };
+}
+
+export function positionals(own: readonly string[]): string[] {
+  return own.filter((argument) => !argument.startsWith('-'));
+}
+
+function launchEnv(
+  workspace: Workspace | null,
+  session: Pick<Session, 'id' | 'name'>,
+  promptVersion: string,
+  kind?: SessionKind,
+) {
+  return {
+    RUCHER_SESSION_ID: session.id,
+    RUCHER_PROMPT_VERSION: promptVersion,
+    RUCHER_SESSION_NAME: session.name ?? '',
+    // Repos are added directories: without it Claude Code skips their CLAUDE.md.
+    CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
+    ...(workspace ? { RUCHER_WS: workspace.name } : {}),
+    ...(kind ? { RUCHER_SESSION_KIND: kind } : {}),
+  };
+}
+
+export interface NewSessionOptions {
+  kind: SessionKind;
+  name?: string | undefined;
+  passthrough?: readonly string[];
+}
+
+export function planNew(carnet: Carnet, io: Io, options: NewSessionOptions): LaunchPlan {
+  if (options.kind === 'active' && !options.name) {
+    throw new CliError('An active session needs a name', 'rucher new <name>');
+  }
+  const session = carnet.sessions.create({
+    id: randomUUID(),
+    kind: options.kind,
+    name: options.name,
+    cwd: carnet.workspace?.runDirectory ?? io.cwd,
+    repo: repoNameFor(carnet.workspace, io.cwd),
+  });
+  const host = hostById(session.host);
+  if (carnet.workspace) renderRunDirectory(carnet.workspace, { env: io.env, host: session.host });
+  const prompt = appendPromptFile(carnet.workspace, session, io.env);
+  const command = host.launchCommand(session.id, {
+    name: session.name,
+    appendPromptFile: prompt.path,
+    directories: repoDirectories(carnet.workspace),
+    passthrough: options.passthrough,
+  });
+  return {
+    ...command,
+    cwd: carnet.workspace?.runDirectory ?? io.cwd,
+    env: launchEnv(carnet.workspace, session, prompt.version),
+    sessionId: session.id,
+  };
+}
+
+// Settings directories apply only once the run directory is trusted, and never load the repos' CLAUDE.md.
+function repoDirectories(workspace: Workspace | null): string[] {
+  return (workspace?.repos ?? []).map((repo) => repo.path).filter((path) => existsSync(path));
+}
+
+function sessionWorkspace(
+  carnet: Carnet,
+  session: Session,
+  env: NodeJS.ProcessEnv,
+): Workspace | null {
+  if (!session.workspace || !isWorkspaceName(session.workspace)) return null;
+  return carnet.workspace?.name === session.workspace
+    ? carnet.workspace
+    : loadWorkspace(session.workspace, env);
+}
+
+// Rendering first recreates a missing run directory, the usual cwd of a workspace session.
+function prepareSession(
+  carnet: Carnet,
+  session: Session,
+  env: NodeJS.ProcessEnv,
+): Workspace | null {
+  const workspace = sessionWorkspace(carnet, session, env);
+  if (workspace) renderRunDirectory(workspace, { env, host: session.host });
+  return workspace;
+}
+
+// Hosts store conversations per project directory, so a session only reopens from its original cwd.
+function sessionDirectory(session: Session): string {
+  if (session.cwd && existsSync(session.cwd)) return session.cwd;
+  throw new CarnetError(
+    'SESSION_CWD_MISSING',
+    `The directory of session ${session.name ?? session.id.slice(0, 8)} no longer exists: ${session.cwd ?? 'none recorded'}`,
+  );
+}
+
+export function planResume(
+  carnet: Carnet,
+  io: Io,
+  reference: string,
+  passthrough: readonly string[] = [],
+): LaunchPlan {
+  const session = findSession(carnet, reference);
+  if (session.status === 'archived') io.stderr(`warning: session ${reference} is archived\n`);
+  const workspace = prepareSession(carnet, session, io.env);
+  const cwd = sessionDirectory(session);
+  const prompt = appendPromptFile(workspace, session, io.env);
+  const command = hostById(session.host).resumeCommand(session, {
+    appendPromptFile: prompt.path,
+    directories: repoDirectories(workspace),
+    passthrough,
+  });
+  return {
+    ...command,
+    cwd,
+    env: launchEnv(workspace, session, prompt.version),
+    sessionId: session.id,
+  };
+}
+
+export interface ForkOptions {
+  name?: string | undefined;
+  active?: boolean | undefined;
+  passthrough?: readonly string[];
+}
+
+export function planFork(
+  carnet: Carnet,
+  io: Io,
+  reference: string,
+  options: ForkOptions = {},
+): LaunchPlan {
+  if (options.active && !options.name) {
+    throw new CliError('An active fork needs a name', 'rucher fork <session> <name> --active');
+  }
+  if (options.name && carnet.sessions.byName(options.name)) {
+    throw new CliError(`A session named "${options.name}" already exists`);
+  }
+  const parent = findSession(carnet, reference);
+  const workspace = prepareSession(carnet, parent, io.env);
+  const cwd = sessionDirectory(parent);
+  const kind: SessionKind = options.active ? 'active' : 'temp';
+  const command = hostById(parent.host).forkCommand(parent, {
+    name: options.name,
+    appendPromptFile: appendPromptFile(workspace, parent, io.env).path,
+    directories: repoDirectories(workspace),
+    passthrough: options.passthrough,
+  });
+  return {
+    ...command,
+    cwd,
+    // A fork keeps its parent's system prompt snapshot, so the parent's rules are the ones in effect.
+    env: {
+      ...launchEnv(workspace, parent, parent.promptVersion ?? '', kind),
+      RUCHER_SESSION_NAME: options.name ?? '',
+    },
+    parentId: parent.id,
+    knownChildren: childrenOf(carnet, parent.id).map((session) => session.id),
+  };
+}
+
+function childrenOf(carnet: Carnet, parentId: string): Session[] {
+  return carnet.sessions
+    .list({ includeTemp: true, includeArchived: true })
+    .filter((session) => session.parentId === parentId);
+}
+
+// The host picks a fork's id, so the launcher finds it as the parent's new child.
+function forkChild(carnet: Carnet, plan: LaunchPlan): Session | undefined {
+  if (!plan.parentId) return undefined;
+  const known = new Set(plan.knownChildren);
+  return childrenOf(carnet, plan.parentId).find((session) => !known.has(session.id));
+}
+
+export function finishLaunch(carnet: Carnet, plan: LaunchPlan): void {
+  const id = plan.sessionId ?? forkChild(carnet, plan)?.id;
+  if (id && carnet.sessions.get(id)) carnet.sessions.end(id);
+}
+
+export function startLaunch(carnet: Carnet, plan: LaunchPlan): void {
+  if (plan.sessionId) carnet.sessions.setStatus(plan.sessionId, 'running');
+}
+
+export function spawnLaunch(plan: LaunchPlan, env: NodeJS.ProcessEnv): number {
+  const result = spawnSync(plan.command, plan.args, {
+    cwd: plan.cwd,
+    stdio: 'inherit',
+    env: { ...env, ...plan.env },
+  });
+  if (result.error) throw result.error;
+  return result.status ?? 1;
+}

@@ -75,6 +75,169 @@ ALTER TABLE agents RENAME COLUMN claude_agent_id TO host_agent_id;
 DROP INDEX sessions_claude_pid;
 CREATE INDEX sessions_host_pid ON sessions(host, host_pid, hooked_at);
 `,
+  `
+CREATE TABLE sessions_new (
+  id TEXT PRIMARY KEY,
+  name TEXT UNIQUE,
+  purpose TEXT,
+  kind TEXT NOT NULL DEFAULT 'temp' CHECK (kind IN ('active', 'temp')),
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('running', 'idle', 'archived')),
+  cwd TEXT,
+  repo TEXT,
+  host TEXT NOT NULL DEFAULT 'claude-code',
+  host_pid INTEGER,
+  hooked_at TEXT,
+  last_title TEXT,
+  parent_id TEXT REFERENCES sessions(id),
+  prompt_version TEXT,
+  created_at TEXT NOT NULL,
+  last_active_at TEXT NOT NULL,
+  ended_at TEXT,
+  CHECK (kind = 'temp' OR name IS NOT NULL)
+);
+INSERT INTO sessions_new (id, name, purpose, kind, status, cwd, repo, host, host_pid, hooked_at,
+  last_title, created_at, last_active_at)
+SELECT id, name, purpose,
+  CASE WHEN status = 'active' AND name IS NOT NULL THEN 'active'
+       WHEN status = 'dropped' AND name IS NOT NULL THEN 'active'
+       ELSE 'temp' END,
+  CASE WHEN status = 'dropped' THEN 'archived' ELSE 'idle' END,
+  cwd, repo, host, host_pid, hooked_at, name, created_at, last_active_at
+FROM sessions;
+DROP TABLE sessions;
+ALTER TABLE sessions_new RENAME TO sessions;
+CREATE INDEX sessions_host_pid ON sessions(host, host_pid, hooked_at);
+
+CREATE TABLE events_new (
+  id INTEGER PRIMARY KEY,
+  session TEXT NOT NULL REFERENCES sessions(id),
+  at TEXT NOT NULL,
+  type TEXT NOT NULL
+    CHECK (type IN ('started', 'finished', 'answered', 'applied', 'tested', 'committed', 'dropped',
+      'session.started', 'session.resumed', 'session.ended', 'session.forked')),
+  agent TEXT,
+  commit_sha TEXT,
+  link TEXT,
+  note TEXT
+);
+INSERT INTO events_new SELECT id, session, at, type, agent, commit_sha, link, note FROM events;
+DROP TABLE events;
+ALTER TABLE events_new RENAME TO events;
+CREATE INDEX events_session_at ON events(session, at);
+`,
+  `
+CREATE TABLE notes (
+  id INTEGER PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('learning', 'dead_end', 'decision')),
+  text TEXT NOT NULL,
+  session TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+  agent TEXT,
+  similar_notes TEXT,
+  created_at TEXT NOT NULL,
+  dropped_at TEXT,
+  dropped_reason TEXT,
+  dropped_session TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+  replaced_by INTEGER REFERENCES notes(id)
+);
+
+CREATE INDEX notes_active ON notes(dropped_at, kind);
+CREATE INDEX notes_session ON notes(session);
+
+CREATE TABLE note_repos (
+  note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  repo TEXT NOT NULL,
+  PRIMARY KEY (note, repo)
+);
+
+CREATE INDEX note_repos_repo ON note_repos(repo);
+
+CREATE TABLE note_citations (
+  id INTEGER PRIMARY KEY,
+  note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  session TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+  agent TEXT,
+  why TEXT NOT NULL,
+  at TEXT NOT NULL
+);
+
+CREATE INDEX note_citations_note_at ON note_citations(note, at);
+CREATE INDEX note_citations_session ON note_citations(session);
+
+CREATE TABLE active_days (
+  day TEXT PRIMARY KEY
+);
+
+CREATE TABLE session_repos (
+  session TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  repo TEXT NOT NULL,
+  injected_at TEXT NOT NULL,
+  PRIMARY KEY (session, repo)
+);
+`,
+  // Rows from before v9 get the placeholder group '' until the move to one database assigns them.
+  `
+CREATE TABLE sessions_new (
+  id TEXT PRIMARY KEY,
+  group_name TEXT,
+  name TEXT,
+  purpose TEXT,
+  kind TEXT NOT NULL DEFAULT 'temp' CHECK (kind IN ('active', 'temp')),
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('running', 'idle', 'archived')),
+  cwd TEXT,
+  repo TEXT,
+  host TEXT NOT NULL DEFAULT 'claude-code',
+  host_pid INTEGER,
+  hooked_at TEXT,
+  last_title TEXT,
+  parent_id TEXT REFERENCES sessions(id),
+  prompt_version TEXT,
+  created_at TEXT NOT NULL,
+  last_active_at TEXT NOT NULL,
+  ended_at TEXT,
+  CHECK (kind = 'temp' OR name IS NOT NULL)
+);
+INSERT INTO sessions_new (id, group_name, name, purpose, kind, status, cwd, repo, host, host_pid,
+  hooked_at, last_title, parent_id, prompt_version, created_at, last_active_at, ended_at)
+SELECT id, '', name, purpose, kind, status, cwd, repo, host, host_pid,
+  hooked_at, last_title, parent_id, prompt_version, created_at, last_active_at, ended_at
+FROM sessions;
+DROP TABLE sessions;
+ALTER TABLE sessions_new RENAME TO sessions;
+CREATE INDEX sessions_host_pid ON sessions(host, host_pid, hooked_at);
+CREATE INDEX sessions_group_status ON sessions(group_name, status, last_active_at);
+CREATE UNIQUE INDEX sessions_group_name ON sessions(group_name, name)
+  WHERE group_name IS NOT NULL AND name IS NOT NULL;
+CREATE UNIQUE INDEX sessions_free_name ON sessions(name)
+  WHERE group_name IS NULL AND name IS NOT NULL;
+
+ALTER TABLE notes ADD COLUMN group_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE notes ADD COLUMN number INTEGER NOT NULL DEFAULT 0;
+UPDATE notes SET number = id;
+DROP INDEX notes_active;
+CREATE INDEX notes_active ON notes(group_name, dropped_at, kind);
+CREATE UNIQUE INDEX notes_group_number ON notes(group_name, number);
+
+CREATE TABLE active_days_new (
+  group_name TEXT NOT NULL,
+  day TEXT NOT NULL,
+  PRIMARY KEY (group_name, day)
+);
+INSERT INTO active_days_new (group_name, day) SELECT '', day FROM active_days;
+DROP TABLE active_days;
+ALTER TABLE active_days_new RENAME TO active_days;
+`,
+  `
+ALTER TABLE sessions RENAME COLUMN group_name TO workspace;
+ALTER TABLE notes RENAME COLUMN group_name TO workspace;
+ALTER TABLE active_days RENAME COLUMN group_name TO workspace;
+DROP INDEX sessions_group_status;
+DROP INDEX sessions_group_name;
+DROP INDEX notes_group_number;
+CREATE INDEX sessions_workspace_status ON sessions(workspace, status, last_active_at);
+CREATE UNIQUE INDEX sessions_workspace_name ON sessions(workspace, name)
+  WHERE workspace IS NOT NULL AND name IS NOT NULL;
+CREATE UNIQUE INDEX notes_workspace_number ON notes(workspace, number);
+`,
 ];
 
 export function schemaVersion(db: DatabaseSync): number {
@@ -82,18 +245,33 @@ export function schemaVersion(db: DatabaseSync): number {
   return row.user_version;
 }
 
+function foreignKeyViolations(db: DatabaseSync): number {
+  return db.prepare('PRAGMA foreign_key_check').all().length;
+}
+
 export function migrate(db: DatabaseSync): void {
   const current = schemaVersion(db);
-  for (const [version, migration] of migrations.entries()) {
-    if (version < current) continue;
-    db.exec('BEGIN');
-    try {
-      db.exec(migration);
-      db.exec(`PRAGMA user_version = ${version + 1}`);
-      db.exec('COMMIT');
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
+  if (current >= migrations.length) return;
+  const foreignKeys = db.prepare('PRAGMA foreign_keys').get() as { foreign_keys: number };
+  // Table rebuilds need foreign keys off, and SQLite ignores that pragma inside a transaction.
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    for (const [version, migration] of migrations.entries()) {
+      if (version < current) continue;
+      db.exec('BEGIN');
+      try {
+        db.exec(migration);
+        if (foreignKeyViolations(db) > 0) {
+          throw new Error(`Migration ${version + 1} broke foreign keys`);
+        }
+        db.exec(`PRAGMA user_version = ${version + 1}`);
+        db.exec('COMMIT');
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
     }
+  } finally {
+    db.exec(`PRAGMA foreign_keys = ${foreignKeys.foreign_keys ? 'ON' : 'OFF'}`);
   }
 }

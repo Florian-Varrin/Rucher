@@ -18,10 +18,11 @@ Early (0.x), used daily by its author. Commands, APIs and the database schema ma
 | Component    | Role                                                                                            | State                                |
 | ------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------ |
 | Workflow     | Rules for multi-agent work: two-phase forks, parallel work, sequential review, reports in files | [docs/workflow.md](docs/workflow.md) |
-| Groups       | One meta directory per set of related repos: repo map, shared instructions, directory access    | done                                 |
+| Workspaces   | One workspace per set of related repos: repo map, shared instructions, directory access         | done                                 |
 | Carnet       | Shared state: agent statuses, "On the table", sessions, journal. Library + SQLite + MCP server  | [reference](docs/reference.md)       |
 | CLI `rucher` | Human entry point: `status`, `log`, `sessions`, `resume`                                        | [reference](docs/reference.md)       |
 | Sessions     | Named, resumable sessions; temporary ones purged                                                | [docs/sessions.md](docs/sessions.md) |
+| Memory       | Notes the workspace learned, decided or ruled out, shared by its sessions                       | [docs/memory.md](docs/memory.md)     |
 | Plugin       | Claude Code wiring: MCP server, hooks, `rucher` skill                                           | [plugin/README.md](plugin/README.md) |
 | Core + TUI   | SDK wrapper, agents, forks, permissions; one-window terminal UI                                 | later                                |
 
@@ -31,7 +32,7 @@ Early (0.x), used daily by its author. Commands, APIs and the database schema ma
 packages/carnet   library, SQLite schema, MCP server
 packages/cli      the rucher binary
 plugin/           Claude Code plugin: hooks, MCP wiring, skill
-docs/             manifesto, workflow, sessions, reference
+docs/             manifesto, workflow, sessions, memory, reference
 ```
 
 ## Requirements
@@ -46,31 +47,33 @@ npm install -g @rucher/cli
 claude plugin marketplace add Florian-Varrin/Rucher
 claude plugin install rucher@rucher
 
-mkdir -p ~/groups/shop && cd ~/groups/shop
-rucher init --name shop --repos ~/code/shop-api,~/code/shop-web
-rucher status --watch     # in a side pane
-claude                    # in another pane, from the same directory
+rucher ws create shop --repos ~/code/shop-api,~/code/shop-web
+rucher status --watch --ws shop   # in a side pane
+rucher new shop-auth --ws shop    # in another pane: starts Claude Code in the workspace's run directory
 ```
 
-A group is a meta directory for a set of related repos. It holds context only (`CLAUDE.md`, `.claude/settings.json`, the Carnet database); the repos stay where they are and are referenced by path. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.
+A workspace is a set of related repos, managed by `rucher`. Its definition, `~/.config/rucher/workspaces/<name>/` (`workspace.json`, `CLAUDE.md`), is what you edit and can keep in your dotfiles. Its run directory, `~/.local/share/rucher/workspaces/<name>/`, is the cwd of its sessions: copies of the instructions, a generated `.claude/settings.json` giving access to the repos, and the fork reports. All workspaces share one Carnet database, `~/.local/share/rucher/carnet.db`. The repos stay where they are and are referenced by path; nothing is written inside them. Keep the CLI and the plugin on the same version: after `npm install -g @rucher/cli@<version>`, run `claude plugin update rucher`.
 
 ## Commands
 
 ```bash
-rucher group add ~/code/shop-infra     # add a repo to the group
-rucher group remove ~/code/shop-infra  # drop a repo
-rucher group sync                      # rewrite the hosts' context files (CLAUDE.md, settings) from group.json
-rucher groups list                     # every registered group, missing ones flagged
-rucher groups prune                    # forget groups whose meta directory is gone
+rucher ws list                     # the workspaces, with repo and session counts
+rucher ws add ~/code/shop-infra     # add a repo to the workspace
+rucher ws remove ~/code/shop-infra  # drop a repo
+rucher ws edit                      # the workspace's instructions in $EDITOR, then sync
+rucher ws sync                      # render the run directory from the workspace's definition
+cd "$(rucher ws path --ws shop)"      # the run directory
+rucher ws drop store               # archive its sessions, keep its notes
 rucher status --watch                  # the status pane
 rucher log                             # the journal
 rucher log --md > journal.md           # the journal as markdown
 rucher sessions                        # named sessions
 rucher resume shop-auth                # back into a named session
 rucher sessions merge <from> <into>    # join a session split by a resume
+rucher sessions move <session> --to <workspace>  # move a session to its right workspace
 ```
 
-Start Claude sessions from the meta directory: its `CLAUDE.md` is the shared context and `additionalDirectories` gives access to the repos. Sessions started inside one of the repos attach to the same group.
+Run `rucher` from anywhere: `--ws <name>` picks the workspace, otherwise the run directory or the repo you are in does (longest path; a repo shared by several workspaces needs `--ws`). `rucher new` and `rucher tmp` start Claude Code in the run directory, so the workspace's instructions load and every repo is reachable; a session keeps its workspace and its launch directory, whatever it does with `cd`.
 
 Naming, watching, resuming and dropping sessions: [docs/sessions.md](docs/sessions.md).
 
@@ -86,7 +89,7 @@ source <(rucher complete bash)       # ~/.bashrc
 rucher complete fish | source        # ~/.config/fish/config.fish
 ```
 
-Commands and flags complete as you type; `--session`, `resume` and `sessions merge` offer session names, then short ids; `groups forget` offers group names, `group remove` the group's repos.
+Commands and flags complete as you type; `--session`, `resume` and `sessions merge` offer session names, then short ids; `--ws`, `sessions move --to` and `ws drop` offer workspace names, `ws remove` the workspace's repos.
 
 ## Development
 
@@ -101,7 +104,7 @@ pnpm run build       # the rucher binary in packages/cli/dist
 pnpm run ready       # build, check, test
 ```
 
-Inside the workspace, `@rucher/carnet` resolves to its sources through the `development` export condition, so type checks and tests need no prior build. Published packages use `dist`.
+Inside the pnpm workspace, `@rucher/carnet` resolves to its sources through the `development` export condition, so type checks and tests need no prior build. Published packages use `dist`.
 
 The toolchain is [Vite+](https://viteplus.dev). The `vite-plus` dev dependency is the source of truth; a global `vp` is optional.
 
@@ -118,6 +121,12 @@ Releases go through [Changesets](https://github.com/changesets/changesets) and G
 - Merging a pull request is a push to `master`: before merging one that changes code, make sure it carries a changeset (ask for one or add it to the branch).
 - `@rucher/carnet` and `@rucher/cli` are versioned independently; a carnet release also releases the cli. The Claude Code plugin has no code of its own and takes the cli version.
 - pnpm is pinned by `devEngines` in `package.json`; `PNPM_VERSION` in the workflows must match (checked by CI).
+
+Betas go through the `staging` branch (`.github/workflows/staging.yml`); every push to it runs the beta release:
+
+- Cut a beta: merge `develop` into `staging` and push. The run enters Changesets pre mode (`.changeset/pre.json`) on its first beta, bumps to `<version>-beta.<n>`, commits `CI : beta version bump [skip ci]` to `staging` only, tags `carnet-v<version>` / `cli-v<version>` like a stable release, and publishes to npm under the `beta` dist-tag; `latest` never moves. Each beta needs a new changeset, as on `master`.
+- Ship the betas: merge `staging` into `master`. The production run leaves pre mode, releases every package still on a beta version at its stable version, and removes `.changeset/pre.json`. Before the next beta cycle, merge `master` back into `staging` (and `develop`) so `staging` starts from the stable versions.
+- Try a beta: `npm install -g @rucher/cli@beta`, then switch the plugin to the `rucher-beta` entry of the marketplace, which follows the `staging` branch (see [plugin/README.md](plugin/README.md)). Back to stable: `npm install -g @rucher/cli@latest` and switch the plugin back.
 
 Repository settings the release needs:
 

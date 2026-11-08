@@ -33,8 +33,8 @@ export function resolveSession(carnet: Carnet, reference?: string): Session {
   const session = carnet.sessions.default();
   if (!session)
     throw new CliError(
-      'No session in this group yet',
-      'start a Claude Code session inside the group',
+      'No session in this workspace yet',
+      'start a Claude Code session inside the workspace',
     );
   return session;
 }

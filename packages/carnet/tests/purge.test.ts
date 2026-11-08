@@ -8,21 +8,15 @@ import {
   openDatabase,
   purgeDays,
 } from '../src/index.ts';
-import { tempDirectory } from './helpers.ts';
+import { tempDirectory, workspaceAt } from './helpers.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
 
 function clockedCarnet() {
   const root = tempDirectory();
-  const group = {
-    root,
-    name: 'shop',
-    repos: [join(root, 'api')],
-    hosts: ['claude-code'],
-    dbPath: MEMORY_DB,
-  };
+  const workspace = workspaceAt(root, 'shop', [join(root, 'api')]);
   let time = Date.parse('2026-10-20T09:00:00.000Z');
-  const carnet = new Carnet(group, openDatabase(MEMORY_DB), { now: () => new Date(time) });
+  const carnet = new Carnet(openDatabase(MEMORY_DB), workspace, { now: () => new Date(time) });
   return {
     carnet,
     root,
@@ -34,7 +28,7 @@ function clockedCarnet() {
 
 function ids(carnet: Carnet): string[] {
   return carnet.sessions
-    .list({ includeTemporary: true, includeDropped: true })
+    .list({ includeTemp: true, includeArchived: true })
     .map((session) => session.id)
     .sort();
 }

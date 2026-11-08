@@ -35,11 +35,11 @@ test('start, update, finish and drop follow the lifecycle and log events', () =>
 
   const moved = carnet.agents.update(SESSION, 'banner', {
     status: 'answer',
-    reportPath: '/groups/shop/.rucher/reports/banner.md',
+    reportPath: '/workspaces/shop/.rucher/reports/banner.md',
   });
-  expect(moved.reportPath).toBe('/groups/shop/.rucher/reports/banner.md');
+  expect(moved.reportPath).toBe('/workspaces/shop/.rucher/reports/banner.md');
   expect(carnet.agents.update(SESSION, 'banner', { status: 'answer' }).reportPath).toBe(
-    '/groups/shop/.rucher/reports/banner.md',
+    '/workspaces/shop/.rucher/reports/banner.md',
   );
 
   const dropped = carnet.agents.drop(SESSION, 'banner', 'superseded');
@@ -106,6 +106,16 @@ test('events.read returns the last N in chronological order', () => {
   for (let index = 0; index < 5; index++)
     carnet.events.log(SESSION, { type: 'committed', commit: `c${index}` });
   expect(carnet.events.read(SESSION, 2).map((event) => event.commit)).toEqual(['c3', 'c4']);
+});
+
+test('events.read orders by time, so events inserted late with earlier times come first', () => {
+  const { carnet } = withSession();
+  carnet.events.log(SESSION, { type: 'tested', note: 'late' });
+  carnet.db
+    .prepare("INSERT INTO events (session, at, type, note) VALUES (?, ?, 'tested', 'moved')")
+    .run(SESSION, '2026-10-30T09:00:00.000Z');
+  expect(carnet.events.read(SESSION).map((event) => event.note)).toEqual(['moved', 'late']);
+  expect(carnet.events.read(SESSION, 1).map((event) => event.note)).toEqual(['late']);
 });
 
 test('leaving running without a note clears the progress note', () => {

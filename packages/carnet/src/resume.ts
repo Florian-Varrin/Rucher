@@ -33,8 +33,8 @@ export function resumeContext(
   session: Session,
   { events = RESUME_EVENTS, maxCharacters = RESUME_MAX_CHARACTERS }: ResumeContextOptions = {},
 ): string {
-  const head = `Rucher session ${sessionLabel(session)}, state when resumed:\n\n${carnet.status.render(session)}`;
-  const lines = carnet.events.read(session.id, events).map(formatEventLine);
+  const head = `Rucher session ${sessionLabel(session)}, state when resumed:\n\n${carnet.status.render(session, { notes: 'summary' })}`;
+  const lines = carnet.events.read(session.id, events, true).map(formatEventLine);
   const build = () =>
     lines.length ? `${head}\n\nLast events\n${lines.map((line) => `  ${line}`).join('\n')}` : head;
   let text = build();

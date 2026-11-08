@@ -8,5 +8,6 @@ export function handleUserPromptSubmit(
   payload: HostPromptPayload,
 ): Session {
   carnet.sessions.ensure(payload.session_id, payload.cwd);
+  carnet.notes.recordActiveDay();
   return carnet.sessions.adoptTitle(payload.session_id, host.promptTitle(payload));
 }

@@ -1,17 +1,24 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from 'vite-plus/test';
-import { type CarnetError, DEFAULT_HOST, hostById, initGroup, loadGroup } from '../src/index.ts';
+import {
+  type CarnetError,
+  createWorkspace,
+  DEFAULT_HOST,
+  workspaceHosts,
+  hostById,
+  loadWorkspace,
+} from '../src/index.ts';
 import { tempDirectory } from './helpers.ts';
 
-test('a group records its hosts, claude-code when group.json has none', () => {
+test('a workspace renders for its backends, claude-code when workspace.json has none', () => {
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  const meta = tempDirectory('meta-');
-  expect(initGroup(meta, { env }).hosts).toEqual([DEFAULT_HOST]);
-  const file = join(meta, '.rucher', 'group.json');
-  expect(JSON.parse(readFileSync(file, 'utf8')).hosts).toEqual(['claude-code']);
-  writeFileSync(file, JSON.stringify({ name: 'shop', repos: [] }));
-  expect(loadGroup(meta).hosts).toEqual(['claude-code']);
+  const workspace = createWorkspace('shop', { env });
+  expect(workspaceHosts(workspace)).toEqual([DEFAULT_HOST]);
+  const file = join(workspace.definition, 'workspace.json');
+  writeFileSync(file, JSON.stringify({ name: 'shop', backends: { 'claude-code': {} } }));
+  expect(workspaceHosts(loadWorkspace('shop', env))).toEqual(['claude-code']);
+  expect(JSON.parse(readFileSync(file, 'utf8')).repos).toBeUndefined();
 });
 
 test('an unknown host is refused', () => {

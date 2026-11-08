@@ -19,14 +19,14 @@ test('hook upsert creates a temporary session and records repo and pid', () => {
   expect(session).toMatchObject({
     id: SESSION,
     name: null,
-    status: 'temporary',
+    kind: 'temp',
     repo: 'api',
     hostPid: 4242,
     host: 'claude-code',
   });
   expect(carnet.sessions.byHostProcess('claude-code', 4242)?.id).toBe(SESSION);
   expect(carnet.sessions.list()).toEqual([]);
-  expect(carnet.sessions.list({ includeTemporary: true })).toHaveLength(1);
+  expect(carnet.sessions.list({ includeTemp: true })).toHaveLength(1);
 });
 
 test('repeat hook updates activity and follows a changed title', () => {
@@ -39,7 +39,7 @@ test('repeat hook updates activity and follows a changed title', () => {
     session_title: 'banner',
   });
   expect(second.lastActiveAt > first.lastActiveAt).toBe(true);
-  expect(second).toMatchObject({ name: 'banner', status: 'active', repo: null });
+  expect(second).toMatchObject({ name: 'banner', kind: 'active', repo: null });
   const third = carnet.sessions.upsertFromHook({
     session_id: SESSION,
     cwd: root,
@@ -55,7 +55,7 @@ test('a titled first start is active immediately', () => {
     cwd: root,
     session_title: 'dto',
   });
-  expect(session).toMatchObject({ name: 'dto', status: 'active' });
+  expect(session).toMatchObject({ name: 'dto', kind: 'active' });
 });
 
 test('naming promotes a temporary session and rejects duplicates', () => {
@@ -66,7 +66,7 @@ test('naming promotes a temporary session and rejects duplicates', () => {
   expect(named).toMatchObject({
     name: 'small ui changes',
     purpose: 'durable thread',
-    status: 'active',
+    kind: 'active',
   });
   expect(carnet.sessions.byName('small ui changes')?.id).toBe(SESSION);
   try {
@@ -93,7 +93,7 @@ test('dropping a session closes its agents', () => {
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: root });
   carnet.agents.start(SESSION, { name: 'banner', task: 'do it' });
   carnet.sessions.drop(SESSION);
-  expect(carnet.sessions.get(SESSION)?.status).toBe('dropped');
+  expect(carnet.sessions.get(SESSION)?.status).toBe('archived');
   expect(carnet.agents.list(SESSION)).toEqual([]);
   expect(carnet.agents.list(SESSION, { includeClosed: true })[0]?.status).toBe('closed');
 });
@@ -101,7 +101,7 @@ test('dropping a session closes its agents', () => {
 test('ensure creates a temporary row when the hook was missed', () => {
   const { carnet, root } = makeCarnet();
   const session = carnet.sessions.ensure(SESSION, join(root, 'api'));
-  expect(session).toMatchObject({ status: 'temporary', repo: 'api' });
+  expect(session).toMatchObject({ kind: 'temp', repo: 'api' });
   expect(carnet.sessions.ensure(SESSION).createdAt).toBe(session.createdAt);
 });
 
@@ -169,7 +169,7 @@ test('a title taken by another session is not adopted', () => {
     cwd: root,
     session_title: 'shop-auth',
   });
-  expect(session).toMatchObject({ name: null, status: 'temporary' });
+  expect(session).toMatchObject({ name: null, kind: 'temp' });
   expect(carnet.sessions.byName('shop-auth')?.id).toBe('other');
 });
 
@@ -181,7 +181,7 @@ test('the prompt hook names the session from the payload title', () => {
   );
   expect(handleUserPromptSubmit(carnet, claudeCode, payload)).toMatchObject({
     name: 'shop-auth',
-    status: 'active',
+    kind: 'active',
   });
   const unchanged = handleUserPromptSubmit(carnet, claudeCode, payload);
   expect(unchanged.name).toBe('shop-auth');
@@ -200,11 +200,11 @@ test('without a payload title the prompt hook reads the last transcript title', 
     cwd: root,
     transcript_path: transcript,
   });
-  expect(session).toMatchObject({ name: 'shop-cart', status: 'active' });
+  expect(session).toMatchObject({ name: 'shop-cart', kind: 'active' });
 });
 
 test('the prompt hook leaves a session without any title untouched', () => {
   const { carnet, root } = makeCarnet();
   const session = handleUserPromptSubmit(carnet, claudeCode, { session_id: SESSION, cwd: root });
-  expect(session).toMatchObject({ name: null, status: 'temporary' });
+  expect(session).toMatchObject({ name: null, kind: 'temp' });
 });

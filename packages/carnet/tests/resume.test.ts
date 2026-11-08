@@ -1,5 +1,5 @@
 import { expect, test } from 'vite-plus/test';
-import { handleSessionStart, resumeContext } from '../src/index.ts';
+import { handleSessionStart, resumeContext, rulesVersion } from '../src/index.ts';
 import { SESSION, withSession } from './helpers.ts';
 
 test('resume context keeps the status and drops the oldest events to fit', () => {
@@ -20,12 +20,39 @@ test('resume context keeps the status and drops the oldest events to fit', () =>
   expect(resumeContext(carnet, session, { maxCharacters: 50 })).toHaveLength(50);
 });
 
-test('the session start hook adds context only on resume', () => {
+test('resume context lists the last events by time', () => {
+  const { carnet } = withSession();
+  carnet.events.log(SESSION, { type: 'tested', note: 'recent' });
+  carnet.db
+    .prepare("INSERT INTO events (session, at, type, note) VALUES (?, ?, 'tested', 'moved')")
+    .run(SESSION, '2026-10-30T09:00:00.000Z');
+  const context = resumeContext(carnet, carnet.sessions.require(SESSION));
+  expect(context.indexOf('moved')).toBeLessThan(context.indexOf('recent'));
+  expect(context.endsWith('recent')).toBe(true);
+});
+
+test('a session started by rucher gets context only on resume', () => {
   const { carnet, root } = withSession();
   const base = { session_id: SESSION, cwd: root };
-  expect(handleSessionStart(carnet, { ...base, source: 'startup' }, {}).additionalContext).toBe(
+  const env = {
+    RUCHER_SESSION_ID: SESSION,
+    RUCHER_PROMPT_VERSION: rulesVersion(carnet.requireWorkspace(), {}),
+  };
+  expect(handleSessionStart(carnet, { ...base, source: 'startup' }, env).additionalContext).toBe(
     undefined,
   );
-  const resumed = handleSessionStart(carnet, { ...base, source: 'resume' }, {});
+  const resumed = handleSessionStart(carnet, { ...base, source: 'resume' }, env);
   expect(resumed.additionalContext).toContain('state when resumed');
+});
+
+test('resume context shows the session notes as a summary line', () => {
+  const { carnet } = withSession();
+  carnet.notes.add({
+    kind: 'decision',
+    text: 'auth stays cookie based: partners need cookies',
+    session: SESSION,
+  });
+  const context = resumeContext(carnet, carnet.sessions.require(SESSION));
+  expect(context).toContain('Notes  1 added');
+  expect(context).not.toContain('+ #1');
 });

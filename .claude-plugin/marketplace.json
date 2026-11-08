@@ -12,6 +12,16 @@
       "source": "./plugin",
       "description": "Carnet MCP server and SessionStart hook: agent statuses, sessions and journal",
       "version": "0.1.0"
+    },
+    {
+      "name": "rucher-beta",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/Florian-Varrin/Rucher.git",
+        "path": "plugin",
+        "ref": "staging"
+      },
+      "description": "Beta of the rucher plugin, from the staging branch: pair it with @rucher/cli@beta and disable rucher first"
     }
   ]
 }

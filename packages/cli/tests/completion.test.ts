@@ -1,13 +1,16 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { initGroup, openCarnet } from '@rucher/carnet';
+import { createWorkspace, openCarnet } from '@rucher/carnet';
 import type { ArgsDef, CommandDef } from 'citty';
 import { expect, test } from 'vite-plus/test';
 import {
   type CompletionContext,
   completionConfig,
+  splitInlineValues,
   suggestDirectories,
-  suggestGroups,
+  suggestWorkspaces,
+  suggestNotes,
+  suggestRepoNames,
   suggestRepos,
   suggestSessions,
   uncompletedArguments,
@@ -21,11 +24,10 @@ function collect(suggest: (complete: (value: string, description: string) => voi
   return values;
 }
 
-function shopGroup() {
+function shopWorkspace() {
   const env = { RUCHER_HOME: tempDirectory('home-') };
-  const meta = tempDirectory('meta-');
   const api = tempDirectory('shop-api-');
-  initGroup(meta, { env, name: 'shop', repos: [api] });
+  const meta = createWorkspace('shop', { env, repos: [api] }).runDirectory;
   const carnet = openCarnet({ cwd: meta, env });
   carnet.sessions.upsertFromHook({ session_id: SESSION, cwd: meta, source: 'startup' });
   carnet.sessions.name(SESSION, 'shop-auth', 'Login flow');
@@ -40,7 +42,7 @@ const context = (cwd: string, env: NodeJS.ProcessEnv, typedWords: string[] = [''
   ({ cwd, env, typedWords }) satisfies CompletionContext;
 
 test('sessions: names first, then short ids, dropped and already typed ones left out', () => {
-  const { env, meta } = shopGroup();
+  const { env, meta } = shopWorkspace();
   expect(collect((complete) => suggestSessions(context(meta, env), complete))).toEqual([
     'shop-auth',
     'b7d2e9c4',
@@ -49,9 +51,9 @@ test('sessions: names first, then short ids, dropped and already typed ones left
   expect(collect((complete) => suggestSessions(merging, complete))).toEqual(['b7d2e9c4']);
 });
 
-test('groups, repos and directories', () => {
-  const { env, meta, api } = shopGroup();
-  expect(collect((complete) => suggestGroups(context(meta, env), complete))).toEqual(['shop']);
+test('workspaces, repos and directories', () => {
+  const { env, meta, api } = shopWorkspace();
+  expect(collect((complete) => suggestWorkspaces(context(meta, env), complete))).toEqual(['shop']);
   expect(collect((complete) => suggestRepos(context(meta, env), complete))).toEqual([api]);
   mkdirSync(join(meta, 'web', 'src'), { recursive: true });
   expect(collect((complete) => suggestDirectories(context(meta, env, ['w']), complete))).toEqual([
@@ -62,12 +64,79 @@ test('groups, repos and directories', () => {
   );
 });
 
-test('outside a group nothing is suggested and nothing throws', () => {
+test('outside a workspace nothing is suggested and nothing throws', () => {
   const env = { RUCHER_HOME: tempDirectory('home-') };
   const outside = tempDirectory('outside-');
   expect(collect((complete) => suggestSessions(context(outside, env), complete))).toEqual([]);
   expect(collect((complete) => suggestRepos(context(outside, env), complete))).toEqual([]);
-  expect(collect((complete) => suggestGroups(context(outside, env), complete))).toEqual([]);
+  expect(collect((complete) => suggestWorkspaces(context(outside, env), complete))).toEqual([]);
+});
+
+function twoWorkspaces() {
+  const { env, meta, api } = shopWorkspace();
+  const blogRepo = tempDirectory('blog-api-');
+  const blog = createWorkspace('blog', { env, repos: [blogRepo] }).runDirectory;
+  const carnet = openCarnet({ cwd: blog, env });
+  const id = 'd4e5f6a7-0000-4000-8000-000000000000';
+  carnet.sessions.upsertFromHook({ session_id: id, cwd: blog, source: 'startup' });
+  carnet.sessions.name(id, 'blog', 'Same name as its workspace');
+  carnet.notes.add({ kind: 'learning', text: 'Feeds are cached' });
+  carnet.close();
+  return { env, meta, api, blog, blogRepo };
+}
+
+test.each([
+  [['resume', '--ws', 'blog', ''], ['blog']],
+  [['resume', '--ws', 'blog', ''], ['blog']],
+  [['sessions', 'merge', 'blog', '--ws', 'blog', ''], []],
+])('--ws picks the workspace of the suggested sessions: %j', (typedWords, expected) => {
+  const { env } = twoWorkspaces();
+  const outside = tempDirectory('outside-');
+  expect(
+    collect((complete) => suggestSessions(context(outside, env, typedWords), complete)),
+  ).toEqual(expected);
+});
+
+test('--ws wins over the run directory, and over the workspace a cursor word hints at', () => {
+  const { env, meta, blogRepo } = twoWorkspaces();
+  const words = ['ws', 'remove', '--ws', 'blog', ''];
+  expect(collect((complete) => suggestRepos(context(meta, env, words), complete))).toEqual([
+    blogRepo,
+  ]);
+  const cursorOnWorkspace = ['resume', '--ws', 'blog'];
+  expect(
+    collect((complete) => suggestSessions(context(meta, env, cursorOnWorkspace), complete)),
+  ).toEqual(['shop-auth', 'b7d2e9c4']);
+});
+
+test('--ws also scopes notes and repo names, and stops at the passthrough', () => {
+  const { env, meta } = twoWorkspaces();
+  const outside = tempDirectory('outside-');
+  const words = ['notes', 'show', '--ws', 'blog', ''];
+  expect(collect((complete) => suggestNotes(context(outside, env, words), complete))).toEqual([
+    '1',
+  ]);
+  expect(collect((complete) => suggestRepoNames(context(outside, env, words), complete))).toEqual(
+    expect.arrayContaining([expect.stringMatching(/^blog-api-/)]),
+  );
+  const passthrough = ['resume', '--', '--ws', 'blog', ''];
+  expect(collect((complete) => suggestSessions(context(meta, env, passthrough), complete))).toEqual(
+    ['shop-auth', 'b7d2e9c4'],
+  );
+});
+
+test('an unknown --ws suggests nothing and throws nothing', () => {
+  const { env, meta } = twoWorkspaces();
+  const words = ['resume', '--ws', 'nope', ''];
+  expect(collect((complete) => suggestSessions(context(meta, env, words), complete))).toEqual([]);
+  expect(collect((complete) => suggestRepos(context(meta, env, words), complete))).toEqual([]);
+  expect(collect((complete) => suggestNotes(context(meta, env, words), complete))).toEqual([]);
+});
+
+test('inline values split, except the word under the cursor', () => {
+  expect(splitInlineValues(['resume', '--ws=shop', ''])).toEqual(['resume', '--ws', 'shop', '']);
+  expect(splitInlineValues(['resume', '--ws=shop', 'x'])).toEqual(['resume', '--ws', 'shop', 'x']);
+  expect(splitInlineValues(['resume', '--ws=sh'])).toEqual(['resume', '--ws=sh']);
 });
 
 type ConfigNode = {

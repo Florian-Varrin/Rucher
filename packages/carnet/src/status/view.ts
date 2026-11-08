@@ -1,5 +1,6 @@
 import { type Agent, listAgents } from '../agents.ts';
 import type { Ctx } from '../context.ts';
+import { type NoteActivity, sessionNoteActivity } from '../notes.ts';
 import type { Session } from '../sessions.ts';
 import { getTable, type TableItem } from '../table.ts';
 import { type AgentStatus, EMOJI, isUserActionStatus } from './model.ts';
@@ -17,6 +18,7 @@ export interface StatusView {
   table: TableItem | null;
   waiting: StatusLine[];
   running: StatusLine[];
+  notes: NoteActivity[];
 }
 
 const BUCKET: Partial<Record<AgentStatus, number>> = { answer: 0, review: 1 };
@@ -64,5 +66,6 @@ export function buildStatusView(ctx: Ctx, session: Session): StatusView {
     table: getTable(ctx, session.id) ?? null,
     waiting,
     running,
+    notes: sessionNoteActivity(ctx, session.id),
   };
 }

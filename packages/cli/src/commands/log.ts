@@ -1,4 +1,10 @@
-import { type Carnet, type CarnetEvent, formatClock, type Session } from '@rucher/carnet';
+import {
+  type Carnet,
+  type CarnetEvent,
+  formatClock,
+  workspaceLabel,
+  type Session,
+} from '@rucher/carnet';
 import { paint } from '../color.ts';
 import type { Io } from '../io.ts';
 import { resolveSession } from '../session.ts';
@@ -7,6 +13,7 @@ export interface LogOptions {
   session?: string | undefined;
   count: number;
   md?: boolean | undefined;
+  agents?: boolean | undefined;
 }
 
 export function formatEvents(events: CarnetEvent[], io: Io): string {
@@ -61,12 +68,12 @@ export function formatEventsMarkdown(events: CarnetEvent[], title: string): stri
 }
 
 function sessionTitle(carnet: Carnet, session: Session): string {
-  return `${carnet.group.name} · ${session.name ?? session.id.slice(0, 8)}`;
+  return `${workspaceLabel(carnet.workspace)} · ${session.name ?? session.id.slice(0, 8)}`;
 }
 
 export function logOnce(carnet: Carnet, io: Io, options: LogOptions): void {
   const session = resolveSession(carnet, options.session);
-  const events = carnet.events.read(session.id, options.count);
+  const events = carnet.events.read(session.id, options.count, options.agents);
   io.stdout(
     `${options.md ? formatEventsMarkdown(events, sessionTitle(carnet, session)) : formatEvents(events, io)}\n`,
   );
