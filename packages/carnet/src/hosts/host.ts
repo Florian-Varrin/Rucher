@@ -77,6 +77,7 @@ export interface Host {
   forkCommand(parent: Session, options?: LaunchOptions): ResumeCommand;
   renameInstruction(name: string): string;
   transcriptFiles(session: Session, env?: NodeJS.ProcessEnv): string[];
+  hasConversation(session: Session, env?: NodeJS.ProcessEnv): boolean;
   renderRunDirectory(workspace: Workspace): HostRender;
 }
 

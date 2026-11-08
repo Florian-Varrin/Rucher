@@ -107,7 +107,7 @@ rucher resume                 # pick from the workspace's sessions (fzf when ins
 rucher fork shop-auth shop-auth-alt   # branch it into a new temp session (--active to keep it)
 ```
 
-`rucher resume <name|id>` looks the session up and runs its host's resume command, `claude --resume <id> --name <name>` for Claude Code, from the directory the session started in (Claude Code stores conversations per project directory). It resumes by id, and passes the Rucher name as title so Claude Code shows the canonical name. An archived session can still be resumed, with a warning; resuming it brings it back into use.
+`rucher resume <name|id>` looks the session up and runs its host's resume command, `claude --resume <id> --name <name>` for Claude Code, from the directory the session started in (Claude Code stores conversations per project directory). It resumes by id, and passes the Rucher name as title so Claude Code shows the canonical name. An archived session can still be resumed, with a warning; resuming it brings it back into use. Claude Code writes no transcript before the first message, so a session closed before it has nothing to resume: `resume` starts it fresh under the same id and name, and `fork` refuses it.
 
 `rucher fork <session> [<name>] [--active]` resumes the session with `--fork-session`: Claude Code gives the branch a new id, and the `SessionStart` hook records it as a child of the original. The branch is `temp` unless `--active` is given, which needs a name.
 

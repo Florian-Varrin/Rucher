@@ -120,12 +120,16 @@ function prepareSession(
   return workspace;
 }
 
+function sessionLabel(session: Session): string {
+  return session.name ?? session.id.slice(0, 8);
+}
+
 // Hosts store conversations per project directory, so a session only reopens from its original cwd.
 function sessionDirectory(session: Session): string {
   if (session.cwd && existsSync(session.cwd)) return session.cwd;
   throw new CarnetError(
     'SESSION_CWD_MISSING',
-    `The directory of session ${session.name ?? session.id.slice(0, 8)} no longer exists: ${session.cwd ?? 'none recorded'}`,
+    `The directory of session ${sessionLabel(session)} no longer exists: ${session.cwd ?? 'none recorded'}`,
   );
 }
 
@@ -140,11 +144,17 @@ export function planResume(
   const workspace = prepareSession(carnet, session, io.env);
   const cwd = sessionDirectory(session);
   const prompt = appendPromptFile(workspace, session, io.env);
-  const command = hostById(session.host).resumeCommand(session, {
+  const host = hostById(session.host);
+  const options = {
     appendPromptFile: prompt.path,
     directories: repoDirectories(workspace),
     passthrough,
-  });
+  };
+  const fresh = !host.hasConversation(session, io.env);
+  if (fresh) io.stderr(`no conversation yet for ${sessionLabel(session)}: starting it\n`);
+  const command = fresh
+    ? host.launchCommand(session.id, { name: session.name, ...options })
+    : host.resumeCommand(session, options);
   return {
     ...command,
     cwd,
@@ -172,6 +182,13 @@ export function planFork(
     throw new CliError(`A session named "${options.name}" already exists`);
   }
   const parent = findSession(carnet, reference);
+  if (!hostById(parent.host).hasConversation(parent, io.env)) {
+    const label = sessionLabel(parent);
+    throw new CliError(
+      `Session ${label} has no conversation yet, nothing to fork`,
+      `rucher resume ${label}`,
+    );
+  }
   const workspace = prepareSession(carnet, parent, io.env);
   const cwd = sessionDirectory(parent);
   const kind: SessionKind = options.active ? 'active' : 'temp';
